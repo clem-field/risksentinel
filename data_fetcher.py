@@ -127,16 +127,16 @@ for item in os.listdir(srg_folder):
         os.removedirs(os.path.join(os.getcwd() , item))
 
 # Remove non-xml files from STIG directories
-for subdir, dirs, files in os.walk(srg_folder):
+for subdir, dirs, files in os.walk(stig_folder):
     for f in files:
         if not (f.endswith('xml')):
-            print(Fore.RED + f'deleting {f} from {srg_folder}')
+            print(Fore.RED + f'deleting {f} from {stig_folder}')
             file_path = os.path.join(subdir, f)
             os.remove(file_path)
 
 # Remove empty STIG directories
-for item in os.listdir(srg_folder):
+for item in os.listdir(stig_folder):
     if os.path.isdir(item):
-        print(Back.RED + f'Deleting: ', os.path.join(os.getcwd(), item))
+        print(Fore.RED + f'Deleting: ', os.path.join(os.getcwd(), item))
         os.removedirs(os.path.join(os.getcwd() , item))
 print(Style.RESET_ALL)
