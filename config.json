@@ -1,0 +1,9 @@
+{
+    "disa_url": "https://dl.dod.cyber.mil/wp-content/uploads/stigs/zip/U_SRG-STIG_Library_January_2025.zip",
+    "file_imports_dir": "file-imports",
+    "srg_dir": "srgs",
+    "stig_dir": "stigs",
+    "srg_zip_suffix": "SRG.zip",
+    "zip_suffix": "zip",
+    "xml_suffix": "xml"
+}
