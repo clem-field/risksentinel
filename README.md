@@ -21,8 +21,9 @@ This repository hosts python scripts that will allow a user to retrieve the uncl
    ```
 
 
-3. **Run the Script**:
-   - Use `data_fetcher.py` 
+2. **Run the Script**:
+   - Use `data_fetcher.py`
+    - example: `python3 data_fetcher.py` in terminal of your choice and from `mitre_work` folder
 
 ## Dependencies
 Specified in `requirements.txt`:
