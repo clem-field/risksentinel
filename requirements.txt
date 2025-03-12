@@ -1,0 +1,8 @@
+requests
+bs4
+urllib
+ZipFile
+os
+Path
+shutil
+colorama
