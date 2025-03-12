@@ -1,3 +1,0 @@
-CMD 4
-CMD 1
-CMD =X

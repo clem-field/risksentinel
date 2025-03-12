@@ -1,2 +1,0 @@
-  ISPSTART CMD(%CACC0003 TERMMSGS(ON))
-/* MBRMSG(ON)     /* For member error messages */
