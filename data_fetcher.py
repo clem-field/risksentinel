@@ -5,6 +5,7 @@ import urllib.request
 from zipfile import ZipFile as zf
 import zipfile
 import os
+from pathlib import Path
 import shutil
 
 ##################################################
@@ -59,7 +60,7 @@ if os.path.exists(disa_file):
 else:
     print('File does not exist')
 
-# Unzip SRGs and STIGs
+# Unzip SRGs
 for item in os.listdir(srg_folder):
     if not item.endswith('zip'):
         continue
@@ -70,6 +71,7 @@ for item in os.listdir(srg_folder):
         zip_ref.close()
         os.remove(file_name)
 
+# Unzip STIGs
 for item in os.listdir(stig_folder):
     if not item.endswith('zip'):
         continue
@@ -78,4 +80,20 @@ for item in os.listdir(stig_folder):
         zip_ref = zipfile.ZipFile(file_name)
         zip_ref.extractall(stig_folder)
         zip_ref.close()
-        os.remove(file_name) 
+        os.remove(file_name)
+
+# Sort actual SRG's 
+for subdir, dirs, files in os.walk(srg_folder):
+    for f in files:
+        if (f.endswith('xml')):
+            print(f'Moving {f} to {srg_folder}')
+            file_path = os.path.join(subdir, f)
+            shutil.move(file_path, srg_folder + f)
+
+# Sort actual STIGs 
+for subdir, dirs, files in os.walk(stig_folder):
+    for f in files:
+        if (f.endswith('xml')):
+            print(f'Moving {f} to {stig_folder}')
+            file_path = os.path.join(subdir, f)
+            shutil.move(file_path, stig_folder + f)
