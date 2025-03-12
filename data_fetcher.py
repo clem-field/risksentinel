@@ -8,6 +8,8 @@ import os
 from pathlib import Path
 import shutil
 from colorama import Fore, Back, Style
+from datetime import datetime
+import sys
 
 ##################################################
 ###             Get data from DISA             ###
@@ -22,11 +24,24 @@ stig_folder = os.getcwd() + '/stigs/'
 base_path = os.getcwd()
 
 # Set up link
-disa_url = 'https://dl.dod.cyber.mil/wp-content/uploads/stigs/zip/U_SRG-STIG_Library_January_2025.zip'
+month = datetime.now().strftime('%B')
+year = datetime.now().strftime('%Y')
+# disa_url = f'https://dl.dod.cyber.mil/wp-content/uploads/stigs/zip/U_SRG-STIG_Library_{month}_{year}.zip'
+# Demo URL
+disa_url ='https://dl.dod.cyber.mil/wp-content/uploads/stigs/zip/U_SRG-STIG_Library_January_2025.zip'
 
 # Retrieve File
-print(Back.YELLOW + f"Retrieving file from {disa_url}")
-get_disa_file = requests.get(disa_url)
+try:
+    print(Back.YELLOW + f"Looking for file at: {disa_url}")
+    get_disa_file = requests.get(disa_url)
+    print(Style.RESET_ALL)
+except:
+    print(Back.RED + f'No updated file found at {disa_url}')
+    print(Style.RESET_ALL)
+    exit()
+else:
+    print('Success')
+
 
 # Set file name
 disa_file = disa_url.split('/')[-1]
