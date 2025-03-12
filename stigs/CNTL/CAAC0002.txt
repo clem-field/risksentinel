@@ -1,0 +1,317 @@
+/* REXX */
+/* CLS2REXXed by UMLA01S on 22 Sep 2020 at 15:07:14  */
+/*Trace ?r*/
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+ 
+/*********************************************************************/
+/* 11/03/2005 CL Fenton Moved ALLOC for SYSPRINT to JCL.             */
+/* 11/03/2005 CL Fenton Removed information checks for SYSPRINT      */
+/*            ALLOC.                                                 */
+/* 04/25/2006 CL Fenton Added information on checking on use of      */
+/*            BACKUP or PRIMARY Security Database.                   */
+/* 06/06/2006 C Stern Updated ERROR ROUTINE.                         */
+/* 09/21/2006 CL Fenton Updated CLASMAP for MERGED CLASMAP to        */
+/*            determine, if resource is internal or external.        */
+/*            Changes made for all write statements.                 */
+/* 05/17/2010 CL Fenton Changes made in the collection of SHOW       */
+/*            CLASMAP output from V12 to V14 of ACF2.                */
+/* 04/02/2010 CL Fenton Changes SYSUT2 TRACKS to CYLINDERS.          */
+/* 09/22/2020 CL Fenton Converted script from CLIST to REXX.         */
+/* 07/28/2021 CL Fenton Chgs made to ERROR variables being marked    */
+/*            as N/A.                                                */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+CONSLIST = "OFF"                  /* DEFAULT IS OFF                  */
+COMLIST  = "OFF"                  /* DEFAULT IS OFF                  */
+SYMLIST  = "OFF"                  /* DEFAULT IS OFF                  */
+TERMMSGS = "OFF"                  /* DEFAULT IS OFF                  */
+sysflush = 'OFF'
+CAAC1000 = "CAAC1000"             /* Edit macro for CAAC1000         */
+CAAT0001 = "CAAT0001"             /* Edit macro for CAAT0001         */
+CAAM0004 = "CAAM0004"             /* Edit macro for CAAM0004         */
+CAAM0005 = "CAAM0005"             /* Edit macro for CAAM0005         */
+TRACE    = "OFF"                  /* TRACE ACTIONS AND ERRORS        */
+pgmname = "CAAC0002 07/28/21"
+sysprompt = "OFF"                 /* CONTROL NOPROMPT                */
+sysflush = "OFF"                  /* CONTROL NOFLUSH                 */
+sysasis = "ON"                    /* CONTROL ASIS - caps off         */
+Numeric digits 10                 /* default of 9 not enough         */
+maxcc = 0
+init_output_error  = "N/A"
+init_cntl_error    = "N/A"
+open_output_error  = "N/A"
+vput_1_error       = "N/A"
+vput_2_error       = "N/A"
+edit_cntl_error    = "N/A"
+am4vge             = "N/A"
+vget_error         = "N/A"
+close_output_error = "N/A"
+ 
+Arg OPTION
+do until OPTION = ""
+  parse var OPTION key"("val")" OPTION
+  val = strip(val,"b","'")
+  val = strip(val,"b",'"')
+  optcmd = key '= "'val'"'
+  interpret optcmd
+  end
+ 
+return_code = 0
+If trace = "ON" then do            /* TURN messages on          */
+  termmsgs = "ON"                  /* CONTROL MSG               */
+  comlist = "ON"                   /* CONTROL LIST              */
+  conslist = "ON"                  /* CONTROL CONLIST           */
+  symlist = "ON"                   /* CONTROL SYMLIST           */
+  end
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" | TRACE = "ON",
+  then Trace ?r
+ 
+syssymlist = symlist          /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist         /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist             /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs             /* CONTROL MSG/NOMSG         */
+Address ISPEXEC
+"CONTROL NONDISPL ENTER"
+"CONTROL ERRORS RETURN"
+zispfrc = 0
+"VPUT (ZISPFRC) SHARED"
+return_code = 0                 /* SET RETURN CODE TO 0 */
+old_resource = "               "
+uidstr = "UID("
+ 
+ 
+/*******************************************/
+/* INITIALIZE LIBRARY MANAGEMENT           */
+/*******************************************/
+LIBRARY_INITIALIZE:
+Address TSO "ALLOC FI(SYSUT1) NEW DELETE UNIT(SYSDA) SPACE(15 15)",
+  "TRACKS"
+Address TSO "ALLOC FI(SYSUT2) NEW DELETE UNIT(SYSDA) SPACE(15 15)",
+  "CYLINDERS"
+ 
+return_code = 0
+"LMINIT DATAID(OUTPUT) DDNAME(REPORT)"
+init_output_error = return_code
+If return_code <> 0 then do
+  SIGNAL ERR_EXIT     /* EXIT */
+  end
+ 
+return_code = 0
+"LMINIT DATAID(CNTL) DDNAME(CNTL)"
+init_cntl_error = return_code
+If return_code <> 0 then do
+  SIGNAL ERR_EXIT     /* EXIT */
+  end
+ 
+return_code = 0
+"LMOPEN DATAID("output") OPTION(OUTPUT)"
+open_output_error = return_code
+If return_code <> 0 then do
+  SIGNAL ERR_EXIT     /* EXIT */
+  end
+ 
+return_code = 0
+"VPUT (OUTPUT CONSLIST COMLIST SYMLIST TERMMSGS) ASIS"
+vput_1_error = return_code
+If return_code <> 0 then do
+  SIGNAL ERR_EXIT     /* EXIT */
+  end
+ 
+resource = ""
+type = "I"
+ 
+x = outtrap("out.")
+ 
+queue "SHOW CL"
+queue "QUIT"
+Address TSO "ACF"
+ 
+Do X = 1 to out.0
+  data = strip(out.x,"B")
+  If substr(data,1,12) = "-- MERGED CL" then,
+    merge = "Y"
+  If substr(data,1,12) = "-- EXTERNAL" then,
+    type = "E"
+  b = length(data)
+  If merge = "Y" & b >= 50 then,
+    If pos(" EXT",data) > 50 then,
+      type = "E"
+    Else,
+      type = "I"
+  If b > 33 then do
+    c = substr(data,30,6)
+    If pos("=",c) = 0 then,
+      c = strip(c,"B")
+    If datatype(c) = "NUM" then do
+      c = substr(data,12,15)type
+      If pos(" "c,resource) = 0 then do
+        xx = pos(substr(" "c,1,9),resource)
+        If xx = 0 then,
+          resource = resource" "c
+        Else,
+          If xx = 1 then,
+            resource = " "c""resource
+          Else,
+            resource = substr(resource,1,xx-1)" "c""substr(resource,xx)
+        end
+      end
+    end
+  end
+ 
+return_code = 0
+"VPUT (RESOURCE) ASIS"
+vput_2_error = return_code
+If return_code > 0 then do
+  SIGNAL ERR_EXIT     /* EXIT */
+  end
+ 
+return_code = 0
+"EDIT DATAID("cntl") MACRO("caam0004") MEMBER("caat0001")"
+edit_cntl_error = return_code
+If return_code > 4 then do
+  SIGNAL ERR_EXIT     /* EXIT */
+  end
+ 
+return_code = 0
+"VGET (AM4VGE RESOURCE) ASIS"
+vget_error = return_code
+If return_code > 0 then do
+  SIGNAL ERR_EXIT     /* EXIT */
+  end
+ 
+return_code = 0
+/*******************************************/
+/* ALLOCATE ALTERNATE ACF2 DATABASE FILES  */
+/*******************************************/
+"SELECT CMD("caac1000")"
+"VGET (PARMACF) ASIS"
+return_code = 0
+Do x = 1 to length(resource) by 13
+  parse var resource . =(x) c +13 .
+  c = strip(c,"L")
+  d = substr(c,9,3)
+  If old_resource = c then iterate x
+  return_code = 0
+  If old_resource <> " " &,
+    substr(old_resource,1,8) <> substr(c,1,8) then do
+    parse var old_resource a 9 b
+    a = strip(a,"T")
+    "LMMREP DATAID("output") MEMBER("a")"
+    If return_code > 8 then,
+      lmmrep_error = return_code
+    Else,
+      lmmrep_error = 0
+    If termmsgs = "ON" then,
+      Say pgmname "LMMREP_ERROR                     " lmmrep_error
+    end
+ 
+  return_code = 0
+  If d = "SAF" then,
+    "SELECT PGM(ACFRPTXR) PARM('"parmacf "TYPE("d") NAME(-)",
+      "NOLID RSRC NORRSUM')"
+  Else
+    "SELECT PGM(ACFRPTXR) PARM('"parmacf "TYPE("d") NAME(-) LID",
+      "RSRC NORRSUM')"
+  exec_acftrpxr_error = return_code
+ 
+  return_code = 0
+  "LMINIT DATAID(SYSPRINT) DDNAME(SYSPRINT)"
+  init_sysprint_error = return_code
+ 
+  return_code = 0
+  "EDIT DATAID("sysprint") MACRO("caam0005")"
+  If return_code > 4 then,
+    edit_sysprint_error = return_code
+  Else,
+    edit_sysprint_error = 0
+ 
+  return_code = 0
+  "LMFREE DATAID("sysprint")"
+  free_sysprint_error = return_code
+  "VGET (AM5VGE AM5LMP) ASIS"
+  If termmsgs = "ON" then do
+    Say "==============================================================="
+    Say pgmname "RESOURCE:" substr(c,1,8) "TYPE("substr(c,9,3)")"
+    Say pgmname "EXEC_ACFTRPXR_ERROR              " exec_acftrpxr_error
+    Say pgmname "INIT_SYSPRINT_ERROR              " init_sysprint_error
+    Say pgmname "EDIT_SYSPRINT_ERROR              " edit_sysprint_error
+    Say pgmname caam0005 "AM5VGE                  " am5vge
+    Say pgmname caam0005 "AM5LMP                  " am5lmp
+    Say pgmname "FREE_SYSPRINT_ERROR              " free_sysprint_error
+    end
+  old_resource = c
+  end
+ 
+"LMMREP DATAID("output") MEMBER("strip(left(old_resource,8),"T")")"
+If return_code > 8 then,
+  lmmrep_error = return_code
+Else,
+  lmmrep_error = return_code
+If termmsgs = "ON" then,
+  Say pgmname "LMMREP_ERROR                     " lmmrep_error
+ 
+/*******************************************/
+/* CLOSE OUTPUT                            */
+/*******************************************/
+return_code = 0
+"LMCLOSE DATAID("output")"
+close_output_error = return_code
+ 
+ 
+ERR_EXIT:
+If maxcc >= 16 | return_code > 0 then do
+  "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then,
+    zispfrc = maxcc
+  Else,
+    zispfrc = return_code
+  "VPUT (ZISPFRC) SHARED"
+  Say pgmname "ZISPFRC =" zispfrc
+  end
+ 
+If termmsgs = "ON" then do
+  Say "==============================================================="
+  Say pgmname "INIT_OUTPUT_ERROR                " init_output_error
+  Say pgmname "INIT_CNTL_ERROR                  " init_cntl_error
+  Say pgmname "OPEN_OUTPUT_ERROR                " open_output_error
+  Say pgmname "VPUT_1_ERROR                     " vput_1_error
+  Say pgmname "VPUT_2_ERROR                     " vput_2_error
+  Say pgmname "EDIT_CNTL_ERROR                  " edit_cntl_error
+  Say pgmname caam0004 "AM4VGE                  " am4vge
+  Say pgmname "VGET_ERROR                       " vget_error
+  Say pgmname "CLOSE_OUTPUT_ERROR               " close_output_error
+  Say "==============================================================="
+  end
+Exit 0
+ 
+ 
+/*******************************************/
+/*  SYSCALL SUBROUTINES                    */
+/*******************************************/
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC > 4 & RC <> 8 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname 'REXX error' rc 'in line' sigl':' ERRORTEXT(rc)
+  say SOURCELINE(sigl)
+  end
+if return_code > maxcc then,
+  maxcc = return_code
+return
+ 
+ 

@@ -1,0 +1,16 @@
+for file in /usr/dt/config/*/sys.resources; do
+  etc_file=`echo $file | sed -e s/usr/etc/`
+  echo "\nupdating config file "$etc_file"..."
+  if [[ ! -f $etc_file ]]; then
+    dir=`dirname $file | sed -e s/usr/etc/`
+    mkdir -p $dir
+    echo 'dtsession*saverTimeout: 15' >> $dir/sys.resources
+    echo 'dtsession*lockTimeout: 15' >> $dir/sys.resources
+  else
+    cp $etc_file $etc_file.bak
+    cat $etc_file | grep -v 'dtsession\*saverTimeout:' > $etc_file.sav
+    cat $etc_file.sav | grep -v 'dtsession\*lockTimeout:' > $etc_file
+    echo 'dtsession*saverTimeout: 15' >> $etc_file
+    echo 'dtsession*lockTimeout: 15' >> $etc_file
+  fi
+done

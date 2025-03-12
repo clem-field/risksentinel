@@ -1,0 +1,66 @@
+/* REXX */
+/* CLS2REXXed by FSOX001 on 23 Aug 2017 at 10:32:54  */
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+Address ISPEXEC
+ 
+/*********************************************************************/
+/* 10/11/2005 JL.NELSON CHANGED TO EDIT USER CNTL LIBRARY            */
+/* 11/08/2005 JL.NELSON Re-did data set checks with error panel.     */
+/* 03/08/2006 C. STERN  Minor text change.                           */
+/* 08/23/2017 CL.FENTON Converted script from CLIST to REXX.         */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname = "SRR$PROC 08/23/17"
+pgm8 = substr(pgmname,1,8)
+"VGET (CONSLIST COMLIST SYMLIST TERMMSGS) ASIS"
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" then,
+  Trace r
+"CONTROL ERRORS RETURN"
+syssymlist = symlist           /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist          /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist              /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs              /* CONTROL MSG/NOMSG         */
+sysasis = "ON"                 /* CONTROL ASIS - caps off   */
+procmbr = "EXAMRPTS"           /* BATCH PROC NAME           */
+jobinst = "CACJ0521"           /* BATCH Install job         */
+return_code = 0
+"VGET (SRRUSER) ASIS"
+dsnmbr = srruser".CNTL("procmbr")"
+return_code = 0
+locate = sysdsn("'"dsnmbr"'")
+If locate <> "OK" then do
+  srrerr = "Member" procmbr" is missing, batch job" jobinst,
+    "must first be run to create the member."
+  srrerc = return_code
+  zerrlm = dsnmbr
+  srrmsg1 = locate
+  srrmsg2 = " "
+  "DISPLAY PANEL(SRRPERR)"
+  SIGNAL  EXIT
+  end
+return_code = 0
+"EDIT DATASET('"dsnmbr"')"
+ 
+ 
+EXIT:
+Exit
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+Exit
+ 
+ 
+Error:
+return_code = RC
+return
+ 
+ 

@@ -1,0 +1,869 @@
+/* REXX */
+/*                                       */
+/* AUTHOR: Charles Fenton                */
+/*                                       */
+/*********************************************************************/
+/* This Edit macro collect data set from several areas to include    */
+/* system control blocks, MVS and JES commands, and contents of      */
+/* other data sets and enters them in the editted data set.          */
+/*********************************************************************/
+/* Change summary:                                                   */
+/* 06/04/2005 CL Fenton processed variables passed from CACC1000.    */
+/* 05/30/2006 CL Fenton Changed SMS to collect data sets from a dump */
+/*            report of data sets available from control blocks.     */
+/*            Added USS collections process to collect data set      */
+/*            names found in the stepliblist file. Issued UNIX       */
+/*            command to obtain HFS data sets.                       */
+/* 07/20/2006 CL Fenton created subroutine to obtain the real data   */
+/*            set name for alias's. Added instructions in the        */
+/*            process for the DUMP data sets to collect the dynamic  */
+/*            dump data set example and mask, this requires issuing  */
+/*            the MVS D DUMP command.                                */
+/* 27/12/2006 CL Fenton changed process for handling console         */
+/*            commands. Issue JES display to obtain STC and TSU      */
+/*            JOBCLASSes. Added variable DDDSNS for STC and TSU      */
+/*            proclibs.                                              */
+/* 10/01/2007 CL Fenton Added PDI testing for AAMV0410 and ZSMS0022. */
+/* 17/01/2007 C Stern changed file OUTPUT to allocate (100 20) and   */
+/*            added sysda to command line. Response to B37 abend.    */
+/* 30/09/2007 CL Fenton change made to obtain actual DSNs and drop   */
+/*            alias data sets. Removed test for finding DSNs.  Chgd  */
+/*            allocates to use temp DSNs.                            */
+/* 30/09/2007 CL Fenton change made to ensure that DSN passed to     */
+/*            Alias test is a proper dataset name.                   */
+/* 07/07/2008 CL Fenton change made to ALIAS_TEST to test aliases    */
+/*            for actual or catalog entries. This resolves ticket    */
+/*            CSD-AR000781726.                                       */
+/* 02/06/2009 CL Fenton Changes on how TBLMBR is processed.          */
+/* 17/07/2009 CL Fenton Added TCP to collect TCPRPT dsns. Drop dsns  */
+/*            that contain '&' in name.                              */
+/* 16/02/2010 CL Fenton Added analysis for PDI TSS1000, ownership of */
+/*            masking characters.                                    */
+/* 18/06/2010 CL Fenton Added analysis for PDI TSS0410, review       */
+/*            PARMFILE data set(s) for INSTDATA(x) entry.            */
+/* 19/07/2010 CL Fenton Chgd analysis for PDI TSS1000, to evaluate   */
+/*            only masking char with out additional chars.           */
+/* 02/02/2017 CL Fenton Chgs in offset to obtain TSS datasets from   */
+/*            control blocks, STS-016393.                            */
+/* 24/10/2018 CL Fenton Chgd collection of SMPE datasets to include  */
+/*            all **.CSI and **.SMP* (not SMPE product) datasets,    */
+/*            STS-020694.                                            */
+/* 17/01/2023 CL Fenton Chgd collection of SMPE datasets to exclude  */
+/*            all **.SMP*, .DATA, and .INDEX datasets, STS-029392.   */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+PGMNAME = 'CACC1001 01/17/23'
+Numeric digits 20                           /* dflt of 9 not enough  */
+                                            /* 20 can handle 64-bit  */
+Address ISREDIT "MACRO"
+Address ISPEXEC
+"CONTROL NONDISPL ENTER"
+"CONTROL ERRORS RETURN"
+'VGET (CONSLIST COMLIST SYMLIST TERMPRO TERMMSGS TRACE TBLMBR)'
+TBLMBR  = TBLMBR||"#"
+If CONSLIST = ON | COMLIST = ON | SYMLIST = ON | TRACE = ON ,
+  then Trace r
+Call COMMON            /* control blocks needed by multiple routines */
+Call IPA                                  /* Initialization info.  */
+Call DUMP                                 /* Dump DSN information  */
+Call SMF                                  /* SMF inforamtion       */
+Call IPL                                  /* IPL information       */
+Call PAGE                                 /* Page DSN information  */
+Call VERSION                              /* Version information   */
+Call SMS                                  /* SMS information       */
+Call USS                                  /* Unix information      */
+Call SMPE                                 /* SMPE information      */
+/*Call TCP */                                 /* TCPIP information     */
+Address ISREDIT
+"RESET"
+"SORT"
+"CURSOR = 1 0"
+"END"
+/*********************************************************************/
+/* Done looking at all control blocks                                */
+/*********************************************************************/
+Exit 0                                       /* End CACC1001 - RC 0  */
+/*********************************************************************/
+/*  End of main CACC1001 code                                        */
+/*********************************************************************/
+/*  Start of sub-routines                                            */
+/*********************************************************************/
+COMMON:              /* Control blocks needed by multiple routines   */
+CVT      = C2d(Storage(10,4))                /* point to CVT         */
+PRODNAME = Storage(D2x(CVT - 40),7)          /* point to mvs version */
+If Substr(PRODNAME,3,1) > 3 then
+  ECVT     = C2d(Storage(D2x(CVT + 140),4))  /* point to CVTECVT     */
+FMIDNUM  = Storage(D2x(CVT - 32),7)          /* point to fmid        */
+If Substr(FMIDNUM,4,4) >= 6602 then do
+  ECVTIPA  = C2d(Storage(D2x(ECVT + 392),4)) /* point to IPA         */
+  IPASCAT  = Storage(D2x(ECVTIPA + 224),63)  /* SYSCAT  card image   */
+End
+CVTRAC   = C2d(Storage(D2x(CVT + 992),4))    /* point to RACF CVT    */
+Return
+ 
+IPA:                 /* IPA information sub-routine                  */
+/*********************************************************************/
+/* Obtain parmlib and proclib data sets                              */
+/*********************************************************************/
+'SELECT CMD(CACC1000 ALL)'
+'VGET (ACPNAME PARM PROC ACPDSNS DDDSNS)'
+ADDRESS ISREDIT
+MBRRPT = PARMRPT
+call FIND_ITER
+do x = 1 to words(PARM)
+  DSN = word(PARM,x)
+  call ALIAS_TEST DSN
+  end
+ 
+msgst = msg('OFF')
+x = OUTTRAP("out.")
+test = cacc1010('$D JOBCLASS(TSU,STC),PROCLIB')
+x = OUTTRAP(off)
+lnx = 0
+say PGMNAME "output from CACC1010 routine:"
+procnrs =
+do a = 1 to out.0
+  say out.a
+  parse var out.a . 'JOBCLASS(' jc ')' 'PROCLIB=' pn
+  if index(procnrs' ',pn' ') = 0 then
+    procnrs = strip(procnrs) pn
+  end
+if procnrs = '' then procnrs = '00'
+ 
+MBRRPT = PROCRPT
+call FIND_ITER
+do x = 1 to words(DDDSNS)
+  DSN = word(DDDSNS,x)
+  if pos('//',DSN) > 0 then do
+    ddname = DSN
+    iterate
+    end
+  if ddname = "//IEFPDSI" | ,
+    ddname = "//IEFJOBS"  |,
+    (left(ddname,6) = "//PROC" & ,
+    pos(right(ddname,2),procnrs) > 0) then do
+    call ALIAS_TEST DSN ddname
+    end
+  end
+return
+ 
+DUMP:
+/*********************************************************************/
+/* Obtain dump data sets                                             */
+/*********************************************************************/
+ADDRESS ISREDIT
+MBRRPT = DUMPRPT
+call FIND_ITER
+CVTRTMCT = C2d(Storage(D2x(CVT + 572),4))      /* point to RTMCT     */
+RTCTSDDS = C2d(Storage(D2x(CVTRTMCT + 36),4))  /* Pnt to DMP Ref Tbl */
+Do while RTCTSDDS <> 0
+  SDDSQFWR = C2d(Storage(D2x(RTCTSDDS + 4),4))  /* Pnt to DMP next */
+  DMPDSN2  = Storage(D2x(RTCTSDDS + 12),2)
+  DSN      = 'SYS1.DUMP'DMPDSN2
+  call ALIAS_TEST DSN
+  RTCTSDDS = SDDSQFWR                            /* Pnt to DMP Ref Tbl */
+End
+/* Obtain Dynamic DUMP data set name */
+msgst = msg('OFF')
+x = outtrap("out.")
+test = cacc1010('D DUMP')
+x = outtrap(off)
+lnx = 0
+say PGMNAME "output from CACC1010 routine:"
+do a = 1 to out.0
+  say out.a
+  end
+do indx = 1 TO out.0
+  line = out.indx
+  if pos('IEE345I',out.indx) > 0 then do
+    say PGMNAME 'User' userid() 'does not have READ access',
+      'to MVS.DISPLAY.DUMP resource in the OPERCMDS resource class.'
+    end /* if pos('IEE345I' */
+  if pos('NAME=',out.indx) > 0 |,
+     pos('EXAMPLE=',out.indx) > 0 then do
+    lnx = lnx + 1
+    line.lnx = out.indx
+    line.0 = lnx
+    end /* if pos('NAME=' */
+  end /* DO indx = 1 */
+line.0 = lnx
+ADDRESS ISREDIT
+do a = 1 to line.0
+  if line.a = '' then iterate
+  do x = 1 to words(line.a)
+    line = word(line.a,x)
+    parse var line . '=' DSN
+    do forever
+      if pos("&",DSN) = 0 then leave
+      parse value DSN with left "&" symbol "." right
+      parse value symbol with symbol1 "&" right1
+      if right1 <> "" then do
+        if pos(" &",symbol) > 0 then right1 = " &"right1
+        else if pos("&",symbol) > 0 then right1 = "&"right1
+        symbol = symbol1
+        if right = "" then right = right1
+        else right = right1"."right
+        end /* if right1 <> "" */
+      syssym = mvsvar('symdef',symbol)
+      if syssym <> '' then DSN = left""syssym""right
+      else DSN = left""right
+      end /* do forever */
+    call ALIAS_TEST DSN
+    end /* do x = 1 */
+  end /* do a = 1 */
+ 
+Return
+ 
+SMF:
+/*********************************************************************/
+/* SMF Data Sets information sub-routine                             */
+/*********************************************************************/
+ADDRESS ISREDIT
+MBRRPT = SMFXRPT
+call FIND_ITER
+CVTSMCA  = C2d(Storage(D2x(CVT + 196),4))  /* point to SMCA          */
+SMCAFRDS = C2d(Storage(D2x(CVTSMCA + 244),4))  /* Pnt to SMF 1ST Tbl */
+SMCALRDS = C2d(Storage(D2x(CVTSMCA + 248),4))  /* Pnt to SMF LST Tbl */
+Do Until SMCAFRDS = SMCALRDS
+  DSN      = Storage(D2x(SMCAFRDS + 16),44)
+  call ALIAS_TEST DSN
+  SMCAFRDS = C2d(Storage(D2x(SMCAFRDS + 4),4))  /* Pnt to SMF next */
+End
+Return
+ 
+IPL:
+/*********************************************************************/
+/* Obtain Master Catalog data set                                    */
+/*********************************************************************/
+ADDRESS ISREDIT
+MBRRPT = CATMRPT
+call FIND_ITER
+If Substr(FMIDNUM,4,4) <  6604 then do       /* use CAXWA B4 OS390R4 */
+  AMCBS    = C2d(Storage(D2x(CVT + 256),4))  /* point to AMCBS       */
+  ACB      = C2d(Storage(D2x(AMCBS + 8),4))  /* point to ACB         */
+  CAXWA    = C2d(Storage(D2x(ACB + 64),4))   /* point to CAXWA       */
+  MCATDSN  = Storage(D2x(CAXWA + 52),44)     /* master catalog dsn   */
+  MCATDSN  = Strip(MCATDSN,T)                /* remove trailing blnks*/
+End
+Else do                                      /* OS/390 R4 and above  */
+  MCATDSN  = Strip(Substr(IPASCAT,11,44))    /* master catalog dsn   */
+End
+call ALIAS_TEST MCATDSN
+ 
+/*********************************************************************/
+/* Obtain User Catalog data sets                                     */
+/*********************************************************************/
+MBRRPT = CATURPT
+call FIND_ITER
+AMCBS    = C2d(Storage(D2x(CVT + 256),4))    /* point to AMCBS       */
+CAX      = C2d(Storage(D2x(AMCBS+ 20),4))    /* point to CAX         */
+Do Until CAX = 0
+  CAXCNAM  = Storage(D2x(CAX + 52),44)       /* user catalog dsn     */
+  CAX      = C2d(Storage(D2x(CAX+ 4),4))     /* point to next CAX    */
+  call ALIAS_TEST CAXCNAM
+End
+Return
+ 
+PAGE:
+/*********************************************************************/
+/* Obtain Page data sets sub-function                                */
+/*********************************************************************/
+ASMVT    = C2d(Storage(D2x(CVT + 704),4))  /* point to ASMVT         */
+ASMPART  = C2d(Storage(D2x(ASMVT + 8),4))  /* Pnt to Pag Act Ref Tbl */
+PARTSIZE = C2d(Storage(D2x(ASMPART+4),4))  /* Tot number of entries  */
+PARTDSNL = C2d(Storage(D2x(ASMPART+24),4)) /* Point to 1st pg dsn    */
+ADDRESS ISREDIT
+MBRRPT = PGXXRPT
+call FIND_ITER
+Do I = 1 to PARTSIZE
+  If I > 1 then do
+    PARTDSNL = PARTDSNL + 44
+  End
+  PGDSN    = Storage(D2x(PARTDSNL),44)     /* page data set name     */
+  PGDSN    = Strip(PGDSN,T)                /* remove trailing blanks */
+  if PGDSN<>" " then do
+    call ALIAS_TEST PGDSN
+  End
+End  /* do I=1 to partsize */
+Return
+ 
+VERSION:             /* Version information sub-routine              */
+/*********************************************************************/
+/* Version information sub-routine obtain UADS and ACP datasets      */
+/*********************************************************************/
+ADDRESS ISREDIT
+MBRRPT = UADSRPT
+call FIND_ITER
+If ACPNAME <> 'ACF2' then do
+  RCVTUADS = Storage(D2x(CVTRAC + 100),44)   /* point to UADS        */
+  call ALIAS_TEST RCVTUADS
+  end
+else do
+  call ALIAS_TEST 'SYS1.UADS'
+  end
+/*********************************************************************/
+/* Obtain GLOBRPT for TSS (Global dsn access entries)                */
+/*********************************************************************/
+If ACPNAME = 'TSS' then do
+  x = OUTTRAP("LINE.")
+  do i = 1 to 3
+    acid.i = ""
+    end
+  char.1 = "*"
+  char.2 = "+"
+  char.3 = "%"
+  address TSO "TSS WHOO DSN(*)"
+  x = OUTTRAP(off)
+  do i = 1 to LINE.0
+    DSN = word(LINE.i,4)
+    if word(LINE.i,3) = 'DATASET' then do
+      testdsn = strip(translate(DSN,"    ","*%+."))
+      if testdsn <> "" then iterate
+      if left(DSN,1) = '*' then do
+        acid.1 = word(LINE.i,1)
+        LINE = 'ZZ '||left(DSN,47)PGMNAME
+        "FIND ALL '"DSN" ' 4"
+        If RC > 0 then ,
+          "LINE_AFTER .ZLAST = DATALINE (LINE)"
+        end /* if left(.... */
+      if left(DSN,1) = '+' then do
+        acid.2 = word(LINE.i,1)
+        end /* if left(.... */
+      if left(DSN,1) = '%' then do
+        acid.3 = word(LINE.i,1)
+        end /* if left(.... */
+      end /* if word(.... */
+    end    /* end do LINE */
+  do i = 1 to 3
+    if acid.i = "" then queue "     '"char.i"' is not owned."
+    else do
+      x = OUTTRAP("LINE.")
+      address TSO "TSS LIST("acid.i")"
+      x = outtrap(off)
+      do a = 1 to LINE.0
+        if word(line.a,1) = "TYPE" then do
+          if word(line.a,3) <> "MASTER" then ,
+            queue "     '"char.i"' is owned by" acid.i"."
+          leave
+          end /* if word(line.a,3) */
+        end /* do a = 1 */
+      end /* else do */
+    end    /* do i = 1 */
+  if queued() <> 0 then do
+    push " "
+    push "Dataset masking characters are not properly defined to the",
+      "security database."
+    end
+  call Gen_PDI "TSS1000"
+/*********************************************************************/
+/* Obtain INSTDATA from PARMFILE DD in TSS procedure.                */
+/*********************************************************************/
+  INSTDATA =
+  Address ISPEXEC
+  'SELECT CMD(CACC1000 DD MSTRJCL 'ACPNAME')'
+  'VGET (FOUND FVOL DDDSNS)'
+  parse var DDDSNS '//PARMFILE' parmfile '//'
+  do x = 1 to words(parmfile)
+    DSN = word(parmfile,x)
+    address tso "alloc fi(input) da('"strip(DSN)"') shr reuse"
+    address tso "execio * diskr input (finis stem out."
+    do y = 1 to out.0
+      parse var out.y data "*"
+      if data = "" then iterate
+      if pos('INSTDATA(',data) > 0 then do
+        a1 = pos('INSTDATA(',data)
+        b1 = pos(')',data,a1)
+        b1 = b1 - a1 + 1
+        if b1 > 1 then ,
+          INSTDATA = substr(data,a1,b1)
+        end  /* if pos('INSTDATA(' */
+      end  /* do y = 1 */
+    end  /* do x = 1 */
+  parse var INSTDATA . "(" nr ")"
+  if nr = 0 then ,
+    nop
+  else do
+    queue "The following Control Option value is improperly set:"
+    queue " "
+    if INSTDATA = "" then,
+      queue "     INSTDATA is not defined."
+    else ,
+      queue "     "strip(INSTDATA)
+    end  /* else of if nr = 0 */
+  call Gen_PDI "TSS0410"
+  end  /* If ACPNAME = 'TSS' */
+/*********************************************************************/
+/* ACP data sets                                                     */
+/*********************************************************************/
+msgst = msg('OFF')
+MBRRPT = ACPRPT
+call FIND_ITER
+If ACPNAME = 'ACF2' then do
+  x = OUTTRAP("LINE.")
+  QUEUE "SHOW DDSN"
+  QUEUE "QUIT"
+  address TSO "ACF"
+  a = 1
+  do i = 1 to LINE.0
+    LINEa = substr(LINE.i,10)
+    y = INDEX(LINEa,'=')
+    DSN = Strip(substr(LINEa,y+1))
+    if LINE.i = "DDSN LISTS DEFINED IN FDR ARE:" then a = 1
+    if y > 0 then do
+      x = LISTDSI("'"Strip(DSN)"'")
+      call VOL_TEST DSN
+      acfDSN.a = Left(DSN,44)
+      acfVOL.a = VOL
+      a = a + 1
+      call ALIAS_TEST DSN SYSVOLUME
+      end /* if y > 0 */
+    end    /* end do LINE */
+  if acfVOL.1 = acfVol.4 | acfVOL.2 = acfVol.5 | ,
+    acfVOL.3 = acfVol.6 then do
+    queue 'The following data sets are on the same volume:'
+    queue ' '
+    do a = 1 to 3
+      b = a + 3
+/*********************************************************************/
+/* Test Primary data set on same volume as backup                    */
+/*********************************************************************/
+      if acfVOL.a = acfVOL.b then do
+        queue '    ' left(acfDSN.a,44) acfVOL.a
+        queue '    ' left(acfDSN.b,44) acfVOL.b
+        end  /* end if acfVOL.a */
+      end  /* do a = 1 to 3 */
+    end  /* if acfVOL.1 = acfVol.4 ... */
+  end  /* If ACPNAME = 'ACF2' */
+/*********************************************************************/
+/* Test Primary data set on same volume as backup                    */
+/*********************************************************************/
+RACFVRM  = Storage(D2x(CVTRAC + 616),4)      /* RACF Ver/Rel/Mod     */
+If ACPNAME = 'RACF' | ACPNAME = 'TSS' then ,
+  RCVTDSN = Storage(D2x(CVTRAC + 56),44)        /* RACF prim dsn or  */
+                                                /* TSS Security File */
+If ACPNAME <> 'RACF' | RACFVRM < '2608' then do
+  If ACPNAME = 'RACF' then do
+    x = LISTDSI("'"Strip(RCVTDSN)"'")
+    pVol = SYSVOLUME
+    call ALIAS_TEST RCVTDSN pVol
+    x = LISTDSI("'"Strip(RCVTDSN)".BACKUP'")
+    bVol = SYSVOLUME
+    call ALIAS_TEST RCVTDSN'.BACKUP' bvol
+    If pVol = bVol then do
+      queue 'The following data sets are on the same volume:'
+      queue ' '
+      queue '    ' left(Strip(RCVTDSN),44) pVol
+      queue '    ' left(Strip(RCVTDSN)'.BACKUP',44) bVol
+      End
+    End                                         /* SECNAM = 'RACF'   */
+  If ACPNAME = 'TSS' then do
+    x = LISTDSI("'"Strip(RCVTDSN)"'")
+    pVol = SYSVOLUME
+    call ALIAS_TEST RCVTDSN pVol
+/*  Do i = 0 to 88 by 44 chg from */
+    Do i = 0 to 44 by 44 /* chg to for obtaining 2 entries */
+      RTSSDSN = Storage(D2x(CVTRAC + 2108 + i),44)
+      x = LISTDSI("'"Strip(RTSSDSN)"'")
+      call ALIAS_TEST RTSSDSN SYSVOLUME
+      End                                       /* X = 0 to 88 by 44 */
+    If pVol = SYSVOLUME then do
+      queue 'The following data sets are on the same volume:'
+      queue ' '
+      queue '    ' left(Strip(RCVTDSN),44) pVol
+      queue '    ' left(Strip(RTSSDSN),44) SYSVOLUME
+      End
+    /* obtain TSS VSAM file */
+    RTSSDSN = Storage(D2x(CVTRAC + 2328),44)
+    x = LISTDSI("'"Strip(RTSSDSN)"'")
+    call ALIAS_TEST RTSSDSN SYSVOLUME
+    /* obtain TSS AUDIT file */
+    Do i = 0 to 88 by 44
+      RTSSDSN = Storage(D2x(CVTRAC + 2642 + i),44)
+      y = C2d(Storage(D2x(CVTRAC + 2642 + i),4))
+      x = LISTDSI("'"Strip(RTSSDSN)"'")
+      if y = 0 | y = 64 | x > 0 then leave
+      call ALIAS_TEST RTSSDSN SYSVOLUME
+      End                        /* X = 0 to 88 by 44 (second time) */
+    End                                     /* SECNAM = 'Top Secret' */
+  End
+Else do
+  DSDT     = C2d(Storage(D2x(CVTRAC + 224),4)) /* point to CVTRAC   */
+  DSDPDSN = Storage(D2x(DSDT + 177),44)        /* RACF prim dsn     */
+  x = LISTDSI("'"Strip(DSDPDSN)"'")
+  pVol = SYSVOLUME
+  call ALIAS_TEST DSDPDSN pVol
+  DSDBDSN = Storage(D2x(DSDT + 353),44)        /* RACF back dsn     */
+  x = LISTDSI("'"Strip(DSDBDSN)"'")
+  bVol = SYSVOLUME
+  call ALIAS_TEST DSDBDSN bVol
+  If pVol = bVol then do
+    queue 'The following data sets are on the same volume:'
+    queue ' '
+    queue '    ' left(Strip(DSDPDSN),44) pVol
+    queue '    ' left(Strip(DSDBDSN),44) bVol
+    End
+End
+call Gen_PDI "AAMV0410"
+do x = 1 to words(ACPDSNS)
+  DSN = word(ACPDSNS,x)
+  call ALIAS_TEST DSN
+  end
+Return
+ 
+SMS:
+/*********************************************************************/
+/* SMS dataset information sub-routine                               */
+/*********************************************************************/
+CVTJESCT = C2d(Storage(D2x(CVT + 296),4))  /* point to JESCT         */
+JESCTEXT = C2d(Storage(D2x(CVTJESCT+100),4))  /* JESSM               */
+JESSMSIB = C2d(Storage(D2x(JESCTEXT+84),4))  /* IGDS                 */
+IGDSSIVT = C2d(Storage(D2x(JESSMSIB+32),4))  /* IGDS                 */
+IGDSACDS = Storage(D2x(IGDSSIVT+44),44)      /* Point to ACDS dsn    */
+IGDSCOMM = Storage(D2x(IGDSSIVT+88),44)      /* Point to COMM dsn    */
+ADDRESS ISREDIT
+MBRRPT = SMSRPT
+call FIND_ITER
+call VOL_TEST IGDSACDS
+aVol = VOL
+call ALIAS_TEST IGDSACDS aVol
+call VOL_TEST IGDSCOMM
+cVol = VOL
+call ALIAS_TEST IGDSCOMM cVol
+If aVol = cVol then do
+  queue 'The following SMS control data set(s) was (were)' ,
+        'found on the same volume:'
+  queue ' '
+  queue '    ' left(Strip(IGDSACDS),44) aVol
+  queue '    ' left(Strip(IGDSCOMM),44) cVol
+  End
+call Gen_PDI "ZSMS0022"
+address tso "alloc fi(output) space(100 100) cylinder recfm(f b)",
+  "lrecl(4096) new delete unit(sysda)"
+address tso "alloc fi(input) da('"strip(IGDSACDS)"') shr"
+address tso "repro infile(input) outfile(output)"
+address tso "free fi(input)"
+address tso "execio * diskr output (finis stem out."
+do x = 1 to out.0
+  if pos('IGDCSSGA',out.x) > 0 then do
+    a = pos('IGDCSSGA',out.x) + 36
+    IGDSROUT = substr(out.x,a,44)
+    call ALIAS_TEST IGDSROUT 'IGDCSSGA'
+    end
+  if pos('IGDCSSCA',out.x) > 0 then do
+    a = pos('IGDCSSCA',out.x) + 36
+    IGDSROUT = substr(out.x,a,44)
+    call ALIAS_TEST IGDSROUT 'IGDCSSCA'
+    end
+  if pos('IGDCSMCA',out.x) > 0 then do
+    a = pos('IGDCSMCA',out.x) + 36
+    IGDSROUT = substr(out.x,a,44)
+    call ALIAS_TEST IGDSROUT 'IGDCSMCA'
+    end
+  if pos('IGDCSDCA',out.x) > 0 then do
+    a = pos('IGDCSDCA',out.x) + 36
+    IGDSROUT = substr(out.x,a,44)
+    call ALIAS_TEST IGDSROUT 'IGDCSDCA'
+    end
+end
+address tso "alloc fi(input) da('"strip(IGDSCOMM)"') shr"
+address tso "repro infile(input) outfile(output)"
+address tso "free fi(input)"
+address tso "execio * diskr output (finis stem out."
+do x = 1 to out.0
+  if pos('IGDICMDS',out.x) >= 0 then do
+    IGDSSCDS = substr(out.x,133,44)
+    call ALIAS_TEST IGDSSCDS 'IGDICMDS'
+    leave
+    end
+end
+address tso "free fi(output)"
+/*
+x = Compare(IGDSACDS,IGDSCOMM)
+IGDSPRE  = substr(IGDSACDS,1,x-1)'*'
+Call DSNLIST IGDSPRE
+*/
+Return
+ 
+USS:
+/*********************************************************************/
+/* Unix datasets information sub-routine                             */
+/*********************************************************************/
+/*********************************************************************/
+/* Obtains STEPLIBLIST datasets                                      */
+/*********************************************************************/
+ECVTOEXT = C2d(Storage(D2x(ECVT + 244),4))    /* point to OEXT       */
+OCVTOEXT = C2d(Storage(D2x(ECVTOEXT+56),4))   /* point to OPTN       */
+OPTN_STEPLIBLIST_LENGTH = C2d(Storage(D2x(OCVTOEXT+108),1))
+OPTN_STEPLIBLIST = Storage(D2x(OCVTOEXT+109),255)
+OPTN_STEPLIBLIST = left(OPTN_STEPLIBLIST,OPTN_STEPLIBLIST_LENGTH)
+MBRRPT = STLLRPT
+call FIND_ITER
+username =,
+TRANSLATE(userid(),'abcdefghijklmnopqrstuvwxyz','ABCDEFGHIJKLMNOPQRSTUVWXYZ')
+call syscalls 'ON'
+address syscall "getuid"
+uid = RETVAL
+if uid <> 0 then do
+  address syscall "setuid 0"
+  address syscall "strerror" errno errnojr "err."
+  address syscall "getuid"
+  uidsu = RETVAL
+  end
+if OPSNAME = 'OS/390' then do
+  address TSO
+  "ALLOCATE FILE(TEMP) LRECL(255) RECFM(F) NEW DELETE",
+  "TRACK SPACE(1,1) DSORG(PS)"
+  queue '#!/bin/sh'
+  queue 'cat' OPTN_STEPLIBLIST
+  queue 'exit'
+  queue ''
+  "EXECIO * DISKW TEMP (FINIS"
+  delstack
+  "ALLOCATE FILE(HFS01)  PATH('/tmp/"username".IBMin') ",
+    "PATHDISP(KEEP,DELETE) PATHOPTS(OWRONLY,OCREAT) PATHMODE(SIRWXU)"
+  "OCOPY INDD(TEMP) OUTDD(HFS01) TEXT   CONVERT((BPXFX111))"
+  "ALLOCATE FILE(STDOUT) PATH('/tmp/"username".IBM') ",
+  "PATHOPTS(OWRONLY,OCREAT,OEXCL,OTRUNC) PATHMODE(SIRWXU)",
+  "PATHDISP(DELETE,DELETE)"
+  "ALLOCATE FILE(STDIN)  PATH('/tmp/"username".IBMin') ",
+      "PATHDISP(DELETE,DELETE)  PATHOPTS(ORDONLY)"
+  "BPXBATCH SH"
+  if RC > 0 then,
+    say PGMNAME 'Error in using BPXBATCH, RC =' RC 'CMD=cat' OPTN_STEPLIBLIST
+  "ALLOCATE FILE(oshout1) LRECL(255) RECFM(F) NEW DELETE",
+  "TRACK SPACE(1,1) DSORG(PS)"
+  "Ocopy indd(STDOUT) outdd(oshout1)   TEXT PATHOPTS(OVERRIDE)"
+  "EXECIO * DISKR oshout1 (FINIS STEM out."
+  end
+else do
+  cmd = 'cat' OPTN_STEPLIBLIST
+  call bpxwunix cmd,,out.
+  end
+ADDRESS ISREDIT
+do i=1 to out.0
+  if pos('/*',out.i) <> 0 then iterate
+  if out.i = '' then iterate
+  out.i = strip(out.i,'b')
+  if pos('*',out.i) = 0 then do
+    call ALIAS_TEST out.i
+    end /* if pos('*'.... */
+  else Call DSNLIST out.i
+end
+/*********************************************************************/
+/* Obtains HFS Unix datasets (ROOT and MOUNT entries)                */
+/*********************************************************************/
+MBRRPT = HFSRPT
+call FIND_ITER
+if OPSNAME = 'OS/390' then do
+  address TSO
+  queue '#!/bin/sh'
+  queue 'df'
+  queue 'exit'
+  queue ''
+  "EXECIO * DISKW TEMP (FINIS"
+  delstack
+  "OCOPY INDD(TEMP) OUTDD(HFS01) TEXT   CONVERT((BPXFX111))"
+  "FREE FILE(HFS01)"
+  "FREE FILE(TEMP)"
+  "BPXBATCH SH"
+  if RC > 0 then,
+    say PGMNAME 'Error in using BPXBATCH, RC =' RC 'CMD=df'
+  "Ocopy indd(STDOUT) outdd(oshout1)   TEXT PATHOPTS(OVERRIDE)"
+  "EXECIO * DISKR oshout1 (FINIS STEM out."
+  "FREE DDNAME(oshout1)"
+  "FREE DDNAME(STDOUT)"
+  "FREE DDNAME(STDIN)"
+  end
+else do
+  cmd = 'df'
+  call bpxwunix cmd,,out.
+  end
+ADDRESS ISREDIT
+do i=1 to out.0
+  parse var out.i . '(' dsn ')' .
+  if dsn <> '' & index(dsn,'*') = 0 & index(dsn,'/') = 0 then do
+    call ALIAS_TEST dsn
+    end /* if dsn <>.... */
+end
+call syscalls 'OFF'
+/*********************************************************************/
+/* Obtains Unix Component datasets                                   */
+/*********************************************************************/
+MBRRPT = USSRPT
+call FIND_ITER
+list = 'SYS1.ABPX*',
+       'SYS1.AFOM*',
+       'SYS1.BPA.ABPA*',
+       'SYS1.CMX.ACMX*',
+       'SYS1.SBPX*',
+       'SYS1.SFOM*',
+       'SYS1.CMX.SCMX*'
+DSN =
+do a = 1 to words(list)
+  Call DSNLIST word(list,a)
+  end
+Return
+ 
+TCP:
+/*********************************************************************/
+/* Obtains TCPIP Component datasets                                  */
+/*********************************************************************/
+MBRRPT = TCPRPT
+call FIND_ITER
+list = '**.AEZA*',
+       '**.SEZA*'
+DSN =
+do a = 1 to words(list)
+  Call DSNLIST word(list,a)
+  end
+Return
+ 
+SMPE:
+/*********************************************************************/
+/* Obtains SMPE Component datasets                                   */
+/*********************************************************************/
+MBRRPT = SMPERPT
+call FIND_ITER
+list = '**.CSI',
+       '**.SMP*'
+ 
+DSN =
+do a = 1 to words(list)
+  Call DSNLIST word(list,a)
+  end
+Return
+ 
+DSNLIST:
+/*********************************************************************/
+/* Collect datasets that have a mask of DSNPRE, equivalent of 3.4    */
+/*********************************************************************/
+arg DSNPRE
+ADDRESS ISPEXEC
+"LMDINIT LISTID(TEMP1) LEVEL("DSNPRE")"
+do until LMDRC > 0
+  "LMDLIST LISTID("TEMP1") OPTION(LIST) DATASET(DSN) STATS(YES)"
+  LMDRC = RC
+/*if dsnpre = "**.SMP*" & pos("SMPE",dsn) > 0 then dsn =*/
+  if (zdldsorg = 'VS' |,
+    c2x(zdldsorg) = "FF404040") & zdlvol <> '*VSAM*' then,
+    dsn =
+  if dsnpre = "**.CSI" & zdlmigr = "YES" & right(dsn,4) <> ".CSI" then,
+    dsn =
+  if ZDLVOL = '??????' then ,
+    oldDSN = DSN
+  x = compare(oldDSN,DSN)
+  if x > LENGTH(oldDSN) then,
+    DSN =
+  if index(DSN' ','.ASSIST ') > 0 | index(DSN' ','.ZIP ') > 0 then,
+    DSN =
+  if DSN > ' ' then do
+    call ALIAS_TEST DSN
+  end
+DSN =
+end
+Return
+ 
+FIND_ITER:
+/*********************************************************************/
+/* Find MBRRPT in TBLMBR and extract additional fields               */
+/*********************************************************************/
+ITER    = '99 '
+TITLE   =
+PDI     =
+x = 0
+do forever
+  if x = 0 then x = wordpos(MBRRPT,TBLMBR)
+  else x = wordpos(MBRRPT,TBLMBR,x)
+  if x = 0 then leave
+  y = wordindex(TBLMBR,x)-4
+  if substr(TBLMBR,y,1) = '#' then do
+    TBLENT = substr(TBLMBR,y)
+    parse var TBLENT . 2 ITER 5 . 14 PDI 23 TITLE "#" .
+    leave
+  end
+end
+ 
+if TITLE <> ' ' then do
+  x = index(TITLE,'@')
+  TITLE   = substr(TITLE,1,x-1)
+end
+ 
+say PGMNAME 'Processing' LEFT(MBRRPT,8) 'ITER =' ITER,
+  'PDI =' LEFT(PDI,8) 'TITLE =' TITLE
+ 
+Return
+ 
+ALIAS_TEST:
+arg DSN VOL
+VOL = strip(VOL)
+alias_msgst = msg('OFF')
+alias_x = OUTTRAP("LINE.")
+address TSO "LISTCAT ENTRY('"strip(DSN,t)"') ALIAS ALL"
+if rc > 4 then return
+if rc = 0 then do
+  DSN =
+  do alias_i = 1 to LINE.0
+    if pos('RESOLVED-',LINE.alias_i) > 0 then,
+      parse var LINE.alias_i . '-' DSN
+    if pos('VSAM--',LINE.alias_i) > 0 then,
+      parse var LINE.alias_i . '--' DSN
+    if pos('&',DSN) > 0 then,
+      DSN =
+    end    /* do i = 1 to LINE.0 */
+  end    /* if rc = 0 */
+ADDRESS ISREDIT
+rc = 0
+"FIND ALL '"left(DSN,47)"'"
+if DSN <> '' & rc > 0 then do
+  LINE = ITER||left(DSN,47)PGMNAME VOL
+  if rc <> 0 then,
+    "LINE_AFTER .ZLAST = DATALINE (LINE)"
+  end /* if DSN <> '' */
+Return
+ 
+VOL_TEST:
+arg DSN
+VOL =
+alias_msgst = msg('OFF')
+alias_x = OUTTRAP("VOL.")
+address TSO "LISTCAT ENTRY('"strip(DSN,t)"') VOL"
+if RC > 0 then return
+do va = 1 to VOL.0
+  if pos('VOLSER---',VOL.va) > 0 then do
+    XX = VOL.va
+    VOL = substr(VOL.va,26,6)
+    end /* if pos('VOLSER---',VOL.va) > 0 */
+  end    /* do i = 1 to VOL.0 */
+Return
+ 
+MSGwrite:
+x = outtrap(off)
+do x = 1 to msgs.0
+  say PGMNAME msgs.x
+  end
+x = outtrap("msgs.")
+return
+ 
+Gen_PDI:
+arg PDIMBR
+ 
+address tso
+x = listdsi("PDIDD file")
+if x > 4 then do
+  return x
+  end
+if queued() = 0 then ,
+  queue 'Not a Finding'
+queue ''
+"ALLOC FI("PDIMBR") DA('"SYSDSNAME"("PDIMBR")') OLD"
+if RC > 0 then do
+  say PGMNAME 'Error in allocating' SYSDSNAME'('PDIMBR')' RC'.'
+  return RC
+  end
+"EXECIO * DISKW "PDIMBR" (FINIS"
+"FREE FI("PDIMBR")"
+ 
+return
+ 

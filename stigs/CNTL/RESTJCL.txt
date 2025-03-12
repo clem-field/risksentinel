@@ -1,0 +1,57 @@
+//JOBCARD  JOB (ACCOUNT-INFO),'SRR RECEIVE RESTORE',CLASS=A,
+//  MSGCLASS=X,NOTIFY=&SYSUID
+//*
+//*
+//*--------------------------------------------------------------------
+//*-------------------------->> RESTJCL  <<----------------------------
+//*--------------------------------------------------------------------
+//**********************************************************************
+//* Restores a DFDSS dump of all required product files for software   *
+//* factory release.                                                   *
+//*                                                                    *
+//* change xxxx and mmmyyyy as follows:                                *
+//*                                                                    *
+//*  1. Change xxxx to the SYSNAME specified in IEASYSxx member        *
+//*     in the logical parmlib concatination.                          *
+//*  2. change mmmyyyy to reflect the month and year of the review.    *
+//*                                                                    *
+//* Change YnnMnn to reflect the SRR Scripts Year/Month of release.    *
+//*   example:   YnnMnn to Y25M01                                      *
+//*                                                                    *
+//* Change volume to a dasd volume available on the system.            *
+//**********************************************************************
+//*
+//STEP1   EXEC PGM=IKJEFT01,
+//             TIME=(10,0)
+//DASDI     DD DSN=SYS3.FSO.YnnMnn.DUMP.XMI,
+//             DISP=SHR
+//SYSTSPRT  DD SYSOUT=*
+//SYSTSIN   DD *
+RECEIVE INFILE(DASDI)
+DSNAME('SYS3.FSO.YnnMnn.DUMP') -
+UNIT(3390) VOLUME(volume)
+/*
+//STEP2   EXEC PGM=ADRDSSU,REGION=4096K
+//SYSPRINT  DD SYSOUT=*
+//DASDI     DD DSN=SYS3.FSO.YnnMnn.DUMP,
+//             DISP=SHR
+//SYSIN     DD *
+ RESTORE -
+       DATASET(INCLUDE(                     -
+               SYS3.FSO.YnnMnn.**           -
+                      ))                    -
+       RENAMEUNCONDITIONAL(                 -
+              (SYS3.FSO.YnnMnn.CNTL,        -
+               SYS3.FSO.xxxx.mmmyyyy.CNTL   -
+                      ),                    -
+              (SYS3.FSO.YnnMnn.EXAM.SCRIPT, -
+               SYS3.FSO.xxxx.mmmyyyy.EXAM.SCRIPT -
+                      ),                    -
+              (SYS3.FSO.YnnMnn.LOADLIB,     -
+               SYS3.FSO.xxxx.mmmyyyy.LOADLIB -
+                      ))                    -
+       REPLACE                              -
+       CATALOG                              -
+       OUTDDNAME(DASDI)                     -
+       INDDNAME(DASDI)
+/*

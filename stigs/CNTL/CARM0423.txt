@@ -1,0 +1,118 @@
+ISREDIT MACRO       /* CARM0423 EDIT MACRO */
+ 
+/* 09/18/2007 C. STERN Created for AAMV0420 */
+/* 10/16/2007 CL Fenton Commented out ISREDIT END commands,
+/*            which results in RC = 20 error.
+ 
+SET PGMNAME = &STR(CARM0423 09/18/07)
+ 
+/* *************************************** */
+/* THIS EDIT MACRO PROVIDES THE FINDING    */
+/* DETAILS FOR AAMV0420.                   */
+/* STIG SECTIONS: 2.3.2, 2.3.3             */
+/* *************************************** */
+ 
+SET RETURN_CODE = 0
+ 
+/* ERROR ROUTINE */
+ERROR DO
+  SET RETURN_CODE = &LASTCC         /* save LAST ERROR CODE */
+  IF &LASTCC GE 16 THEN +
+    WRITE &PGMNAME LASTCC = &LASTCC &ZERRLM
+  RETURN
+  END
+ 
+ISPEXEC  VGET (                                                       -
+  CONSLIST                                                            -
+  COMLIST                                                             -
+  SYMLIST                                                             -
+  TERMMSGS                                                            -
+  PDIDD                                                               -
+  ) ASIS
+ 
+SET RM43VGE = &RETURN_CODE
+IF &RETURN_CODE NE 0 THEN DO
+  WRITE &PGMNAME VGET RC = &RETURN_CODE  &ZERRSM
+  WRITE &PGMNAME CONSLIST/&CONSLIST COMLIST/&COMLIST SYMLIST/&SYMLIST +
+    TERMMSGS/&TERMMSGS
+  END
+ 
+SET RETURN_CODE = 0
+ 
+/* *************************************** */
+/* TURN ON MESSAGES                        */
+/* *************************************** */
+ 
+IF &TRACE = ON THEN +
+  DO
+    SET CONSLIST = ON
+    SET COMLIST = ON
+    SET SYMLIST = ON
+    SET TERMMSGS = ON
+  END
+ 
+SET SYSSYMLIST = &SYMLIST          /* CONTROL SYMLIST/NOSYMLIST */
+SET SYSCONLIST = &CONSLIST         /* CONTROL CONLIST/NOCONLIST */
+SET SYSLIST    = &COMLIST          /* CONTROL LIST/NOLIST       */
+SET SYSMSG     = &TERMMSGS         /* CONTROL MSG/NOMSG         */
+SET SYSASIS   = ON                 /* CONTROL ASIS - caps off   */
+ 
+/* *************************************** */
+/* MAIN PROCESS                            */
+/* *************************************** */
+ 
+CONTROL ASIS
+ 
+NGLOBAL AC PDIMBR PDIDD
+ 
+SET PDIMBR = AAMV0420
+ 
+SET RETURN_CODE = 0
+ 
+SET AC = &NRSTR(Not a Finding.)
+ 
+SYSCALL PUT_IT
+ 
+SYSCALL ADD_MEMBER
+ 
+END_IT_ALL: +
+ISPEXEC  VPUT  (                                                      -
+  RM43VGE                                                             -
+  ) ASIS
+ 
+/*ISREDIT END
+ 
+EXIT
+ 
+/* *************************************** */
+/*  SYSCALL SUBROUTINES                    */
+/* *************************************** */
+ 
+ADD_MEMBER: PROC 0
+ 
+SET RETURN_CODE = 0
+ 
+ISPEXEC LMMADD DATAID(&PDIDD) MEMBER(&PDIMBR)
+ 
+IF &LASTCC EQ 4 THEN DO          /* MEMBER ALREADY EXISTS
+  SET RETURN_CODE = 0
+ 
+  ISPEXEC LMMREP DATAID(&PDIDD) MEMBER(&PDIMBR)
+ 
+  IF &RETURN_CODE NE 0 THEN DO
+    WRITE &PGMNAME LMMREP_PDI_RCODE = &RETURN_CODE &PDIMBR  &ZERRSM
+    END
+  END
+ELSE DO
+  IF &RETURN_CODE NE 0 THEN +
+    WRITE &PGMNAME LMMADD_PDI_RCODE = &RETURN_CODE &PDIMBR  &ZERRSM
+  END
+END
+ 
+ 
+PUT_IT: PROC 0
+ 
+ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) +
+  DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&PDIMBR)
+ 
+END

@@ -1,0 +1,1008 @@
+/*REXX*/
+/*                                       */
+/* AUTHOR: Charles Fenton                */
+/*                                       */
+/**************************************************************/
+/*       ITEM: CNTL(CACC0010)                                 */
+/*   FUNCTION: REXX for OS/390 UNIX System Services           */
+/*             data collection                                */
+/*                                                            */
+/*      NOTES: - This member contains UNIX file names.        */
+/*                - It MUST stay in mixed case.               */
+/*                - It MUST NOT be numbered.                  */
+/*********************************************************************/
+/* Change summary:                                                   */
+/* 07/07/2000 DCM Start                                              */
+/* 11/19/2009 CL Fenton Changes to allow for use of BPXWUNIX.        */
+/* 04/24/2012 CL Fenton initial creation of script copied from       */
+/*            USSICOL1, CSD-AR003400262.                             */
+/* 05/21/2015 CL Fenton Changed includes test for CSFTP, CSTCP,      */
+/*            and WAS to stream line process, STS-008182.            */
+/* 08/11/2016 CL Fenton Cleaned up several unneccessary entries.     */
+/* 05/04/2018 CL Fenton Changed process to work from users HOME      */
+/*            directory.  If blank will use /tmp/(username) as       */
+/*            directory, STS-019498.                                 */
+/* 02/31/2019 CL Fenton Changes to initialize CWD variable,          */
+/*            STS-021618.                                            */
+/* 09/25/2019 CL Fenton Changes to check the value of CWD and the    */
+/*            RETVAL from the getcwd commands to determine if the    */
+/*            /tmp directory is to be used, STS-023237 and           */
+/*            STS-023242.                                            */
+/* 11/08/2019 CL Fenton Added automation for IUTN0010 and IUTN0020,  */
+/*            STS-023415 and STS-023417.                             */
+/* 03/29/2021 CL Fenton Added evaluation for sntpd PDI ZUSS0037 for  */
+/*            ACF2-OS-000150, RACF-OS-000190, and TSS0-OS-000280,    */
+/*            STS-026250.                                            */
+/* 11/08/2022 CL Fenton Added automation for PDI ZUSS0015 for        */
+/*            ACF2-US-000020, RACF-US-000050, and TSS0-US-000150,    */
+/*            STS-029124.                                            */
+/* 11/10/2022 CL Fenton Added automation for PDI ZUSS0038 for        */
+/*            ACF2-OS-000160, RACF-OS-000180, and TSS0-OS-000270,    */
+/*            STS-029112.                                            */
+/* 02/22/2023 CL Fenton Added automation for PDIs ZSSH0010,          */
+/*            ZSSH0020, ZSSH0030, ZSSH0040, and ZSSH0050 for         */
+/*            ACF2-SH-000010, RACF-SH-000010, TSS0-SS-000010,        */
+/*            ACF2-SH-000030, RACF-SH-000040, TSS0-SS-000040,        */
+/*            ACF2-SH-000040, RACF-SH-000050, TSS0-SH-000030,        */
+/*            ACF2-SH-000050, RACF-SH-000020, TSS0-SH-000020,        */
+/*            ACF2-OS-000330, RACF-SH-000060, and TSS0-ES-000100,    */
+/*            STS-029286, STS-029287, STS-029288, STS-029289, and    */
+/*            STS-029334.                                            */
+/* 01/22/2024 CL Fenton Added automation for IUTN0020 for            */
+/*            ACF2-UT-000050, RACF-UT-000050, and TSS0-UT-000050,    */
+/*            SCTASK0074636.                                         */
+/* 01/22/2024 CL Fenton Added automation for IUTN0021 for            */
+/*            ACF2-UT-000040, RACF-UT-000040, and TSS0-UT-000040,    */
+/*            SCTASK0074631.                                         */
+/* 06/05/2024 CL Fenton Added automation for ZUSS0014 for            */
+/*            ACF2-US-000180, RACF-US-000180, and TSS0-US-000180,    */
+/*            SCTASK0133769.                                         */
+/* 06/05/2024 CL Fenton Added automation for ZUSS0013 for            */
+/*            ACF2-US-000150, RACF-US-000170, and TSS0-US-000010,    */
+/*            SCTASK0133761.                                         */
+/* 09/27/2024 CL Fenton Created to evaluate existance of programs    */
+/*            for IFTP0040 for STIG IDs ACF2-US-000170,              */
+/*            RACF-FT-000090, and TSS0-FT-000060.                    */
+/*            Script to be executed in CACJ0005 in CACC0010 for      */
+/*            FTP, SCTASKU0221468.                                   */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+/* Setup variables for copying report files                          */
+/*                                                                   */
+/* PARSE UPPER ARG VDSNNODE .                                        */
+/*********************************************************************/
+PGMNAME = 'CACC0010 09/27/24'
+TERMMSGS = 'OFF'
+COMLIST  = 'OFF'
+CONSLIST = 'OFF'
+SYMLIST  = 'OFF'
+lc = 'abcdefghijklmnopqrstuvwxyz'
+uc = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+username = translate(userid(),lc,uc)
+Arg OPTION
+OPTION = translate(OPTION,'=;','()')
+interpret OPTION
+if TRACE = 'ON' then do
+  TERMMSGS = 'ON'
+  COMLIST  = 'ON'
+  CONSLIST = 'ON'
+  SYMLIST  = 'ON'
+  end
+Address ISPEXEC
+"CONTROL NONDISPL ENTER"
+"CONTROL ERRORS RETURN"
+"VPUT (CONSLIST COMLIST SYMLIST TERMMSGS)"
+If CONSLIST = ON | COMLIST = ON | SYMLIST = ON | TRACE = ON ,
+  then Trace r
+"SELECT CMD(CACC1000 ACP)"
+Address TSO
+pdi = ''
+cwd = ''
+cwdrc = 0
+Numeric digits 10                           /* dflt of 9 not enough  */
+Arg OPTION
+OPTION = translate(OPTION,'=;','()')
+interpret OPTION
+call syscalls 'ON'
+say PGMNAME "syscalls" rc
+address syscall "getlogin lid"
+say PGMNAME "getlogin" lid rc RETVAL ERRNO ERRNOJR
+address syscall "getcwd cwd"
+say PGMNAME "getcwd" cwd rc RETVAL ERRNO ERRNOJR
+if retval = -1 or cwd = "/" then do
+  say PGMNAME "Either" lid "has a HOME of Root (/) or the",
+    "/u/"username "directory is not defined to Unix."
+  set cwdrc = -1
+  end
+address syscall "getuid"
+say PGMNAME "getuid" rc RETVAL ERRNO ERRNOJR
+uid = RETVAL
+address syscall "getgid"
+say PGMNAME "getgid" rc RETVAL ERRNO ERRNOJR
+gid = RETVAL
+address syscall "geteuid"
+say PGMNAME "geteuid" rc RETVAL ERRNO ERRNOJR
+euid = RETVAL
+address syscall "getegid"
+say PGMNAME "getegid" rc RETVAL ERRNO ERRNOJR
+egid = RETVAL
+uidsu = ""
+gidsu = ""
+if uid <> 0 then do
+  address syscall "setuid 0"
+  say PGMNAME "setuid" rc RETVAL ERRNO ERRNOJR
+  if retval <> -1 then do
+    address syscall "getuid"
+    say PGMNAME "getuid" rc RETVAL ERRNO ERRNOJR
+    uidsu = RETVAL
+    address syscall "getgid"
+    say PGMNAME "getgid" rc RETVAL ERRNO ERRNOJR
+    gidsu = RETVAL
+    cwdsu = ""
+    address syscall "getcwd cwdsu"
+    say PGMNAME "getcwd" cwdsu rc RETVAL ERRNO ERRNOJR
+    if retval = -1 or cwdsu = "/" then do
+      say PGMNAME "Either" lid "has a HOME of Root (/) or the",
+        "u/"username "directory is not defined to Unix."
+      set cwdrc = -1
+      end
+    end
+  end
+X = LISTDSI(USSCMDS FILE)
+VDSNFULL = SYSDSNAME
+Address ISPEXEC
+"lminit dataid(dialog) ddname(dialog)"
+lminit_dialog = RC
+"lminit dataid(pdidd) ddname(pdidd)"
+lminit_pdidd = RC
+"lmopen dataid("dialog")"
+lmopen_dialog = RC
+"lmopen dataid("pdidd") option(output)"
+lmopen_pdidd = RC
+/*VHFSFULL = "/tmp/fso_srrmvs/usscmds_rpt/"
+  address syscall "lstat (VHFSFULL) dir."
+  say pgmname "lstat" dir.0 rc RETVAL ERRNO ERRNOJR
+  say pgmname "lstat st_uid" dir.st_uid
+  say pgmname "lstat st_type" dir.st_type
+  if uid <> 0 & uidsu <> 0 & uid <> dir.st_uid then ,
+    VHFSPART = cwd
+  else ,
+    VHFSPART = "/tmp"*/.
+if cwdrc = 0 then,
+  VHFSPART = cwd
+else ,
+  VHFSPART = "/tmp/"username
+address syscall "opendir "VHFSPART
+say pgmname "opendir" rc RETVAL ERRNO ERRNOJR
+if RETVAL = -1 then ,
+  address syscall "mkdir (VHFSPART) 0750"
+address syscall "closedir "RETVAL
+say pgmname "closedir" rc RETVAL ERRNO ERRNOJR
+address syscall "lstat (VHFSPART) dir."
+/*say pgmname "lstat" dir.0 rc RETVAL ERRNO ERRNOJR
+  say pgmname "lstat st_uid" dir.st_uid
+  say pgmname "lstat st_type" dir.st_type*/
+VHFSFULL = VHFSPART"/fso_srrmvs/usscmds_rpt"
+ 
+say pgmname "Home directory set to" VHFSPART"."
+say pgmname "Work information can be found in directory" VHFSFULL"."
+/* obtain information from VHFSFULL */
+address syscall "opendir "VHFSFULL
+if retval = 0 then do
+  address syscall 'readdir (VHFSFULL) dir. stem.'
+  do a = 3 to dir.0
+    file = VHFSFULL"/"dir.a
+    address syscall "unlink (file)"
+    end
+  address syscall "closedir "RETVAL
+  end
+ 
+x = outtrap("out.")
+test = cacc1010('d omvs,p')
+x = outtrap(off)
+auto = ""
+line = ""
+do a = 1 to out.0
+  if word(out.a,1) = "AUTOMNT" then do
+    auto = word(out.a,2)
+    line = out.a
+    leave
+    end
+  end
+ 
+urc = BPXWUNIX('df -P',,df.,'DD:SYSERR')
+AUTOMNT = "NONE"
+do x = 1 to df.0
+/*say pgmname df.x*/
+  if substr(df.x,1,1) = "*" then ,
+    AUTOMNT = word(df.x,6)
+  end
+/*                                                            */
+/* Allocate HFS file; copy script to it                       */
+/*                                                            */
+Address TSO
+cmd=VHFSPART'/fso_srrmvs_usscmds_ksh'
+/*"OCOPY INDD(MVSENV) OUTDD(STDENV) TEXT CONVERT((BPXFX111))"*/
+env.0 = 0
+x = outtrap("out.")
+listalc status
+x = outtrap(off)
+do x = 1 to out.0
+  if pos("MVSENV",out.x) <> 0 then do
+    y = x - 1
+    DSN="'"strip(out.y)"'"
+    leave
+    end
+end
+if SYSDSN(DSN) = "OK" then ,
+  "execio * diskr MVSENV (FINIS STEM env."
+x = env.0 + 1
+env.x = "HOME="VHFSPART
+say pgmname "HOME="VHFSPART
+ 
+env.0 = x
+x = env.0 + 1
+env.x = "AUTOMNT="AUTOMNT
+say pgmname "AUTOMNT="AUTOMNT
+env.0 = x
+ 
+typeruns = "CSFTP CSTCP WAS"
+y = "Y"
+n = "N"
+ 
+do until typeruns = ""
+  parse var typeruns TYPERUN typeruns
+  TYPERUN = left(TYPERUN,8)
+  rectype = "0"
+  Call collect_rec
+  OPTION = strip(TYPERUN)||'='||ind
+  x = env.0 + 1
+  env.x = OPTION
+  say pgmname OPTION
+  env.0 = x
+  interpret OPTION
+  end
+/*say pgmname "CSFTP:"csftp "CSTCP:"cstcp "WAS:"was*/
+ 
+DO x = 1 to env.0
+  env.x = strip(env.x)
+/*say pgmname 'env' x env.x*/
+  end
+/*                                                            */
+"ALLOCATE FILE(HFS01) PATH('"VHFSPART"/fso_srrmvs_usscmds_ksh') ",
+  "PATHDISP(KEEP,DELETE) ",
+  "PATHOPTS(OWRONLY,OCREAT) ",
+  "PATHMODE(SIRWXU)"
+say pgmname "ALLOCATE HFS01" rc
+"OCOPY INDD(MVS01) OUTDD(HFS01) TEXT CONVERT((BPXFX111))"
+say pgmname "OCOPY MVS01 to HFS01" rc
+"FREE FILE(HFS01)"
+/*                                                            */
+/* Allocate Shell STDIN, STDOUT; execute script; free files   */
+/*                                                            */
+"ALLOCATE FILE(STDIN) PATH('"VHFSPART"/fso_srrmvs_usscmds_ksh') ",
+  "PATHDISP(DELETE,DELETE) ",
+  "PATHOPTS(ORDONLY)"
+urc = BPXWUNIX('sh -L' cmd,,'DD:SYSMSG','DD:SYSERR',env.)
+say pgmname "BPXWUNIX" rc urc
+"FREE FILE(STDIN)"
+/*                                                            */
+/* Copy HFS report files to PDS                               */
+/*                                                            */
+x = outtrap('err.')
+VRPT = "zssh0050"
+"OGET '"VHFSFULL'/'VRPT"' '"VDSNFULL"("VRPT")' TEXT CONVERT((BPXFX111))"
+VRPT = "ps"
+"OGET '"VHFSFULL'/'VRPT"' '"VDSNFULL"("VRPT")' TEXT CONVERT((BPXFX111))"
+call process_ps
+VRPT = "eautom"
+"OGET '"VHFSFULL'/'VRPT"' '"VDSNFULL"("VRPT")' TEXT CONVERT((BPXFX111))"
+call process_eautom
+VRPT = "einetd"
+"OGET '"VHFSFULL'/'VRPT"' '"VDSNFULL"("VRPT")' TEXT CONVERT((BPXFX111))"
+call process_inetd
+VRPT = "eprof"
+"OGET '"VHFSFULL'/'VRPT"' '"VDSNFULL"("VRPT")' TEXT CONVERT((BPXFX111))"
+call Process_eprof
+VRPT = "erc"
+"OGET '"VHFSFULL'/'VRPT"' '"VDSNFULL"("VRPT")' TEXT CONVERT((BPXFX111))"
+VRPT = "eserv"
+"OGET '"VHFSFULL'/'VRPT"' '"VDSNFULL"("VRPT")' TEXT CONVERT((BPXFX111))"
+VRPT = "estepll"
+"OGET '"VHFSFULL'/'VRPT"' '"VDSNFULL"("VRPT")' TEXT CONVERT((BPXFX111))"
+VRPT = "owdir"
+"OGET '"VHFSFULL'/'VRPT"' '"VDSNFULL"("VRPT")' TEXT CONVERT((BPXFX111))"
+VRPT = "sdperm"
+"OGET '"VHFSFULL'/'VRPT"' '"VDSNFULL"("VRPT")' TEXT CONVERT((BPXFX111))"
+pdi = "zuss0034"
+call process_permission_pdi
+VRPT = "sfperm"
+"OGET '"VHFSFULL'/'VRPT"' '"VDSNFULL"("VRPT")' TEXT CONVERT((BPXFX111))"
+pdi = "zuss0035"
+call process_permission_pdi
+if CSTCP = "Y" then do
+  VRPT = "itcp0040"
+  "OGET '"VHFSFULL'/'VRPT"' '"VDSNFULL"("VRPT")' TEXT CONVERT((BPXFX111))"
+  call process_permission_pdi
+  end
+VRPT = "iutn0030"
+"OGET '"VHFSFULL'/'VRPT"' '"VDSNFULL"("VRPT")' TEXT CONVERT((BPXFX111))"
+VRPT = "iutn0040"
+"OGET '"VHFSFULL'/'VRPT"' '"VDSNFULL"("VRPT")' TEXT CONVERT((BPXFX111))"
+call process_permission_pdi
+if CSFTP = "Y" then do
+  VRPT = "iftp0050"
+  "OGET '"VHFSFULL'/'VRPT"' '"VDSNFULL"("VRPT")' TEXT CONVERT((BPXFX111))"
+  call process_permission_pdi
+  VRPT = "iftp0070"
+  "OGET '"VHFSFULL'/'VRPT"' '"VDSNFULL"("VRPT")' TEXT CONVERT((BPXFX111))"
+  call process_permission_pdi
+  Address ISPEXEC "lmclose dataid("pdidd")"
+  pdi = "IFTP0040"
+  Address ISPEXEC "EDIT DATAID("pdidd") MACRO("cacm0007")",
+    "MEMBER("pdi")"
+  Address ISPEXEC "lmopen dataid("pdidd") option(output)"
+  end
+pdi = ""
+VRPT = "islg0030"
+"OGET '"VHFSFULL'/'VRPT"' '"VDSNFULL"("VRPT")' TEXT CONVERT((BPXFX111))"
+call process_permission_pdi
+VRPT = "zuss0037"
+"OGET '"VHFSFULL'/'VRPT"' '"VDSNFULL"("VRPT")' TEXT CONVERT((BPXFX111))"
+call process_permission_pdi
+/*                                                            */
+/* Allocate HFS file; copy script to it                       */
+/*                                                            */
+if WAS = "N" then signal bypass_was
+"ALLOCATE FILE(HFS01) PATH('"VHFSPART"/fso_srrmvs_usscmds_ksh') ",
+  "PATHDISP(KEEP,DELETE) ",
+  "PATHOPTS(OWRONLY,OCREAT) ",
+  "PATHMODE(SIRWXU)"
+"OCOPY INDD(MVS02) OUTDD(HFS01) TEXT CONVERT((BPXFX111))"
+"FREE FILE(HFS01)"
+/*                                                            */
+/* Allocate Shell STDIN, STDOUT; execute script; free files   */
+/*                                                            */
+"ALLOCATE FILE(STDIN) PATH('"VHFSPART"/fso_srrmvs_usscmds_ksh') ",
+  "PATHDISP(DELETE,DELETE) ",
+  "PATHOPTS(ORDONLY)"
+urc = BPXWUNIX('sh -L' cmd,,'DD:SYSMSG','DD:SYSERR',env.)
+say pgmname "BPXWUNIX" rc urc
+"FREE FILE(STDIN)"
+/*                                                            */
+/* Copy HFS report files to PDS                               */
+/*                                                            */
+VRPT = "ihshfsob"
+"OGET '"VHFSFULL'/'VRPT"' '"VDSNFULL"("VRPT")' TEXT CONVERT((BPXFX111))"
+VRPT = "washfsob"
+"OGET '"VHFSFULL'/'VRPT"' '"VDSNFULL"("VRPT")' TEXT CONVERT((BPXFX111))"
+VRPT = "ahttpd"
+"OGET '"VHFSFULL'/'VRPT"' '"VDSNFULL"("VRPT")' TEXT CONVERT((BPXFX111))"
+bypass_was:
+call syscalls 'OFF'
+Address ISPEXEC
+"lmclose dataid("dialog")"
+lmclose_dialog = RC
+"lmclose dataid("pdidd")"
+lmclose_pdidd = RC
+"lmfree dataid("dialog")"
+lmfree_dialog = RC
+"lmfree dataid("pdidd")"
+lmfree_pdidd = RC
+/*                                                            */
+If TERMMSGS = 'ON' then do
+  say
+  say '==============================================================='
+  say PGMNAME 'LMINIT_DIALOG                 ' lminit_dialog
+  say PGMNAME 'LMINIT_PDIDD                  ' lminit_pdidd
+  say PGMNAME 'LMOPEN_DIALOG                 ' lmopen_dialog
+  say PGMNAME 'LMOPEN_PDIDD                  ' lmopen_pdidd
+  say PGMNAME 'LMCLOSE_DIALOG                ' lmclose_dialog
+  say PGMNAME 'LMCLOSE_PDIDD                 ' lmclose_pdidd
+  say PGMNAME 'LMFREE_DIALOG                 ' lmfree_dialog
+  say PGMNAME 'LMFREE_PDIDD                  ' lmfree_pdidd
+  say '==============================================================='
+  end
+ 
+Exit 0
+/*********************************************************************/
+/*  Start of sub-routines                                            */
+/*********************************************************************/
+process_permission_pdi:
+Address ISPEXEC
+if pdi = "" then pdi = VRPT
+upper pdi
+pb = 0
+uab = 0
+f1 = "Permission bits and user audit bits is (are) inappropriate:"
+f2 = "Permission bits allow inappropriate access."
+f3 = "User audit bits provide inadequate logging."
+address tso "alloc fi(input) da('"VDSNFULL"("VRPT")') shr reuse"
+address tso "execio * diskr input (finis stem out."
+do a = 1 to out.0
+  parse var out.a ind 2 sp 5 data
+/*say pgmname "ind="ind "sp="sp "data="data*/
+  if ind = "" then iterate
+  if ind = "0" then iterate
+  if ind = "1" then pb = pb + 1
+  if ind = "2" then uab = uab + 1
+  if ind = "3" then do
+    pb = pb + 1
+    uab = uab + 1
+    end
+  end
+/*say PGMNAME 'Processing PDI' pdi'.  pb='pb 'uab='uab*/
+Address TSO "newstack"
+if pb = 0 & uab = 0 then queue 'Not a Finding'
+if pb > 0 | uab > 0 then do
+  queue f1
+  queue " "
+  end
+if pb > 0 & uab > 0 then do
+  nr = 1
+  lp = ") "
+  end
+else do
+  nr = ""
+  lp = ""
+  end
+if pb > 0 then do
+  queue nr""lp""f2
+  queue " "
+  if nr > 0 then nr = nr + 1
+  do a = 1 to out.0
+    parse var out.a ind 2 sp 5 data
+    if ind = "1" | ind = "3" then ,
+      queue "     "data
+    end
+  queue " "
+  end
+if uab > 0 then do
+  queue nr""lp""f3
+  queue " "
+  do a = 1 to out.0
+    parse var out.a ind 2 sp 5 data
+    if ind = "2" | ind = "3" then ,
+      queue "     "data
+    end
+  queue " "
+  end
+call process_queued_pdi
+pdi = ""
+Address TSO "free fi(input)"
+return
+ 
+ 
+process_eautom:
+pdi = "ZUSS0013"
+/*say PGMNAME 'Processing PDI' pdi'.'*/
+eprof_data = ""
+Address ISPEXEC
+address tso "alloc fi(input) da('"VDSNFULL"("VRPT")') shr reuse"
+if RC > 0 | auto = "" then do
+  Address TSO "newstack"
+  queue "Not Applicable"
+  call process_queued_pdi
+  return
+  end
+address tso "execio * diskr input (finis stem out."
+maps. = ""
+mc = 0
+mapdata =
+finding_rc = 0
+do a = 1 to out.0
+  parse var out.a out.a "#" .
+  if word(out.a,1) = "name" &,
+    mapdata <> "" then do
+    mc = mc + 1
+    maps.mc = mapdata
+    end
+  if word(out.a,1) = "name" then,
+    mapdata = strip(out.a,"B")" @"
+  if wordpos("type",out.a) = 1 |,
+     wordpos("filesystem",out.a) = 1 |,
+     wordpos("mode",out.a) = 1 |,
+     wordpos("duration",out.a) = 1 |,
+     wordpos("delay",out.a) = 1 |,
+     wordpos("setuid",out.a) = 1 |,
+     wordpos("security",out.a) = 1 then,
+    mapdata = mapdata""strip(out.a,"B")" @"
+  end
+if mapdata <> "" then do
+  mc = mc + 1
+  maps.mc = mapdata
+  end
+ 
+Address TSO "newstack"
+if mc = 0 then,
+  queue "Not Applicable"
+else do x = 1 to mc
+  parse upper var maps.x . "SECURITY" security .
+  parse upper var maps.x . "SETUID" setuid .
+  if security <> "YES" | ,
+     setuid <> "NO" then do
+    if finding_rc = 0 then do
+      queue "The following MapName files security parameters are not",
+        "properly defined."
+      queue " "
+      finding_rc = 1
+      end
+    mapdata = maps.x
+    do until mapdata = ""
+      parse var mapdata line "@" mapdata
+      queue "     "line
+      end
+    queue " "
+    end
+  end
+if finding_rc = 0 then,
+  queue "Not a Finding"
+call process_queued_pdi
+return
+ 
+ 
+process_eprof:
+eprof_data = ""
+Address ISPEXEC
+address tso "alloc fi(input) da('"VDSNFULL"("VRPT")') shr reuse"
+address tso "execio * diskr input (finis stem out."
+do a = 1 to out.0
+  parse var out.a out.a "#" .
+  if out.a = "" then iterate
+  if wordpos("umask",out.a) > 0 then do
+    eprof_data = eprof_data""out.a"@"
+    iterate
+    end
+  if wordpos("LOGNAME",out.a) > 0 then do
+    eprof_data = eprof_data""out.a"@"
+    iterate
+    end
+  end
+pdi = "ZUSS0015"
+/*say PGMNAME 'Processing PDI' pdi'.'*/
+Address TSO "newstack"
+if eprof_data = "" then,
+  queue "UMASK and LOGNAME are not specified in /etc/profile."
+else do
+  umask = ""
+  logname = ""
+  do until eprof_data = ""
+    parse var eprof_data data "@" eprof_data
+    if pos("umask",data) > 0 then,
+      parse var data . "umask" umask .
+    if pos("LOGNAME",data) > 0 then,
+      parse var data logname "LOGNAME" .
+    end
+  if umask = "077" &,
+     logname = "readonly" then,
+    queue "Not a Finding"
+  else do
+    queue "The /etc/profile file does not specify the following",
+      "parameters."
+    queue " "
+    if umask = "" then,
+      queue "     umask 077 is not specified."
+    else,
+      if umask <> "077" then,
+        queue "     umask" umask "is specified."
+    if logname = "" then,
+      queue "     readonly LOGNAME is not specified."
+    else,
+      if logname <> "readonly" then,
+        queue "     "logname "LOGNAME is specified."
+    end
+  end
+call process_queued_pdi
+return
+ 
+ 
+process_ps:
+sntpd_data = ""
+sshd_data = ""
+Address ISPEXEC
+address tso "alloc fi(input) da('"VDSNFULL"("VRPT")') shr reuse"
+address tso "execio * diskr input (finis stem out."
+do a = 1 to out.0
+  parse var out.a out.a "#" .
+  if out.a = "" then iterate
+  if pos("sntp",out.a) > 0 |,
+     pos("SNTP",out.a) > 0 then do
+    sntpd_data = sntpd_data""strip(out.a,"B")"@"
+    end
+  if pos("ssh",out.a) > 0 |,
+     pos("SSH",out.a) > 0 then do
+    sshd_data = sshd_data""strip(out.a,"B")"@"
+    end
+  end
+pdi = "ZUSS0038"
+/*say PGMNAME 'Processing PDI' pdi'.'*/
+Address TSO "newstack"
+if sntpd_data = "" then,
+  queue "SNTPD daemon is not active on the system."
+else do
+  queue "Not a Finding"
+  queue " "
+  do until sntpd_data = ""
+    parse var sntpd_data data "@" sntpd_data
+    queue "    " data
+    end
+  end
+call process_queued_pdi
+Address TSO "delstack"
+ 
+if sshd_data = "" then do
+  pdilist = "ZSSH0010 ZSSH0020 ZSSH0030 ZSSH0040"
+  do x = 1 to words(pdilist)
+    queue "Not a Finding"
+    queue " "
+    queue "The SSHD daemon is not active."
+    queue " "
+    pdi = word(pdilist,x)
+    call process_queued_pdi
+    end
+  end
+Else do
+  call process_sshd_pdis
+  end
+Address TSO "delstack"
+pdi = "ZSSH0050"
+address tso "alloc fi(input) da('"VDSNFULL"("pdi")') shr reuse"
+address tso "execio * diskr input (finis stem out."
+if out.0 = 0 then do
+  queue "Not a Finding"
+  queue " "
+  end
+Else do
+  queue "There are keys or certificates identified in Unix files."
+  queue " "
+  do x = 1 to out.0
+    queue "    " out.x
+    end
+  queue " "
+  end
+call process_queued_pdi
+return
+ 
+ 
+process_sshd_pdis:
+zssh0010_protocol = "Protocol statement is not specified."
+zssh0020_ciphers = "Ciphers statement is not specified."
+zssh0020_macs = "Macs statement is not specified."
+zssh0020_fips = "FIPSMODE statement is not specified."
+zssh0020_cipherssrc = "CiphersSource statement is not specified."
+zssh0020_macssrc = "MACsSource statement is not specified."
+zssh0030_banner = "Banner statement is not specified."
+zssh0040_srvrsmf = "ServerSMF statement is not specified."
+testdata = sshd_data
+do until testdata = ""
+  parse var testdata data "@" testdata
+  ufile = word(data,words(data))
+  address syscall "readfile (ufile) test."
+  say
+  say pgmname ufile "usable contents:"
+  do xx = 1 to test.0
+    parse var test.xx test.xx "#" .
+    test.xx = strip(test.xx,"B")
+    if test.xx = "" then iterate
+    parse upper var test.xx key .
+    say pgmname test.xx
+    if key = "PROTOCOL" then,
+      zssh0010_protocol = test.xx
+    if key = "CIPHERS" then do
+      zssh0020_ciphers = test.xx
+      if right(zssh0020_ciphers,1) = "," then,
+        do until right(zssh0020_ciphers,1) <> ","
+          xx = xx + 1
+          zssh0020_ciphers = zssh0020_ciphers""test.xx
+          end
+      end
+    if key = "MACS" then do
+      zssh0020_macs = test.xx
+      if right(zssh0020_macs,1) = "," then,
+        do until right(zssh0020_macs,1) <> ","
+          xx = xx + 1
+          zssh0020_macs = zssh0020_macs""test.xx
+          end
+      end
+    if key = "BANNER" then,
+      zssh0030_banner = test.xx
+    end
+  end
+ufile = "/etc/ssh/zos_sshd_config"
+address syscall "readfile (ufile) test."
+say
+say pgmname ufile "usable contents:"
+do xx = 1 to test.0
+  parse var test.xx test.xx "#" .
+  test.xx = strip(test.xx,"B")
+  if test.xx = "" then iterate
+  if pos("=",test.xx) > 0 then,
+    parse upper var test.xx key "=" .
+  else,
+    parse upper var test.xx key .
+  say pgmname test.xx
+  if key = "FIPSMODE" then,
+    zssh0020_fips = test.xx
+  if key = "CIPHERSSOURCE" then,
+    zssh0020_cipherssrc = test.xx
+  if key = "MACSSOURCE" then,
+    zssh0020_macssrc = test.xx
+  if key = "SERVERSMF" then,
+    zssh0040_srvrsmf = test.xx
+  end
+say
+ 
+if word(zssh0010_protocol,2) = 2 then do
+  queue "Not a Finding"
+  queue " "
+  queue "    " zssh0010_protocol
+  queue " "
+  end
+Else do
+  queue "SSH daemon must be configured to only use the SSHv2 protocol."
+  queue " "
+  queue "    " zssh0010_protocol
+  queue " "
+  end
+pdi = "ZSSH0010"
+call process_queued_pdi
+ 
+if word(zssh0020_ciphers,1) = "Ciphers" then do
+  ciphers_data = word(zssh0020_ciphers,2)
+  do until ciphers_data = ""
+    parse var ciphers_data tdata "," ciphers_data
+    if pos("aes",tdata) = 1 |,
+       pos("3des",tdata) = 1 then nop
+    else do
+      queue "    " zssh0020_ciphers
+      queue " "
+      ciphers_data = ""
+      end
+    end
+  end
+Else do
+  queue "    " zssh0020_ciphers
+  queue " "
+  end
+if word(zssh0020_macs,1) = "Macs" then do
+  macs_data = word(zssh0020_macs,2)
+  do until macs_data = ""
+    parse var macs_data tdata "," macs_data
+    if pos("hmac-sha",tdata) <> 1 then do
+      queue "    " zssh0020_macs
+      queue " "
+      macs_data = ""
+      end
+    end
+  end
+Else do
+  queue "    " zssh0020_macs
+  queue " "
+  end
+ 
+if pos("yes",zssh0020_fips) = 0 then do
+  queue "    " zssh0020_fips
+  queue " "
+  end
+ 
+if pos("ICSF",zssh0020_cipherssrc) = 0 then do
+  queue "    " zssh0020_cipherssrc
+  queue " "
+  end
+ 
+if pos("ICSF",zssh0020_macssrc) = 0 then do
+  queue "    " zssh0020_macssrc
+  queue " "
+  end
+ 
+if queued() = 0 then do
+  queue "Not a Finding"
+  queue " "
+  queue "    " zssh0020_ciphers
+  queue "    " zssh0020_macs
+  queue "    " zssh0020_fips
+  queue "    " zssh0020_cipherssrc
+  queue "    " zssh0020_macssrc
+  queue " "
+  end
+else do
+  push " "
+  push "SSH daemon must be configured to only use a FIPS 140-2",
+    "compliant cryptographic algorithm."
+  end
+pdi = "ZSSH0020"
+call process_queued_pdi
+ 
+parse upper var zssh0030_banner banner
+if wordpos("BANNER",banner) > 0 then do
+  ufile = word(zssh0030_banner,words(zssh0030_banner))
+  address syscall "readfile (ufile) test."
+  say pgmname "Processing" ufile"."
+  queue "Not Reviewed"
+  queue "The" ufile "file does not contain the required notification",
+    "and consent information."
+  queue " "
+  queue "     Contents of" ufile "are as follows:"
+  queue " "
+  do xx = 1 to test.0
+    queue "         " test.xx
+    end
+  queue " "
+  end
+Else do
+  queue zssh0030_banner
+  queue " "
+  end
+pdi = "ZSSH0030"
+call process_queued_pdi
+ 
+if word(zssh0040_srvrsmf,2) = "TYPE119_U83" then do
+  queue "Not a Finding"
+  queue " "
+  queue "    " zssh0040_srvrsmf
+  queue " "
+  end
+Else do
+  queue "SSH daemon must be configured to write SMF records for all",
+    "eligible events."
+  queue " "
+  queue "    " zssh0040_srvrsmf
+  queue " "
+  end
+pdi = "ZSSH0040"
+call process_queued_pdi
+ 
+return
+ 
+ 
+process_queued_pdi:
+say pgmname right(queued(),4) 'records written for' pdi'.'
+do xx = 1 to queued()
+  parse pull ac
+  "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(ac)",
+    "DATALEN("length(ac)") MEMBER("pdi")"
+  end
+"LMMADD DATAID("pdidd") MEMBER("pdi")"
+if RC = 4 then do
+  "LMMREP DATAID("pdidd") MEMBER("pdi")"
+  if RC <> 0 then,
+    say PGMNAME 'LMMREP_PDIDD =' RC PDI ZERRSM
+  end
+return
+ 
+ 
+process_inetd:
+inetd_data = ""
+Address ISPEXEC
+address tso "alloc fi(input) da('"VDSNFULL"("VRPT")') shr reuse"
+address tso "execio * diskr input (finis stem out."
+do a = 1 to out.0
+  parse var out.a out.a "#" .
+  if out.a = "" then iterate
+  if word(out.a,1) = "otelnet" then do
+    inetd_data = out.a
+    leave
+    end
+  end
+pdi = "IUTN0010"
+/*say PGMNAME 'Processing PDI' pdi'.'*/
+Address TSO "newstack"
+if inetd_data = "" then,
+  queue "Not Applicable"
+else do
+  if word(inetd_data,5) = "OMVS" |,
+     word(inetd_data,5) = "OMVSKERN" then do
+    queue "Not a Finding"
+    queue " "
+    queue "     "word(inetd_data,5) "is specified."
+    end
+  else do
+    queue "The startup user account for the z/OS UNIX Telnet Server",
+      "does not specify OMVS or OMVSKERN."
+    queue " "
+    queue "     "word(inetd_data,5) "is specified."
+    end
+  end
+call process_queued_pdi
+pdi = "IUTN0020"
+/*say PGMNAME 'Processing PDI' pdi'.'*/
+Address TSO "newstack"
+if inetd_data = "" then,
+  queue "Not Applicable"
+else do
+  login = ""
+  timeout = ""
+  x = wordindex(inetd_data,7)
+  parse var inetd_data . =(x) inetd_parm
+  if pos("-h",inetd_parm) = 0 then do
+    queue "Not a Finding"
+    queue " "
+    queue "     "inetd_parm
+    end
+  else do
+    queue "Startup parameters for the z/OS UNIX Telnet Server are",
+      "improperly specified."
+    queue " "
+    queue "     "inetd_parm
+    end
+  end
+call process_queued_pdi
+pdi = "IUTN0021"
+/*say PGMNAME 'Processing PDI' pdi'.'*/
+Address TSO "newstack"
+if inetd_data = "" then,
+  queue "Not Applicable"
+else do
+  login = ""
+  timeout = ""
+  x = wordindex(inetd_data,7)
+  parse var inetd_data . =(x) inetd_parm
+  parse var inetd_parm . "-D" login .
+  parse var inetd_parm . "-c" timeout .
+  if login = "login" &,
+     timeout <= 900 then do
+    queue "Not a Finding"
+    queue " "
+    queue "     "inetd_parm
+    end
+  else do
+    queue "Startup parameters for the z/OS UNIX Telnet Server are",
+      "improperly specified."
+    queue " "
+    queue "     "inetd_parm
+    end
+  end
+call process_queued_pdi
+pdi = "ZUSS0014"
+services = "chargen daytime discard echo exec finger shell time",
+  "login smtp timed nameserver systat uucp netstat talk qotd tftp"
+inetd_data = ""
+/*say PGMNAME 'Processing PDI' pdi'.'*/
+do a = 1 to out.0
+  parse var out.a out.a "#" .
+  if out.a = "" then iterate
+  service = word(out.a,1)
+  if wordpos(service,services) > 0 then do
+    inetd_data = inetd_data""out.a"#"
+    leave
+    end
+  end
+Address TSO "newstack"
+if inetd_data = "" then,
+  queue "Not a Finding"
+else do
+  queue "The following restricted network service(s) are specified",
+    "in /etc/inetd.conf."
+  queue " "
+  do until inetd_data = ""
+    parse var inetd_data service "#" inetd_data
+    queue "     "service
+    end
+  end
+call process_queued_pdi
+pdi = ""
+Address TSO "free fi(input)"
+return
+ 
+ 
+collect_rec:
+Address ISPEXEC
+"lmmfind dataid("dialog") member(products)"
+lmmfind_dialog = RC
+TYPERUN = left(TYPERUN,8)
+RC = 0
+recs =
+do until RC>0
+  "lmget dataid("dialog") mode(invar) dataloc(data) datalen(lrecl)",
+  "maxlen(80)"
+  if RC = 0 & ,
+     pos(TYPERUN' 'rectype,data) = 1 then do
+    parse var data . "0" ind
+    ind = strip(ind)
+    return 0
+    end /* if RC = 0 & */
+end /* until RC>0 */
+return 0

@@ -1,0 +1,73 @@
+)ATTR
+ _ TYPE(INPUT)  INTENS(HIGH) CAPS(ON) PADC(_)
+ ~ TYPE(INPUT)  INTENS(LOW) CAPS(ON) PADC(_)
+ ^ AREA(SCRL) EXTEND(ON)
+ $ TYPE(TEXT) INTENS(HIGH) SKIP(ON)
+ @ TYPE(OUTPUT) INTENS(LOW)  SKIP(ON) CAPS(OFF)
+)BODY WIDTH(80) EXPAND("")
+%"-" Security Readiness Review Self-Audit "-"+
+%&TITLE
+@PGM8     %" "Version:@SRRVERS +
+%Command ===>_ZCMD                                            %Scroll ===>_ZUSC+
+%  Commands:  CANCEL+- Exit without saving information
+             %Enter+- Ends and saves information
+%"="
+^DATAAREA                                                                      ^
+%"="
++
++
++
+)AREA DATAAREA DEPTH(5)
++   From the%Administrator+menu provide the following entries from:
++
++     GLOBAL Common Profile Segment:
++       1. Administrator authority     :~Z$    (Y or N)
++       2. Maintain customized menu    :~Z$    (Y or N)
++       3. Add sessions to the menu    :~Z$    (Y or N)
++       4. Resource validation         :~Z$    (A, S, or B)
++       5. Timeout interval            :~Z    $(HH:MM)
++       6. Group profile name          :~Z       $
++
++     SupSess GLOBAL Profile Segment:
++       1. Maintain trigger profile    :~Z$    (Y or N)
++       2. Add triggers to profile     :~Z$    (Y or N)
++       3. Modify triggers in profile  :~Z$    (Y or N)
++       4. Switch terminals            :~Z$    (Y or N)
++       5. Preserve Sessions upon exit :~Z$    (Y or N)
+)INIT
+ .ZVARS = '(AA CM AS RV TI GP MA AT MO ST PS)'
+ .CURSOR = ZCMD
+ IF (&ZCMD EQ 'END')
+   &ZERRSM = 'Invalid value'
+   &ZERRLM = 'Enter CANCEL or press the Enter key.'
+   &ZERRALRM = YES
+   .MSG=ISRZ002
+ IF (&GP = ' ')
+   &GP = 'N/A'
+)REINIT
+ REFRESH *
+)PROC
+ VER (&ZCMD,LIST,CANCEL,' ')
+ IF (&ZCMD EQ 'CANCEL')
+   EXIT
+ VER (&AA,NB,LIST,Y,N)
+ VER (&CM,NB,LIST,Y,N)
+ VER (&AS,NB,LIST,Y,N)
+ VER (&RV,NB,LIST,A,S,B)
+ VER (&TI,NB,ITIME)
+ VER (&GP,NB)
+ VER (&MA,NB,LIST,Y,N)
+ VER (&AT,NB,LIST,Y,N)
+ VER (&MO,NB,LIST,Y,N)
+ VER (&ST,NB,LIST,Y,N)
+ VER (&PS,NB,LIST,Y,N)
+)END
+/*
+/* 05/09/2005 JL.Nelson Created for dialog - Update auth user lists
+/* VER (&S,NB,LIST,B,S,E,MSG=SRR002)
+/*&TI = '&TI.:00'
+/*&TI = TRUNC (&TI,5)
+/*
+/* SAMPLE MODEL LINE FOLLOWS:
+/* &MODLINE
+/*

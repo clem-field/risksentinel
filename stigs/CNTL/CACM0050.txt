@@ -1,0 +1,271 @@
+/* REXX */
+/* CLS2REXXed by FSOX001 on 14 Sep 2016 at 10:42:24  */
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+Address ISREDIT
+ 
+"MACRO"           /* CACM0050 EDIT MACRO */
+/*********************************************************************/
+/* THIS ROUTINE IS DEPENDANT ON THE CA/EXAMINE FORMAT OF THE APF     */
+/* DUPLICATES REPORT                                                 */
+/* Change Log                                                        */
+/* 05/17/2007 C. STERN Created for AAMV0050.                         */
+/* 07/31/2007 C. FENTON Modified finding record output.              */
+/* 08/28/2007 C. STERN Removed column position on EXCLUDE command    */
+/*            for 'ETRUST CA EXAMINE' ALL.  Line was not being       */
+/*            excluded and causing finding header to be displayed    */
+/*            with no other data.                                    */
+/* 02/05/2008 C. STERN Modified error exit and return code           */
+/*            processing.                                            */
+/* 02/27/2008 C. STERN Removed ISREDIT RECOVERY ON command.          */
+/* 09/08/2008 CL FENTON Changed ISREDIT MEND to ISREDIT CANCEL.      */
+/* 06/28/2012 CL FENTON Chgd pre-process deletions for different     */
+/*            versions of CA Examine/CA Auditor.                     */
+/* 06/28/2012 CL FENTON Chgd FINDIT proc to bypass LPA entries to    */
+/*            correct 912 error, CSD-AR003423259.                    */
+/* 07/30/2012 CL FENTON Chgd which sensitve programs are evaluated   */
+/*            and removed SCP programs, CSD-AR003423259, STS-000046  */
+/*            and STS-000054.                                        */
+/* 09/14/2016 CL.FENTON Converted script from CLIST to REXX.         */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname   = "CACM0050 09/14/16"
+sysprompt = "OFF"                /* CONTROL NOPROMPT          */
+sysflush  = "OFF"                /* CONTROL NOFLUSH           */
+sysasis   = "ON"                 /* CONTROL ASIS - caps off   */
+Address ISPEXEC "CONTROL NONDISPL ENTER"
+Address ISPEXEC "CONTROL ERRORS RETURN"
+/*******************************************/
+/* VARIABLES ARE PASSED TO THIS MACRO      */
+/* CONSLIST                                */
+/* COMLIST                                 */
+/* SYMLIST                                 */
+/* TERMMSGS                                */
+/* PDIDD                                   */
+/*******************************************/
+return_code = 0
+Address ISPEXEC "VGET (CONSLIST COMLIST SYMLIST TERMMSGS PDIDD) ASIS"
+cm050vge = return_code
+If return_code <> 0 then do
+  Say pgmname "VGET RC =" return_code zerrsm
+  Say pgmname "CONSLIST/"conslist "COMLIST/"comlist "SYMLIST/"symlist,
+    "TERMMSGS/"termmsgs
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" ,
+  then Trace r
+ 
+maxcc       = 0
+return_code = 0
+/*******************************************/
+/* TURN ON MESSAGES                        */
+/*******************************************/
+syssymlist  = symlist          /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist  = conslist         /* CONTROL CONLIST/NOCONLIST */
+syslist     = comlist          /* CONTROL LIST/NOLIST       */
+sysmsg      = termmsgs         /* CONTROL MSG/NOMSG         */
+sysasis     = "ON"             /* CONTROL ASIS - caps off   */
+/*******************************************/
+/* MAIN PROCESS                            */
+/*******************************************/
+"(MEMBER) = MEMBER"
+"(DSNAME) = DATASET"
+pdimbr       = "AAMV0050"
+print_header = "N"
+finding_rc   = "N"
+library.     = ""
+volser.      = ""
+blank8       = "        "
+/* HOUSEKEEPING */
+Say pgmname "Processing" member "to create results for" pdimbr"."
+"BOUNDS"
+"NUMBER OFF"
+"FIND 'LIBRARY NAME ' 5 LAST"
+"FIND '1' 1"
+"DELETE ALL .ZF .ZCSR"
+"EXCLUDE MEMBER WORD 8 ALL"
+"EXCLUDE '- -----' 5 ALL"
+"EXCLUDE '1' 1 ALL"
+"EXCLUDE 'LIST DUPLICATE APF PROGRAMS' ALL"
+"EXCLUDE 'THERE WERE' 7 ALL"
+"EXCLUDE 'LIBRARY ' 7 ALL"
+"EXCLUDE '                ' 7 ALL"
+"EXCLUDE 'ENTER B B' 7 ALL"
+"DELETE ALL EXCLUDE"
+"(LASTLINE) = LINENUM .ZLAST"
+Call findit "'GTF ',10"
+Call findit "'IOCP ',10"
+Call findit "'AMAZAP '"
+Call findit "'SPZAP',10"
+Call findit "BLSROPTR"
+Call findit "'DEBE '"
+Call findit "'DITTO '"
+Call findit "'GIMSMP '"
+Call findit "'ICKDSF '"
+Call findit "'IDCSC01 '"
+Call findit "IEHINITT"
+Call findit "IFASMFDP"
+Call findit "IND$FILE"
+Call findit "'WHOIS '"
+/* FDR */
+Call findit "FDRZAPOP"
+/* MQ SERIES AND WEBSPHERE MQ */
+Call findit "CSQUTIL"
+Call findit "CSQUCVX"
+Call findit "CSQJU003"
+Call findit "CSQJU004"
+Call findit "CSQ1LOGP"
+ 
+END_IT_ALL:
+If finding_rc = "N" then do
+  ac = "Not a Finding."
+  Call put_it
+  Call blank_line
+  ac = "No duplicate sensitive utility(ies) and/or program(s)",
+    "found."
+  Call put_it
+  end
+Call add_member
+return_code = 0
+ 
+ERR_EXIT:
+If maxcc >= 16 | return_code > 0 then do
+  Address ISPEXEC "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then
+    zispfrc = maxcc
+  Else
+    zispfrc = return_code
+  Address ISPEXEC "VPUT (ZISPFRC) SHARED"
+  Say pgmname "ZISPFRC =" zispfrc
+  end
+Address ISPEXEC "VPUT (CM050VGE) ASIS"
+ 
+"CANCEL"
+Exit 0
+ 
+ 
+/*******************************************/
+/*  SYSCALL SUBROUTINES                    */
+/*******************************************/
+ADD_MEMBER:
+return_code = 0
+Address ISPEXEC "LMMADD DATAID("pdidd") MEMBER("pdimbr")"
+If return_code = 4 then do
+  return_code = 0
+  Address ISPEXEC "LMMREP DATAID("pdidd") MEMBER("pdimbr")"
+  If return_code <> 0 then
+    Say pgmname "LMMREP_PDI_RCODE =" return_code pdimbr zerrsm
+  End
+Else
+  If return_code <> 0 then
+    Say pgmname "LMMADD_PDI_RCODE =" return_code pdimbr zerrsm
+Return
+ 
+ 
+BLANK_LINE:
+ac = " "
+Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+  "DATALEN("length(ac)") MEMBER("pdimbr")"
+Return
+ 
+ 
+PUT_IT:
+Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+  "DATALEN("length(ac)") MEMBER("pdimbr")"
+Return
+ 
+ 
+/*********************************************************************/
+/*  FINDIT SUBROUTINE                                                */
+/*                                                                   */
+/* Parameters :  PGM - positional parameter program to look for      */
+/*               OPTS - keyword other options                        */
+/*                      default is starting col of program           */
+/*                                                                   */
+/*********************************************************************/
+FINDIT:
+Arg pgm","opts
+if opts = "" then opts = "7"
+z = 0
+return_code = 0
+"FIND" pgm "FIRST" opts
+If return_code <> 0 then
+  Return
+"(DATA) = LINE .ZCSR"
+utility = substr(data,7,8)
+ 
+"(ROW COL) = CURSOR"
+"SEEK P'^' 7"
+if return_code = 0 then do
+  "(RE CE) = CURSOR"
+  lastrow = re - 1
+  end
+else
+  lastrow = lastline
+ 
+do x = row to lastrow
+  "(DATA) = LINE" x
+  If pos("--LPA--",data) > 0 then
+    iterate
+  raw_library = substr(data,33,44)
+  raw_volser  = substr(data,25,6)
+  z = z + 1
+  library.z = raw_library
+  volser.z  = raw_volser
+  end
+ 
+SEARCH_END:
+If z = 1 then
+  Return
+ 
+finding_rc = "Y"
+If print_header = "N" then do
+  print_header = "Y"
+  ac = "The following duplicate sensitive utility(ies) and/or",
+    "program(s) are found in APF-authorized libraries:"
+  Call put_it
+  Call blank_line
+  end
+Do count = 1 to z
+  x2 = library.count
+  x3 = volser.count
+  x2 = substr(x2,1,44)
+  If count = 1 then
+    x1 = utility
+  else
+    x1 = blank8
+  ac = "     "x1"  "x2"  "x3
+  Call put_it
+  end
+ 
+Return
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC > 4 & RC <> 8 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname 'REXX error' rc 'in line' sigl':' ERRORTEXT(rc)
+  say SOURCELINE(sigl)
+  end
+if return_code > maxcc then
+  maxcc = return_code
+return
+ 
+ 

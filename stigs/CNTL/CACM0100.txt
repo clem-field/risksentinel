@@ -1,0 +1,407 @@
+/* REXX */
+/* CLS2REXXed by UMLA01S on 14 Jun 2019 at 16:10:04  */
+/*trace r?*/
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+Address ISREDIT
+ 
+"MACRO"               /* CACM0100 EDIT MACRO */
+/*********************************************************************/
+/* 11/15/2008 CL Fenton Created to generate finding details.         */
+/* 03/15/2011 CL Fenton Added automation for ZUSS0041 and            */
+/*            ZUSS0042.                                              */
+/* 09/13/2012 CL Fenton Correct improper userids from Dialog         */
+/*            dataset.                                               */
+/* 05/18/2018 CL.Fenton Added "Not Reviewed" to ZUSS0046 for vuls    */
+/*            that require additional analysis and changes made      */
+/*            to identify personal user accounts in finding          */
+/*            details, STS-019713.                                   */
+/* 06/14/2019 CL.Fenton Converted script from CLIST to REXX.         */
+/* 07/27/2022 CL Fenton Added automation for ZUSS0045 and            */
+/*            IFTP0010, STS-028721 and STS-028720.                   */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname = "CACM0100 07/27/22"
+sysprompt = "OFF"                /* CONTROL NOPROMPT          */
+sysflush = "OFF"                /* CONTROL NOFLUSH           */
+sysasis = "ON"                 /* CONTROL ASIS - caps off   */
+return_code = 0
+maxcc = 0
+max_rc = 0
+Address ISPEXEC "CONTROL NONDISPL ENTER"
+Address ISPEXEC "CONTROL ERRORS RETURN"
+return_code = 0   /* SET RETURN CODE TO 0 */
+Address ISPEXEC "VGET (CONSLIST COMLIST SYMLIST TERMMSGS PDIDD",
+  "DIALOG ACPNAME) ASIS"
+vget_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "VGET_RC =" return_code zerrsm
+  Say pgmname "CONSLIST/"conslist "COMLIST/"comlist,
+    "SYMLIST/"symlist "TERMMSGS/"termmsgs
+  Say pgmname "PDIDD/"pdidd "DIALOG/"dialog "ACPNAME/"acpname
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" ,
+  then Trace r
+ 
+/*******************************************/
+/* TURN ON MESSAGES                        */
+/*******************************************/
+syssymlist = symlist          /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist         /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist          /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs         /* CONTROL MSG/NOMSG         */
+return_code = 0
+ 
+pdimbr = "IFTP0010"
+"FIND 'FTPD   ' 1 FIRST"
+If return_code = 0 then do
+  "(INFO) = LINE .ZCSR"
+  Address ISPEXEC "VPUT (INFO) ASIS"
+  Address ISPEXEC "EDIT DATAID("pdidd") MACRO(CACM0101)",
+    "MEMBER(IFTP0010)"
+  Address ISPEXEC "VGET (INFO) ASIS"
+  Do until info = ""
+    parse var info ac "@" info
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)")"
+    end
+  Call add_member
+  end
+ 
+pdimbr = "ZUSS0045"
+"FIND 'RMFGAT ' 1 FIRST"
+If return_code = 0 then do
+  "(INFO) = LINE .ZCSR"
+  Address ISPEXEC "VPUT (INFO) ASIS"
+  Address ISPEXEC "EDIT DATAID("pdidd") MACRO(CACM0101)",
+    "MEMBER(ZUSS0045)"
+  Address ISPEXEC "VGET (INFO) ASIS"
+  Do until info = ""
+    parse var info ac "@" info
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)")"
+    end
+  Call add_member
+  end
+/*********************************************************************/
+/* To evaluate ZUSS0044 for entry specified in the BPXPRMxx          */
+/* member SUPERUSER entry by issuing cacc1010('D OMVS,O').           */
+/*********************************************************************/
+pdimbr = "ZUSS0041"
+Say pgmname "Processing" pdimbr"."
+detail_sw = 0
+err1 = 0
+err2 = 0
+curline = 0
+fgrps = "OMVSGRP STCOMVS"
+err1_line = ""
+err2_line = ""
+"CURSOR = 1 0"
+Do X = 1 to words(fgrps)
+  fgrp = word(fgrps,x)
+  fgrp = left(fgrp,10)
+  return_code = 0
+  "FIND '"fgrp"' 1"
+  If return_code > 0 then do
+    err1 = err1 + 1
+    err1_line = err1_line||fgrp
+    end
+  Else do
+    "(DATA) = LINE .ZCSR"
+    parse var data . 12 gid 23 .
+    If gid > 99 | gid = 0 | gid = " " then do
+      err2 = err2 + 1
+      err2_line = err2_line||fgrp||gid
+      end
+    end
+  end
+If err1 < 2 & err2 = 0 then do
+  ac = "Not a Finding"
+  return_code = 0
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)")"
+  end
+Else do
+  If err1 > 1 | err2 > 0 then do
+    ac = "The OMVSGRP and/or STCOMVS group(s) is (are) improperly",
+      "defined."
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)")"
+    ac = " "
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)")"
+    end
+  If err1 > 1 then,
+    detail_sw = detail_sw + 1
+  If err2 > 0 then,
+    detail_sw = detail_sw + 1
+  a = 1
+  If detail_sw > 1 then
+    pd = a") "
+  Else,
+    pd = ""
+  If err1 > 1 then do
+    ac = pd"The group(s) is (are) not defined to the security",
+      "database."
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)")"
+    ac = " "
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)")"
+    Do X = 1 to words(err1_line)
+      grp = word(err1_line,x)
+      ac = "     "grp
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)")"
+      end
+    end
+  a = a + 1
+  If detail_sw > 1 then,
+    pd = a") "
+  Else,
+    pd = ""
+  If err2 > 0 then do
+    ac = pd"The group(s) is (are) not defined with a unique GID",
+      "in the range of 1 - 99."
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)")"
+    ac = " "
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)")"
+    Do X = 1 to words(err2_line) by 2
+      y = x + 1
+      grp = word(err2_line,x)
+      gid = word(err2_line,y)
+      ac = "     "grp gid
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)")"
+      end
+    end
+  end
+ 
+ 
+ZUSS0041_END:
+return_code = 0
+Call add_member
+pdimbr = "ZUSS0042"
+Say pgmname "Processing" pdimbr"."
+detail_sw = 0
+curline = 0
+ogid = ""
+If acpname = "TSS" then do
+  ac = "Not Applicable"
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)")"
+  end
+Else do
+  "SORT 11 22 A"
+  "EXCLUDE ALL 'U' 11"
+  "EXCLUDE ALL ' ' 11"
+  "DELETE ALL X"
+  return_code = 0
+  "(LASTLINE) = LINENUM .ZLAST"
+ 
+ 
+ZUSS0042_LOOP:
+  do curline = 1 to lastline
+    return_code = 0
+    If curline > lastline then leave
+    "(DATA) = LINE" curline
+    parse var data . 12 gid 23 .
+    If gid <> ogid then,
+      "XSTATUS" curline "= X"
+    Else,
+      "FIND ALL '"ogid"' 11"
+    ogid = gid
+    end
+ 
+ 
+ZUSS0042_NEXT:
+  return_code = 0
+  "DELETE ALL X"
+  "(LASTLINE) = LINENUM .ZLAST"
+  If return_code > 0 then do
+    ac = "Not a Finding"
+    return_code = 0
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)")"
+    end
+  Else do
+    "SORT 11 22 A 1 8 A"
+    ac = "The following groups are defined with duplicate GID numbers:"
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)")"
+    ac = " "
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)")"
+    Do CNT = 1 to lastline
+      "(DATA) = LINE" cnt
+      parse var data usr 9 . 12 gid .
+      ac = "     "usr gid
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)")"
+      end
+    end
+  end
+ 
+ 
+ZUSS0042_END:
+return_code = 0
+Call add_member
+/*******************************************/
+/* Remove non-zero UIDS and Users that     */
+/* are justified to have a zero UID.       */
+/*******************************************/
+pdimbr = "ZUSS0046"
+Say pgmname "Processing" pdimbr"."
+"EXCLUDE ALL ' U00000000000 '"
+"DELETE ALL NX"
+"RESET"
+"EXCLUDE ALL 'FTPD    ' 1"
+"EXCLUDE ALL 'SYSLOGD ' 1"
+"EXCLUDE ALL 'TCPIP'    1"
+"EXCLUDE ALL 'EZAZSSI ' 1"
+"EXCLUDE ALL 'BPXROOT ' 1"
+Call dialog_rtn "OMVSAUDT"   /* OMVS kernel      */
+Call dialog_rtn "DAEMAUDT"   /* UNIX daemons     */
+Call dialog_rtn "SERVAUDT"   /* UNIX servers     */
+"DELETE ALL X"
+return_code = 0
+"(LASTLINE) = LINENUM .ZLAST"
+If return_code > 0 then do
+  ac = "Not a Finding"
+  return_code = 0
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)")"
+  end
+Else do
+  "SORT 1 8 A"
+  ac = "Not Reviewed"
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)")"
+  ac = "The following user account(s) is (are) improperly",
+    "defined:"
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)")"
+  ac = " "
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)")"
+  ac = "1) The UID value is specified as UID(0)."
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)")"
+  ac = "2) Justification for access authorization was not provided."
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)")"
+  ac = " "
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)")"
+  Do CNT = 1 to lastline
+    "(DATA) = LINE" cnt
+    ac = "     "left(data,8)
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)")"
+    end
+  end
+ 
+ 
+ZUSS0046_END:
+return_code = 0
+Call add_member
+ 
+ 
+ERR_EXIT:
+"CANCEL"
+Exit
+ 
+ 
+/*******************************************/
+/*  SYSCALL SUBROUTINES                    */
+/*******************************************/
+DIALOG_RTN:
+Parse upper arg AUMBR .
+return_code = 0
+Address ISPEXEC "LMMFIND DATAID("dialog") MEMBER("aumbr")"
+lmmfind_dialog_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "Authorized user list" aumbr "not found for PDI" pdimbr"."
+  Return
+  end
+ 
+ 
+GET_NEXT_USR:
+return_code = 0
+do until return_code > 0
+  Address ISPEXEC "LMGET DATAID("dialog") MODE(INVAR) DATALOC(URECORD)",
+    "MAXLEN(80) DATALEN(LRECL)"
+  lmget_dialog_rc = return_code
+  If return_code = 8 then do
+    lmget_dialog_rc = 0             /* SET RETURN CODE TO 0 */
+    leave
+    end
+  If return_code > 4 then do
+    Say pgmname "LMGET  DIALOG  RC =" return_code zerrsm
+    return_code = return_code + 16
+    leave
+    end
+  If left(urecord,1) = "*" | left(urecord,1) = " " then,
+    iterate
+  usr = left(urecord,8)
+  "EXCLUDE ALL '"usr"' 1"
+  return_code = 0
+  end
+/*  ---------------   */
+Return
+ 
+ 
+ADD_MEMBER:
+return_code = 0
+Address ISPEXEC "LMMADD DATAID("pdidd") MEMBER("pdimbr")"
+If return_code = 4 then do
+  return_code = 0
+  Address ISPEXEC "LMMREP DATAID("pdidd") MEMBER("pdimbr")"
+  If return_code <> 0 then do
+    Say pgmname "LMMREP PDI RCODE =" return_code pdimbr zerrsm
+    end
+  end
+Else do
+  If return_code <> 0 then,
+    Say pgmname "LMMADD PDI RCODE =" return_code pdimbr zerrsm
+  end
+"RESET"
+"DELETE ALL NX"
+return_code = 0
+"(MBR) = MEMBER"
+"COPY ("mbr") AFTER .ZF"
+Return
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname "REXX error" rc "in line" sigl":" strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC >= 16 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname "REXX error" rc "in line" sigl":" ERRORTEXT(rc)
+  say SOURCELINE(sigl)
+  end
+if RC = 14 then return_code = 0
+if return_code > maxcc then
+  maxcc = return_code
+return
+ 
+ 

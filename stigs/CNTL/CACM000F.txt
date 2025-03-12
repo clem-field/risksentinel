@@ -1,0 +1,838 @@
+/* REXX */
+/*                                       */
+/* AUTHOR: Charles Fenton                */
+/*                                       */
+/*trace r?*/
+/*Signal On NoValue*/
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+Address ISREDIT
+ 
+"MACRO"             /* CACM000F EDIT MACRO .PDI(?????) */
+/*********************************************************************/
+/* DISPLAY SYSTEM INFORMATION ON TERMINAL                            */
+/*********************************************************************/
+/*********************************************************************/
+/* This script generates analysis of Started Task definitions.       */
+/*********************************************************************/
+/* Change summary:                                                   */
+/* 06/07/2024 CL Fenton Initial creation of script to generate       */
+/*            finding details for Started Task userid definitions.   */
+/* 06/17/2024 CL Fenton Added automation for ZAID0030, ZCA10030,     */
+/*            ZCCS0030, ZCLS0030, ZCTD0030, ZCTM0030, ZCTO0030,      */
+/*            ZHCK0030, ZIOA0030, ZISF0030, ZMIM0030, ZMVZ0030,      */
+/*            ZNCP0030, ZNET0030, ZROS0030, ZSMT0030, ZTAD0030,      */
+/*            ZVTA0030, ACF2-IC-000040, RACF-IC-000040, and          */
+/*            TSS0-IC-000040 for SCTASKU0157325, SCTASKU0157358,     */
+/*            SCTASKU0157400, SCTASKU0157432, SCTASKU0157449,        */
+/*            SCTASKU0157481, SCTASKU0157502, SCTASKU0157509,        */
+/*            SCTASKU0157551, SCTASKU0157576, SCTASKU0157605,        */
+/*            SCTASKU0157639, SCTASKU0157748, SCTASKU0157797,        */
+/*            SCTASKU0158057, SCTASKU0158061, SCTASKU0158911,        */
+/*            SCTASKU0158924, and SCTASKU0170585.                    */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+PGMNAME = 'CACM000F 06/17/24'
+sysprompt = "OFF"                /* CONTROL NOPROMPT          */
+sysflush = "OFF"                 /* CONTROL NOFLUSH           */
+sysasis = "ON"                   /* CONTROL ASIS - caps off   */
+return_code = 0
+maxcc = 0
+/*******************************************/
+/* VARIABLES ARE PASSED TO THIS MACRO      */
+/* CONSLIST                                */
+/* COMLIST                                 */
+/* SYMLIST                                 */
+/* TERMMSGS                                */
+/* MBRLIST                                 */
+/* ACPNAME                                 */
+/* TYPERUN                                 */
+/*******************************************/
+Address ISPEXEC "CONTROL NONDISPL ENTER"
+Address ISPEXEC "CONTROL ERRORS RETURN"
+"NUMBER OFF"
+"CAPS OFF"
+"STATS OFF"
+return_code = 0
+maxcc = 0
+zerrsm = ""
+finding = ""
+Address ISPEXEC "VGET (CONSLIST COMLIST SYMLIST TERMMSGS MBRLIST",
+  "ACPNAME TYPERUN) ASIS"
+ 
+If return_code <> 0 then do
+  Say pgmname "VGET RC =" return_code zerrsm
+  Say pgmname "CONSLIST/"conslist "COMLIST/"comlist "SYMLIST/"symlist ,
+    "TERMMSGS/"termmsgs
+  Say pgmname "MBRLIST/"mbrlist "ACPNAME/"acpname "TYPERUN/"typerun
+  end
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" ,
+  then Trace r
+ 
+"(NUM) = LINENUM .ZL"
+if num > 0 then ,
+  "DELETE .ZF .ZL"
+ 
+TYPRUN = left(acpname,1)typerun
+interpret call TYPRUN
+ 
+ERR_EXIT:
+"SAVE"
+"END"
+Exit 0                                       /* End CACC1001 - RC 0  */
+ 
+ 
+/*********************************************************************/
+/*  Start of sub-routines                                            */
+/*********************************************************************/
+/* ACF2 Started Task userids with STC attributes                     */
+/*********************************************************************/
+AABNDAID:
+ACA1:
+ACCS:
+AHLTHCK:
+ASDSF:
+ATADZ:
+do a = 1 to words(mbrlist)
+  userid = word(mbrlist,a)
+  call process_acf2_user
+  if return_code <> 0 then do
+    if finding = "" then do
+      "LINE_AFTER .ZLAST = DATALINE 'The following User Id(s) are",
+        "not defined.'"
+      "LINE_AFTER .ZLAST = DATALINE ' '"
+      finding = "X"
+      end
+    data = "     "userid
+    "LINE_AFTER .ZLAST = DATALINE (DATA)"
+    end
+  end
+finding = ""
+ 
+"(NUM) = LINENUM .ZL"
+if num > 0 then,
+  "LINE_AFTER .ZLAST = DATALINE ' '"
+ 
+do a = 1 to words(mbrlist)
+  userid_finding = ""
+  userid = word(mbrlist,a)
+  call process_acf2_user
+  if stc = "" then do
+    call process_detail_lines
+    data = "          STC"
+    "LINE_AFTER .ZLAST = DATALINE (DATA)"
+    end
+  end
+ 
+if finding = "" then,
+  "LINE_AFTER .ZLAST = DATALINE 'Not a Finding'"
+ 
+return
+ 
+ 
+/*********************************************************************/
+/* ACF2 Started Task userids with STC and NO-SMC attributes          */
+/*********************************************************************/
+ACAMIM:
+ABMCMVZ:
+ACSSMTP:
+AVTAPE:
+do a = 1 to words(mbrlist)
+  userid = word(mbrlist,a)
+  call process_acf2_user
+  if return_code <> 0 then do
+    if finding = "" then do
+      "LINE_AFTER .ZLAST = DATALINE 'The following User Id(s) are",
+        "not defined.'"
+      "LINE_AFTER .ZLAST = DATALINE ' '"
+      finding = "X"
+      end
+    data = "     "userid
+    "LINE_AFTER .ZLAST = DATALINE (DATA)"
+    end
+  end
+finding = ""
+ 
+"(NUM) = LINENUM .ZL"
+if num > 0 then,
+  "LINE_AFTER .ZLAST = DATALINE ' '"
+ 
+do a = 1 to words(mbrlist)
+  userid_finding = ""
+  userid = word(mbrlist,a)
+  call process_acf2_user
+  if stc = "" | ,
+     nosmc = "" then do
+    call process_detail_lines
+    if stc = "" then do
+      data = "          STC"
+      "LINE_AFTER .ZLAST = DATALINE (DATA)"
+      end
+    if nosmc = "" then do
+      data = "          NO-SMC"
+      "LINE_AFTER .ZLAST = DATALINE (DATA)"
+      end
+    end
+  end
+ 
+if finding = "" then,
+  "LINE_AFTER .ZLAST = DATALINE 'Not a Finding'"
+ 
+return
+ 
+ 
+/*********************************************************************/
+/* ACF2 Started Task userids with STC, MUSASS, and NO-SMC attribute  */
+/*********************************************************************/
+ACLSUPER:
+ABMCCTD:
+ABMCCTM:
+ABMCCTO:
+ABMCIOA:
+AICSF:
+ANETVIEW:
+do a = 1 to words(mbrlist)
+  userid = word(mbrlist,a)
+  call process_acf2_user
+  if return_code <> 0 then do
+    if finding = "" then do
+      "LINE_AFTER .ZLAST = DATALINE 'The following User Id(s) are",
+        "not defined.'"
+      "LINE_AFTER .ZLAST = DATALINE ' '"
+      finding = "X"
+      end
+    data = "     "userid
+    "LINE_AFTER .ZLAST = DATALINE (DATA)"
+    end
+  end
+finding = ""
+ 
+"(NUM) = LINENUM .ZL"
+if num > 0 then,
+  "LINE_AFTER .ZLAST = DATALINE ' '"
+ 
+do a = 1 to words(mbrlist)
+  userid_finding = ""
+  userid = word(mbrlist,a)
+  call process_acf2_user
+  if stc = "" | ,
+     musass = "" | ,
+     nosmc = "" then do
+    call process_detail_lines
+    if stc = "" then do
+      data = "          STC"
+      "LINE_AFTER .ZLAST = DATALINE (DATA)"
+      end
+    if musass = "" then do
+      data = "          MUSASS"
+      "LINE_AFTER .ZLAST = DATALINE (DATA)"
+      end
+    if nosmc = "" then do
+      data = "          NO-SMC"
+      "LINE_AFTER .ZLAST = DATALINE (DATA)"
+      end
+    end
+  end
+ 
+if finding = "" then,
+  "LINE_AFTER .ZLAST = DATALINE 'Not a Finding'"
+ 
+return
+ 
+ 
+/*********************************************************************/
+/* ACF2 Started Task userids with STC, MUSASS, NO-SMC, and MUSUPDT   */
+/* attributes                                                        */
+/*********************************************************************/
+ANCPASS:
+do a = 1 to words(mbrlist)
+  userid = word(mbrlist,a)
+  call process_acf2_user
+  if return_code <> 0 then do
+    if finding = "" then do
+      "LINE_AFTER .ZLAST = DATALINE 'The following User Id(s) are",
+        "not defined.'"
+      "LINE_AFTER .ZLAST = DATALINE ' '"
+      finding = "X"
+      end
+    data = "     "userid
+    "LINE_AFTER .ZLAST = DATALINE (DATA)"
+    end
+  end
+finding = ""
+ 
+"(NUM) = LINENUM .ZL"
+if num > 0 then,
+  "LINE_AFTER .ZLAST = DATALINE ' '"
+ 
+do a = 1 to words(mbrlist)
+  userid_finding = ""
+  userid = word(mbrlist,a)
+  call process_acf2_user
+  if stc = "" | ,
+     musass = "" | ,
+     nosmc = "" | ,
+     musupdt = "" then do
+    call process_detail_lines
+    if stc = "" then do
+      data = "          STC"
+      "LINE_AFTER .ZLAST = DATALINE (DATA)"
+      end
+    if musass = "" then do
+      data = "          MUSASS"
+      "LINE_AFTER .ZLAST = DATALINE (DATA)"
+      end
+    if nosmc = "" then do
+      data = "          NO-SMC"
+      "LINE_AFTER .ZLAST = DATALINE (DATA)"
+      end
+    if musupdt = "" then do
+      data = "          MUSUPDT"
+      "LINE_AFTER .ZLAST = DATALINE (DATA)"
+      end
+    end
+  end
+ 
+if finding = "" then,
+  "LINE_AFTER .ZLAST = DATALINE 'Not a Finding'"
+ 
+return
+ 
+ 
+/*********************************************************************/
+/* ACF2 Started Task userids with STC, MUSASS, NO-SMC and JOBFROM    */
+/* attributes                                                        */
+/*********************************************************************/
+AROSCOE:
+do a = 1 to words(mbrlist)
+  userid = word(mbrlist,a)
+  call process_acf2_user
+  if return_code <> 0 then do
+    if finding = "" then do
+      "LINE_AFTER .ZLAST = DATALINE 'The following User Id(s) are",
+        "not defined.'"
+      "LINE_AFTER .ZLAST = DATALINE ' '"
+      finding = "X"
+      end
+    data = "     "userid
+    "LINE_AFTER .ZLAST = DATALINE (DATA)"
+    end
+  end
+finding = ""
+ 
+"(NUM) = LINENUM .ZL"
+if num > 0 then,
+  "LINE_AFTER .ZLAST = DATALINE ' '"
+ 
+do a = 1 to words(mbrlist)
+  userid_finding = ""
+  userid = word(mbrlist,a)
+  call process_acf2_user
+  if stc = "" | ,
+     musass = "" | ,
+     nosmc = "" | ,
+     jobfrom = "" then do
+    call process_detail_lines
+    if stc = "" then do
+      data = "          STC"
+      "LINE_AFTER .ZLAST = DATALINE (DATA)"
+      end
+    if musass = "" then do
+      data = "          MUSASS"
+      "LINE_AFTER .ZLAST = DATALINE (DATA)"
+      end
+    if nosmc = "" then do
+      data = "          NO-SMC"
+      "LINE_AFTER .ZLAST = DATALINE (DATA)"
+      end
+    if jobfrom = "" then do
+      data = "          JOBFROM"
+      "LINE_AFTER .ZLAST = DATALINE (DATA)"
+      end
+    end
+  end
+ 
+if finding = "" then,
+  "LINE_AFTER .ZLAST = DATALINE 'Not a Finding'"
+ 
+return
+ 
+ 
+/*********************************************************************/
+/* RACF Started Task userids being defined                           */
+/*********************************************************************/
+RCLSUPER:
+RICSF:
+RTADZ:
+do a = 1 to words(mbrlist)
+  userid = word(mbrlist,a)
+  call process_racf_user
+  if return_code <> 0 then do
+    if finding = "" then do
+      "LINE_AFTER .ZLAST = DATALINE 'The following User Id(s) are",
+        "not defined.'"
+      "LINE_AFTER .ZLAST = DATALINE ' '"
+      finding = "X"
+      end
+    data = "     "userid
+    "LINE_AFTER .ZLAST = DATALINE (DATA)"
+    end
+  end
+ 
+if finding = "" then,
+  "LINE_AFTER .ZLAST = DATALINE 'Not a Finding'"
+ 
+return
+ 
+ 
+/*********************************************************************/
+/* RACF Started Task userids having the PROTECTED attribute          */
+/*********************************************************************/
+RABNDAID:
+RCA1:
+RCCS:
+RBMCCTD:
+RBMCCTM:
+RBMCCTO:
+RBMCIOA:
+RBMCMVZ:
+RCAMIM:
+RHLTHCK:
+RNCPASS:
+RNETVIEW:
+RROSCOE:
+RSDSF:
+RCSSMTP:
+RVTAPE:
+do a = 1 to words(mbrlist)
+  userid = word(mbrlist,a)
+  call process_racf_user
+  if return_code <> 0 then do
+    if finding = "" then do
+      "LINE_AFTER .ZLAST = DATALINE 'The following User Id(s) are",
+        "not defined.'"
+      "LINE_AFTER .ZLAST = DATALINE ' '"
+      finding = "X"
+      end
+    data = "     "userid
+    "LINE_AFTER .ZLAST = DATALINE (DATA)"
+    end
+  end
+finding = ""
+ 
+"(NUM) = LINENUM .ZL"
+if num > 0 then,
+  "LINE_AFTER .ZLAST = DATALINE ' '"
+ 
+do a = 1 to words(mbrlist)
+  userid_finding = ""
+  userid = word(mbrlist,a)
+  call process_racf_user
+  if protected = "" then do
+    if finding = "" then do
+      "LINE_AFTER .ZLAST = DATALINE 'The following User Id(s) do",
+        "not have the PROTECTED attribute.'"
+      "LINE_AFTER .ZLAST = DATALINE ' '"
+      finding = "X"
+      end
+    data = "     "userid
+    "LINE_AFTER .ZLAST = DATALINE (DATA)"
+    end
+  end
+ 
+if finding = "" then,
+  "LINE_AFTER .ZLAST = DATALINE 'Not a Finding'"
+ 
+return
+ 
+ 
+/*********************************************************************/
+/* TSS Started Task userids has FACILITY(STC BATCH),                 */
+/* PASSWORD(xxxxxxxx,0), and SOURCE(INTRDR)                          */
+/*********************************************************************/
+TCCS:
+TICSF:
+TTADZ:
+do a = 1 to words(mbrlist)
+  userid = word(mbrlist,a)
+  call process_tss_user
+  if return_code <> 0 then do
+    if finding = "" then do
+      "LINE_AFTER .ZLAST = DATALINE 'The following User Id(s) are",
+        "not defined.'"
+      "LINE_AFTER .ZLAST = DATALINE ' '"
+      finding = "X"
+      end
+    data = "     "userid
+    "LINE_AFTER .ZLAST = DATALINE (DATA)"
+    end
+  end
+finding = ""
+ 
+"(NUM) = LINENUM .ZL"
+if num > 0 then,
+  "LINE_AFTER .ZLAST = DATALINE ' '"
+ 
+do a = 1 to words(mbrlist)
+  userid_finding = ""
+  userid = word(mbrlist,a)
+  call process_tss_user
+  if facility = "" | ,
+     password = "" | ,
+     source = "" then do
+    call process_detail_lines
+    if wordpos("STC",facility) = 0 | ,
+       wordpos("BATCH",facility) = 0 then do
+      data = "          FACILITY(STC BATCH)"
+      "LINE_AFTER .ZLAST = DATALINE (DATA)"
+      end
+    if password = "" then do
+      data = "          PASSWORD(xxxxxxxx,0)"
+      "LINE_AFTER .ZLAST = DATALINE (DATA)"
+      end
+    if source = "" then do
+      data = "          SOURCE(INTRDR)"
+      "LINE_AFTER .ZLAST = DATALINE (DATA)"
+      end
+    end
+  end
+ 
+if finding = "" then,
+  "LINE_AFTER .ZLAST = DATALINE 'Not a Finding'"
+ 
+return
+ 
+ 
+/*********************************************************************/
+/* TSS Started Task userids has FACILITY(STC BATCH),                 */
+/* PASSWORD(xxxxxxxx,0), SOURCE(INTRDR), and NOSUSPEND               */
+/*********************************************************************/
+TABNDAID:
+TCAMIM:
+THLTHCK:
+TSDSF:
+TCSSMTP:
+TVTAPE:
+do a = 1 to words(mbrlist)
+  userid = word(mbrlist,a)
+  call process_tss_user
+  if return_code <> 0 then do
+    if finding = "" then do
+      "LINE_AFTER .ZLAST = DATALINE 'The following User Id(s) are",
+        "not defined.'"
+      "LINE_AFTER .ZLAST = DATALINE ' '"
+      finding = "X"
+      end
+    data = "     "userid
+    "LINE_AFTER .ZLAST = DATALINE (DATA)"
+    end
+  end
+finding = ""
+ 
+"(NUM) = LINENUM .ZL"
+if num > 0 then,
+  "LINE_AFTER .ZLAST = DATALINE ' '"
+ 
+do a = 1 to words(mbrlist)
+  userid_finding = ""
+  userid = word(mbrlist,a)
+  call process_tss_user
+  if facility = "" | ,
+     password = "" | ,
+     source = "" | ,
+     nosuspend = "" then do
+    call process_detail_lines
+    if wordpos("STC",facility) = 0 | ,
+       wordpos("BATCH",facility) = 0 then do
+      data = "          FACILITY(STC BATCH)"
+      "LINE_AFTER .ZLAST = DATALINE (DATA)"
+      end
+    if password = "" then do
+      data = "          PASSWORD(xxxxxxxx,0)"
+      "LINE_AFTER .ZLAST = DATALINE (DATA)"
+      end
+    if source = "" then do
+      data = "          SOURCE(INTRDR)"
+      "LINE_AFTER .ZLAST = DATALINE (DATA)"
+      end
+    if nosuspend = "" then do
+      data = "          NOSUSPEND"
+      "LINE_AFTER .ZLAST = DATALINE (DATA)"
+      end
+    end
+  end
+ 
+if finding = "" then,
+  "LINE_AFTER .ZLAST = DATALINE 'Not a Finding'"
+ 
+return
+ 
+ 
+/*********************************************************************/
+/* TSS Started Task userids has FACILITY(STC BATCH),                 */
+/* PASSWORD(xxxxxxxx,0), SOURCE(INTRDR), NOSUSPEND, and              */
+/* MASTFAC(xxxxxxxx)                                                 */
+/*********************************************************************/
+TCA1:
+TCLSUPER:
+TBMCCTD:
+TBMCCTM:
+TBMCCTO:
+TBMCIOA:
+TBMCMVZ:
+TNCPASS:
+TNETVIEW:
+TROSCOE:
+do a = 1 to words(mbrlist)
+  userid = word(mbrlist,a)
+  call process_tss_user
+  if return_code <> 0 then do
+    if finding = "" then do
+      "LINE_AFTER .ZLAST = DATALINE 'The following User Id(s) are",
+        "not defined.'"
+      "LINE_AFTER .ZLAST = DATALINE ' '"
+      finding = "X"
+      end
+    data = "     "userid
+    "LINE_AFTER .ZLAST = DATALINE (DATA)"
+    end
+  end
+finding = ""
+ 
+"(NUM) = LINENUM .ZL"
+if num > 0 then,
+  "LINE_AFTER .ZLAST = DATALINE ' '"
+ 
+do a = 1 to words(mbrlist)
+  userid_finding = ""
+  userid = word(mbrlist,a)
+  call process_tss_user
+  if facility = "" | ,
+     password = "" | ,
+     source = "" | ,
+     nosuspend = "" then do
+    call process_detail_lines
+    if wordpos("STC",facility) = 0 | ,
+       wordpos("BATCH",facility) = 0 then do
+      data = "          FACILITY(STC BATCH)"
+      "LINE_AFTER .ZLAST = DATALINE (DATA)"
+      end
+    if password = "" then do
+      data = "          PASSWORD(xxxxxxxx,0)"
+      "LINE_AFTER .ZLAST = DATALINE (DATA)"
+      end
+    if source = "" then do
+      data = "          SOURCE(INTRDR)"
+      "LINE_AFTER .ZLAST = DATALINE (DATA)"
+      end
+    if nosuspend = "" then do
+      data = "          NOSUSPEND"
+      "LINE_AFTER .ZLAST = DATALINE (DATA)"
+      end
+    end
+  call process_tss_mastfac
+  end
+ 
+ 
+if finding = "" then,
+  "LINE_AFTER .ZLAST = DATALINE 'Not a Finding'"
+ 
+return
+ 
+ 
+process_acf2_user:
+stc = ""
+musass = ""
+nosmc = ""
+musupdt = ""
+jobfrom = ""
+return_code = 0
+x = outtrap("out.")
+queue "SET LID"
+queue "LIST" userid
+queue "QUIT"
+Address TSO ACF
+if return_code <> 0 then return
+do ln = 1 to out.0
+  if pos("PRIVILEGES",out.ln) = 2 then do
+    if pos("STC ",out.ln) > 0 then stc = "STC"
+    if pos("MUSASS ",out.ln) > 0 then musass = "MUSASS"
+    if pos("NO-SMC ",out.ln) > 0 then nosmc = "NO-SMC"
+    if pos("JOBFROM ",out.ln) > 0 then jobfrom = "JOBFROM"
+    iterate
+    end
+  if pos("MUSASS",out.ln) = 2 & ,
+     pos("MUSUPDT ",out.ln) > 0 then musupdt = "MUSUPDT"
+  end
+return
+ 
+ 
+process_racf_user:
+protected = ""
+return_code = 0
+x = outtrap("out.")
+Address TSO LU userid
+if return_code <> 0 then return
+do ln = 1 to out.0
+  if pos("ATTRIBUTES=",out.ln) > 0 & ,
+     pos("PROTECTED",out.ln) > 0 then do
+    protected="PROTECTED"
+    leave
+    end
+  end
+return
+ 
+ 
+process_tss_user:
+facility = ""
+password = ""
+source = ""
+nosuspend = ""
+mastfac = ""
+return_code = 0
+x = outtrap("out.")
+Address TSO "TSS LIST("userid") DATA(BASIC PASSWORD SOURCE PROFILE)"
+if return_code <> 0 then return
+do ln = 1 to out.0
+  if pos("FACILITY   =",out.ln) = 1 then ,
+    facility= facility" "substr(out.ln,14)
+  if pos("PASSWORD   =",out.ln) = 1 & ,
+     substr(out.ln,14,49) = " " then ,
+    password= "PASSWORD(xxxxxxxx,0)"
+  if pos("SOURCES    =",out.ln) = 1 then ,
+    source = substr(out.ln,14)
+  if pos("BYPASSING  =",out.ln) = 1 then ,
+    nosuspend = substr(out.ln,14)
+  if pos("MASTER FAC =",out.ln) = 1 then ,
+    mastfac = substr(out.ln,14)
+  end
+facility = strip(facility,"B")
+return
+ 
+ 
+process_tss_mastfac:
+if typerun = "CA1" & ,
+   mastfac <> "CA1" then do
+  call process_detail_lines
+  data = "          MASTFAC(CA1)"
+  "LINE_AFTER .ZLAST = DATALINE (DATA)"
+  end
+ 
+if typerun = "CLSUPER" & ,
+   mastfac <> "KLS" then do
+  call process_detail_lines
+  data = "          MASTFAC(KLS)"
+  "LINE_AFTER .ZLAST = DATALINE (DATA)"
+  end
+ 
+if typerun = "BMCCTD" & ,
+   mastfac <> "CONTROLD" then do
+  call process_detail_lines
+  data = "          MASTFAC(CONTROLD)"
+  "LINE_AFTER .ZLAST = DATALINE (DATA)"
+  end
+ 
+if typerun = "BMCCTM" & ,
+   mastfac <> "CONTROLM" then do
+  call process_detail_lines
+  data = "          MASTFAC(CONTROLM)"
+  "LINE_AFTER .ZLAST = DATALINE (DATA)"
+  end
+ 
+if typerun = "BMCCTO" & ,
+   mastfac <> "CONTROLO" then do
+  call process_detail_lines
+  data = "          MASTFAC(CONTROLO)"
+  "LINE_AFTER .ZLAST = DATALINE (DATA)"
+  end
+ 
+if typerun = "BMCIOA" & ,
+   mastfac <> "IOA" then do
+  call process_detail_lines
+  data = "          MASTFAC(IOA)"
+  "LINE_AFTER .ZLAST = DATALINE (DATA)"
+  end
+ 
+if typerun = "BMCMVZ" & ,
+   (userid = "MV$CAS" | ,
+    userid = "MV$PAS") & ,
+   mastfac <> "BBI3" then do
+  call process_detail_lines
+  data = "          MASTFAC(BBI3)"
+  "LINE_AFTER .ZLAST = DATALINE (DATA)"
+  end
+ 
+if typerun = "NCPASS" & ,
+   mastfac <> "NCPASS" then do
+  call process_detail_lines
+  data = "          MASTFAC(NCPASS)"
+  "LINE_AFTER .ZLAST = DATALINE (DATA)"
+  end
+ 
+if typerun = "NETVIEW" & ,
+   userid = "CNMPROC" & ,
+   mastfac <> "NETVIEW" then do
+  call process_detail_lines
+  data = "          MASTFAC(NETVIEW)"
+  "LINE_AFTER .ZLAST = DATALINE (DATA)"
+  end
+ 
+if typerun = "ROSCOE" & ,
+   mastfac <> "ROSCOE" then do
+  call process_detail_lines
+  data = "          MASTFAC(ROSCOE)"
+  "LINE_AFTER .ZLAST = DATALINE (DATA)"
+  end
+ 
+return
+ 
+ 
+process_detail_lines:
+if finding = "" then do
+  "LINE_AFTER .ZLAST = DATALINE 'The following User Id(s) do",
+    "not have the specified attribute.'"
+  "LINE_AFTER .ZLAST = DATALINE ' '"
+  finding = "X"
+  end
+ 
+if userid_finding = "" then do
+  data = "     "userid
+  "LINE_AFTER .ZLAST = DATALINE (DATA)"
+  userid_finding = "X"
+  end
+ 
+return
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC > 4 & RC <> 8 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname 'REXX error' rc 'in line' sigl':' ERRORTEXT(rc)
+  say SOURCELINE(sigl)
+  end
+if return_code > maxcc then
+  maxcc = return_code
+return
+ 
+ 
+error1:
+say
+say pgmname TYPERUN "ERRORTEXT"(rc) 'for this processing.'
+SIGNAL ERR_EXIT
+ 
+ 

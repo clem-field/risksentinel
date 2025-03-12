@@ -1,0 +1,159 @@
+//DIALOGDS SET DIALOG=&SRRHLQ..DATA         <<---- CHANGE TO DIALOG DS
+//FSOJCL    JCLLIB ORDER=(&SRRHLQ..CNTL)
+//*--------------------------------------------------------------------
+//*-------------------------->> CATJ0002 <<----------------------------
+//*--------------------------------------------------------------------
+//*                TSS CONTROL OPTIONS FINDING CHECK
+//*
+//*  IMPORTANT:  Copy member JOBCARD to the beginning of this job.
+//*
+//*  THIS JOB EXECUTES STEPS THAT PERFORM INQUIRIES AGAINST
+//*  TSS MODIFY(ST) RESULTS.
+//*
+//*  STEP1:           REMOVES PREVIOUS RUNS DATASETS
+//*  STEP3:           OBTAINS TSS MOD(ST) REPORT AND DETERMINES STATUS
+//*                   OF SPECIFIC FINDINGS FOR TSS.
+//*  STEP4:           OBTAINS TSS MOD(ST) REPORT AND DETERMINES STATUS
+//*                   OF SPECIFIC FINDINGS FOR TSS.
+//*
+//*  ===> NOTE:  STEP3 MAY END WITH A CONDITION CODE OF 0
+//*              ALTHOUGH ERRORS OCCURRED.  REVIEW THE ISPLOG AND
+//*              SYSTSPRT FILES OF EACH REPORT STEP, ALONG WITH THE
+//*              JOBLOG OR JESLOG FILES, FOR ERROR MESSAGES AND TO
+//*              ENSURE SUCCESSFUL EXECUTION.
+//*--------------------------------------------------------------------
+//STEP1     EXEC PGM=IEFBR14
+//*
+//FACLIST   DD DSN=&SRRHLQ..FACLIST,
+//             DISP=(MOD,DELETE,DELETE),
+//             SPACE=(TRK,0),UNIT=SYSDA
+//FACALL    DD DSN=&SRRHLQ..FACALL,
+//             DISP=(MOD,DELETE,DELETE),
+//             SPACE=(TRK,0),UNIT=SYSDA
+//LISTCMDS  DD DSN=&SRRHLQ..LISTCMDS,
+//             DISP=(MOD,DELETE,DELETE),
+//             SPACE=(TRK,0),UNIT=SYSDA
+//LISTUSER  DD DSN=&SRRHLQ..LISTUSER,
+//             DISP=(MOD,DELETE,DELETE),
+//             SPACE=(TRK,0),UNIT=SYSDA
+//OUTDATA   DD DSN=&SRRHLQ..OUTDATA,
+//             DISP=(MOD,DELETE,DELETE),
+//             SPACE=(TRK,0),UNIT=SYSDA
+//USERLIST  DD DSN=&SRRHLQ..USERLIST,
+//             DISP=(MOD,DELETE,DELETE),
+//             SPACE=(TRK,0),UNIT=SYSDA
+//TSSACIDS  DD DSN=&SRRHLQ..TSSACIDS,
+//             DISP=(MOD,DELETE,DELETE),
+//             SPACE=(TRK,0),UNIT=SYSDA
+//STEP3     EXEC EXAMRPTS,
+//             CNTL=&SRRHLQ..CNTL
+//TEMP9     DD DSN=&&TEMP9,
+//             DISP=(NEW,DELETE,DELETE),
+//             UNIT=SYSDA,
+//             SPACE=(TRK,(15,15)),
+//             DCB=(RECFM=FB,LRECL=160,BLKSIZE=27840,DSORG=PS)
+//REPORT    DD DSN=&SRRHLQ..FACLIST,
+//             DISP=(,CATLG,DELETE),
+//             DCB=(DSORG=PS,RECFM=FB,LRECL=80,BLKSIZE=27920),
+//             SPACE=(TRK,(1,1)),
+//*            DATACLAS=ALLOCX1V,   <--- Use if SMS rule applies
+//             UNIT=(SYSDA,1)
+//FACALL    DD DSN=&SRRHLQ..FACALL,
+//             DISP=(,CATLG,DELETE),
+//             DCB=(DSORG=PS,RECFM=FB,LRECL=80,BLKSIZE=27920),
+//             SPACE=(TRK,(1,1)),
+//*            DATACLAS=ALLOCX1V,   <--- Use if SMS rule applies
+//             UNIT=(SYSDA,1)
+//DIALOG    DD DSN=&DIALOG,
+//             DISP=SHR
+//PDIDD     DD DSN=&SRRHLQ..PDI,
+//             DISP=OLD
+//SYSTSIN   DD *
+  ISPSTART CMD(%CATC0004 TERMMSGS(ON))
+/*
+//*
+//STEP5     EXEC EXAMRPTS,
+//             CNTL=&SRRHLQ..CNTL
+//SYSTSPRT  DD DSN=&SRRHLQ..LISTCMDS,
+//             DISP=(NEW,CATLG,DELETE),
+//             DCB=(DSORG=PS,RECFM=VB,LRECL=137),
+//             SPACE=(CYL,(50,15),RLSE),
+//*            DATACLAS=ALLOCX1V,   <--- Use if SMS rule applies
+//             UNIT=SYSDA
+//SYSTSIN   DD *
+  ISPSTART CMD(%CACC041A TERMMSG(ON) +
+  TSSCLIST('TSS LIST(ACIDS) DATA(BASIC,PASS,SOURCE,TSO)'))
+/*
+//*
+//STEP6     EXEC EXAMRPTS,
+//             CNTL=&SRRHLQ..CNTL
+//LISTCMDS  DD DSN=&SRRHLQ..LISTCMDS,
+//             DISP=SHR
+//LISTUSER  DD DSN=&SRRHLQ..LISTUSER,
+//             DISP=(NEW,CATLG,CATLG),
+//             DCB=(DSORG=PS,RECFM=FB,LRECL=137),
+//             SPACE=(CYL,(50,15),RLSE),
+//*            DATACLAS=ALLOCX1V,   <--- Use if SMS rule applies
+//             UNIT=SYSDA
+//DATA      DD DISP=(NEW,DELETE,DELETE),
+//             UNIT=SYSALLDA,
+//             SPACE=(TRK,(90,45,90),,CONTIG),
+//             DCB=(DSORG=PO,RECFM=FB,LRECL=80,BLKSIZE=13680),
+//             DSN=&SRRHLQ..SRRDATA
+//SYSTSIN   DD *
+  ISPSTART CMD(%CACC0501 TERMMSGS(ON))
+/*
+//*
+//STEP7     EXEC EXAMRPTS,
+//             CNTL=&SRRHLQ..CNTL
+//DIALOG    DD DSN=&DIALOG,
+//             DISP=SHR
+//TABLE     DD DSN=&SRRHLQ..TABLE,
+//             DISP=SHR
+//USERREPT  DD DISP=SHR,
+//             DSN=&SRRHLQ..LISTUSER
+//USERLIST  DD DISP=(NEW,CATLG,CATLG),
+//             DCB=(DSORG=PS,RECFM=VB,LRECL=600),
+//             SPACE=(TRK,(150,50),RLSE),
+//*            DATACLAS=ALLOCX1V,   <--- Use if SMS rule applies
+//             UNIT=SYSDA,
+//             DSN=&SRRHLQ..USERLIST
+//FACLIST   DD DISP=OLD,DSN=&SRRHLQ..FACLIST
+//PDIDD     DD DISP=OLD,DSN=&SRRHLQ..PDI
+//SYSTSIN   DD *
+  ISPSTART CMD(%CATC0527 TERMMSGS(ON))
+//*
+//STEP8     EXEC PGM=TSSCFILE
+//*
+//* Produces a formatted report of TSS ACIDS which will be used as
+//* input to the next step to determine the ACIDS not used within
+//* the previous 35 days.
+//*
+//*
+//PRINT     DD SYSOUT=*
+//OUT       DD DSN=&SRRHLQ..TSSACIDS,
+//             DISP=(NEW,CATLG,DELETE),
+//             DCB=(RECFM=FB,LRECL=300,BLKSIZE=27900),
+//             SPACE=(CYL,(20,20),RLSE),
+//             UNIT=SYSDA
+//IN        DD *
+ TSS LIST(ACIDS) DATA(BASIC,SOURCE)
+/*
+//STEP9     EXEC EXAMRPTS,
+//             CNTL=&SRRHLQ..CNTL
+//OUTDATA   DD DSN=&SRRHLQ..OUTDATA,
+//             DISP=(NEW,CATLG,DELETE),
+//             UNIT=SYSDA,
+//             SPACE=(TRK,(20,10)),
+//             DCB=(RECFM=VB,LRECL=180,BLKSIZE=27920,DSORG=PS)
+//DIALOG    DD DSN=&DIALOG,
+//             DISP=SHR
+//PDIDD     DD DSN=&SRRHLQ..PDI,
+//             DISP=OLD
+//INFILE    DD DSN=&SRRHLQ..TSSACIDS,
+//             DISP=SHR
+//OUTFILE   DD DSN=&SRRHLQ..TSSCMDS.RPT(UNUSED35),
+//             DISP=SHR
+//SYSTSIN   DD *
+  ISPSTART CMD(%CATC1002 TERMMSGS(ON))
+/*

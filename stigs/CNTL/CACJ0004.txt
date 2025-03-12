@@ -1,0 +1,52 @@
+//DIALOGDS SET DIALOG=&SRRHLQ..DATA         <<---- CHANGE TO DIALOG DS
+//FSOJCL    JCLLIB ORDER=(&SRRHLQ..CNTL)
+//*--------------------------------------------------------------------
+//*-------------------------->> CACJ0004 <<----------------------------
+//*--------------------------------------------------------------------
+//*               SRRDB Data Collection Checklist
+//*
+//*  IMPORTANT:  Copy member JOBCARD to the beginning of this job.
+//*
+//* This process should be used by individuals that utilize a web
+//* based xml application that tracks the assets vulnerabilities.
+//* This process is part of the Automation Tools used for z/OS.  This
+//* process will remain as the last step before individuals begin the
+//* Data Analysis.
+//*
+//*  STEP1:       REMOVES PREVIOUS RUNS DATASETS
+//*  STEP2:       FOR EACH MEMBER IN PDI AN ENTRY IS WRITTEN TO XMLDD.
+//*               XMLDD CAN BE USED AS AN IMPORT FILE INTO THE
+//*               APPLICATION THAT TRACKS ASSET VULNERABILITIES.
+//*
+//*  ===> NOTE:  STEP2 MAY END WITH A CONDITION CODE OF 0
+//*              ALTHOUGH ERRORS OCCURRED.  REVIEW THE ISPLOG AND
+//*              SYSTSPRT FILES OF EACH REPORT STEP, ALONG WITH THE
+//*              JOBLOG OR JESLOG FILES, FOR ERROR MESSAGES AND TO
+//*              ENSURE SUCCESSFUL EXECUTION.
+//*--------------------------------------------------------------------
+//*
+//*
+//*
+//*
+//STEP1     EXEC PGM=IEFBR14
+//XMLDATA   DD DSN=&SRRHLQ..XMLDATA,
+//             DISP=(MOD,DELETE,DELETE),
+//             UNIT=(SYSDA,1),
+//             SPACE=(TRK,(0))
+//*
+//STEP2     EXEC EXAMRPTS,
+//             CNTL=&SRRHLQ..CNTL
+//CNTL      DD DISP=SHR,DSN=&SRRHLQ..CNTL
+//PDIDD     DD DISP=OLD,DSN=&SRRHLQ..PDI
+//DIALOG    DD DSN=&DIALOG,
+//             DISP=SHR
+//XMLDD     DD DSN=&SRRHLQ..XMLDATA,
+//             DISP=(NEW,CATLG,DELETE),
+//*            DATACLAS=ALLOCX1V,   <--- Use if SMS rule applies
+//             UNIT=SYSDA,
+//             SPACE=(TRK,(300,30),RLSE),
+//             DCB=(RECFM=VB,LRECL=500,BLKSIZE=27920,DSORG=PS)
+//SYSTSIN   DD *
+  ISPSTART CMD(%CACC041W TERMMSGS(ON))
+  ISPSTART CMD(%CACC041X TERMMSGS(ON))
+//*

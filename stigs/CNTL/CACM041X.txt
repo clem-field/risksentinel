@@ -1,0 +1,268 @@
+/* REXX */
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+Address ISREDIT
+ 
+"MACRO"
+/*********************************************************************/
+/* AUTHOR: Charles Fenton                                            */
+/*                                                                   */
+/*********************************************************************/
+/* Generate finding details and script results for xml to be used    */
+/* later use.                                                        */
+/*********************************************************************/
+/* CACM041X EDIT PDI(*)                                              */
+/*********************************************************************/
+/* Change summary:                                                   */
+/* 03/31/2005 JL Nelson Created to write XML output                  */
+/* 04/05/2005 JL Nelson Added CDATA per Jim Watkins                  */
+/* 04/07/2005 JL Nelson Create NF and N/A records for VMS            */
+/* 05/02/2005 JL Nelson Changes for VMS Import XML version 1.3 -     */
+/*            draft                                                  */
+/* 06/09/2005 JL Nelson Pass MAXCC in ZISPFRC variable               */
+/* 10/21/2005 CL Fenton Modified for v5.11                           */
+/* 03/07/2006 JL Nelson Made changes to avoid SUBSTR abend 920/932.  */
+/* 03/13/2006 JL Nelson Set/test RCode for critical ISREDIT commands.*/
+/* 03/20/2006 JL Nelson Use NRSTR avoid abend 900 if ampersand in    */
+/*            data.                                                  */
+/* 03/29/2006 JL Nelson Test for empty member LINENUM Rcode = 4.     */
+/* 05/23/2006 CL Fenton  Deleted comment.                            */
+/* 06/12/2006 JL Nelson FIND parameters in any order.                */
+/* 03/05/2007 CL Fenton Added CHANGE command for x'00' & x'FF' to    */
+/*            space.                                                 */
+/* 08/07/2006 CL Fenton Removed TYPERUN tests from process.          */
+/* 08/07/2006 CL Fenton Added addition Target entry process.         */
+/* 08/07/2006 CL Fenton Added Comment for finding to provide         */
+/*            information the date and SRRAUDIT information.         */
+/* 03/25/2011 CL Fenton Chgd chars <, >, and & to &lt;, &gt;, and    */
+/*            &amp;.                                                 */
+/* 11/09/2011 CL Fenton Corrected error caused by above change for & */
+/*            on sites that have ` specified. CSD-AR003095053 and    */
+/*            CSD-AR003093080.                                       */
+/* 09/14/2017 CL Fenton Converted CList script to REXX Script.       */
+/*            New script changed to only generate finding details    */
+/*            and script results for each PDI member for an asset.   */
+/* 05/24/2018 CL Fenton Added evaluation of PDI mbrs with a status   */
+/*            of Not Reviewed (NR), STS-019713.                      */
+/* 03/13/2024 CL Fenton Removed COMMENT and SCRIPT_RESULTS from      */
+/*            xml, SCTASK0060915 and SCTASK0107522.                  */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname = "CACM041X 03/13/24"
+return_code = 0
+maxcc = 0
+sysprompt = "OFF"                       /* CONTROL NOPROMPT          */
+sysflush = "OFF"                        /* CONTROL NOFLUSH           */
+sysasis = "ON"                          /* CONTROL ASIS - caps off   */
+Numeric digits 10                       /* dflt of 9 not enough      */
+/*******************************************/
+/* VARIABLES ARE PASSED TO THIS MACRO      */
+/* CONSLIST                                */
+/* COMLIST                                 */
+/* SYMLIST                                 */
+/* TERMMSGS                                */
+/* XMLID                                   */
+/* SRRVERS                                 */
+/* SRRRELS                                 */
+/*******************************************/
+Address ISPEXEC "VGET (CONSLIST COMLIST SYMLIST TERMMSGS",
+  "XMLID SRRVERS SRRRELS) ASIS"
+If return_code <> 0 then do
+  Say pgmname "VGET RC =" return_code zerrsm
+  Say pgmname "CONSLIST/"conslist "COMLIST/"comlist "SYMLIST/"symlist,
+    "TERMMSGS/"termmsgs
+  Say pgmname "XMLID/"xmlid "SRRVERS/"srrvers "SRRRELS/"srrrels
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+cm1xvget = return_code
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON",
+  then Trace r
+ 
+Address ISPEXEC "CONTROL NONDISPL ENTER"
+Address ISPEXEC "CONTROL ERRORS RETURN"
+"NUMBER OFF"
+"STATS OFF"
+"CAPS OFF"
+return_code = 0
+catno = ""
+catinfo = ""
+st_code = "O"
+ 
+/*******************************************/
+/* MAIN PROCESS                            */
+/*******************************************/
+"(MEMBER) = MEMBER"
+"(DSNAME) = DATASET"
+return_code = 0
+"(LASTLINE) = LINENUM .ZLAST"
+If return_code > 0 then do
+  If lastline = 0 then,
+    Say pgmname "Empty file RCode =" return_code "DSN="dsname,
+      "MEMBER="member zerrsm
+  Else,
+    Say pgmname lastline "Error RCode =" return_code "DSN="dsname,
+      "MEMBER="member zerrsm
+  SIGNAL ERR_EXIT
+  End
+"FIND 'Not a Finding' FIRST"
+If return_code = 0 then
+  st_code = "NF"
+ 
+return_code = 0
+"FIND 'Not Applicable' FIRST"
+If return_code = 0 then
+  st_code = "NA"
+ 
+return_code = 0
+"FIND 'Manual Review' FIRST"
+If return_code = 0 then do
+  st_code = "MR"
+  "DELETE .ZCSR"
+  end
+ 
+return_code = 0
+"FIND 'Not Reviewed' FIRST"
+If return_code = 0 then do
+  st_code = "NR"
+  "DELETE .ZCSR"
+  end
+return_code = 0
+xmldata = "<FINDING_STATUS>"st_code"</FINDING_STATUS>"
+Address ISPEXEC "LMPUT DATAID("xmlid") MODE(INVAR) DATALOC(XMLDATA)",
+  "DATALEN("length(xmldata)") NOBSCAN"
+ 
+If st_code = "NF" | st_code = "NA" then
+  SIGNAL END_FINDING
+xmldata = "<FINDING_DETAILS OVERRIDE=""O"">"
+Address ISPEXEC "LMPUT DATAID("xmlid") MODE(INVAR) DATALOC(XMLDATA)",
+  "DATALEN("length(xmldata)") NOBSCAN"
+ 
+"FIND 'CATEGORY ' 1 .ZFIRST .ZFIRST"
+If return_code = 0 then do
+  "(DATA) = LINE .ZFIRST"
+  catno = substr(data,10,1)
+  catinfo = substr(data,12)
+  catinfo = catinfo
+  "DELETE .ZFIRST"
+  end
+ 
+return_code = 0
+"(DATA) = LINE .ZLAST"
+If data = " " then
+  "DELETE .ZLAST"
+ 
+return_code = 0
+"(LASTLINE) = LINENUM .ZLAST"
+If return_code > 0 then do
+  If lastline = 0 then,
+    Say pgmname "Empty file RCode =" return_code "DSN="dsname,
+      "MEMBER="member zerrsm
+  Else,
+    Say pgmname lastline "Error RCode =" return_code "DSN="dsname,
+      "MEMBER="member zerrsm
+  SIGNAL ERR_EXIT
+  End
+ 
+"CHANGE '<' X'0193A35E' ALL"
+"CHANGE '>' X'0187A35E' ALL"
+"CHANGE X'50' X'018194975E' ALL"
+"CHANGE X'01' X'50' ALL"
+"CHANGE '[' '(' ALL"
+"CHANGE ']' ')' ALL"
+"CHANGE X'00' ' ' ALL"
+"CHANGE X'FF' ' ' ALL"
+ 
+Do CNT = 1 to lastline
+  "(XMLDATA) = LINE" cnt
+  Address ISPEXEC "LMPUT DATAID("xmlid") MODE(INVAR) DATALOC(XMLDATA)",
+    "DATALEN("length(xmldata)") NOBSCAN"
+  End
+xmldata = "</FINDING_DETAILS>"
+Address ISPEXEC "LMPUT DATAID("xmlid") MODE(INVAR) DATALOC(XMLDATA)",
+  "DATALEN("length(xmldata)") NOBSCAN"
+ 
+/* Comment out SCRIPT_RESULTS
+xmldata = "<SCRIPT_RESULTS>"
+Address ISPEXEC "LMPUT DATAID("xmlid") MODE(INVAR) DATALOC(XMLDATA)",
+  "DATALEN("length(xmldata)") NOBSCAN"
+Do CNT = 1 to lastline
+  "(XMLDATA) = LINE" cnt
+  Address ISPEXEC "LMPUT DATAID("xmlid") MODE(INVAR) DATALOC(XMLDATA)",
+    "DATALEN("length(xmldata)") NOBSCAN"
+  End
+xmldata = "</SCRIPT_RESULTS>"
+Address ISPEXEC "LMPUT DATAID("xmlid") MODE(INVAR) DATALOC(XMLDATA)",
+  "DATALEN("length(xmldata)") NOBSCAN"
+  end of SCRIPT_RESULTS*/
+ 
+return_code = 0
+If catno <> " " then do
+  xmldata = "<SEV_OVERRIDE_CODE>"catno"</SEV_OVERRIDE_CODE>"
+  Address ISPEXEC "LMPUT DATAID("xmlid") MODE(INVAR) DATALOC(XMLDATA)",
+    "DATALEN("length(xmldata)") NOBSCAN"
+    If catinfo <> " " then do
+    xmldata = "<SEV_OVERRIDE_TEXT>"catinfo"</SEV_OVERRIDE_TEXT>"
+    Address ISPEXEC "LMPUT DATAID("xmlid") MODE(INVAR) DATALOC(XMLDATA)",
+      "DATALEN("length(xmldata)") NOBSCAN"
+    end
+  end
+ 
+ 
+END_FINDING:
+return_code = 0
+ 
+/* Remove COMMENT information
+sys4date = left(date("u"),6)left(date("s"),4)
+xmldata = "<COMMENT>"sys4date" Reviewed by SRRAUDIT Process",
+  srrvers".</COMMENT>"
+Address ISPEXEC "LMPUT DATAID("xmlid") MODE(INVAR) DATALOC(XMLDATA)",
+  "DATALEN("length(xmldata)") NOBSCAN"
+  End of remove of COMMENT information*/
+ 
+xmldata = "<TOOL>MVSSCRIPTS</TOOL><TOOL_VERSION>"srrvers" "srrrels
+xmldata = xmldata"</TOOL_VERSION><AUTHENTICATED_FINDING>true"
+xmldata = xmldata"</AUTHENTICATED_FINDING>"
+Address ISPEXEC "LMPUT DATAID("xmlid") MODE(INVAR) DATALOC(XMLDATA)",
+  "DATALEN("length(xmldata)") NOBSCAN"
+ 
+ 
+END_EXIT:
+return_code = 0
+ 
+ 
+ERR_EXIT:
+cm41xrc = return_code
+Address ISPEXEC "VPUT (CM1XVGET CM41XRC) ASIS"
+"CANCEL"
+Exit 0
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+say 'member:' member
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if return_code >= 16 then do
+  say pgmname "LASTCC =" rc strip(zerrlm)
+  say pgmname 'REXX error' rc 'in line' sigl':' ERRORTEXT(rc)
+  say SOURCELINE(sigl)
+  say 'member:' member
+  end
+if return_code > maxcc then
+  maxcc = return_code
+return
+ 
+ 

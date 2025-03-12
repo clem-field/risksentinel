@@ -1,0 +1,51 @@
+//*--------------------------------------------------------------------
+//*-------------------------->> CICSSIT  <<----------------------------
+//*--------------------------------------------------------------------
+//*                        CICS SIT DUMP REPORT
+//*
+//*  THIS JOB USES IBM IDCAMS TO DUMP THE CICS SYSTEM INITIALIZATION
+//*  TABLE (SIT).  EACH SIT WILL BE STORED AS AN INDIVIDUAL MEMBER
+//*  IN A PDS.
+//*
+//*  STEP1:           REMOVES PREVIOUS RUNS DATASETS
+//*  STEP2:           ALLOCATE PDS TO HOLD CICS SIT DUMPS.
+//*  STEP3:           RUN IDCAMS TO DUMP CICS SIT.
+//*
+//*             NOTE: REPEAT STEP3 AS OFTEN AS NECESSARY TO ENSURE
+//*                   ALL CICS SITS ARE DUMPED.
+//*
+//*  ===> IMPORTANT:  BEFORE SUBMITTING THIS JOB:
+//*
+//*                   1)  ENSURE THE CORRECT CICS LOAD LIBRARY IS
+//*                       SPECIFIED ON THE SDFHAUTH DD STATEMENT IN
+//*                       STEP3. THIS LIBRARY MUST CONTAIN THE SIT
+//*                       BEING DUMPED.
+//*
+//*                   2)  IF MULTIPLE SITS ARE DUMPED, ENSURE THE PDS
+//*                       MEMBER NAME ON THE SITDUMP DD STATEMENT
+//*                       MATCHES THE ACTUAL SIT BEING DUMPED.
+//*--------------------------------------------------------------------
+//STEP1    EXEC PGM=IEFBR14
+//CICSRPT  DD DSN=&SRRHLQ..CICS.RPT,
+//             DISP=(MOD,DELETE,DELETE),
+//             SPACE=(TRK,0),UNIT=SYSDA
+//*
+//STEP2    EXEC  PGM=IEFBR14
+//CICSRPT  DD  DSN=&SRRHLQ..CICS.RPT,
+//            DISP=(,CATLG,DELETE),
+//            DCB=(RECFM=VBA,LRECL=125,BLKSIZE=27875),
+//            SPACE=(TRK,(5,5,3)),
+//            UNIT=(SYSDA,1)
+//*
+//STEP3    EXEC  PGM=IDCAMS
+//SYSPRINT DD  SYSOUT=*
+//SDFHAUTH DD  DSN=SYS3.CICS.SDFHAUTH(DFHSIT),DISP=SHR
+//SITDUMP  DD  DSN=&SRRHLQ..CICS.RPT(DFHSIT),
+//            DISP=SHR
+//SYSIN    DD  *
+ PRINT -
+  INFILE(SDFHAUTH) -
+  OUTFILE(SITDUMP) -
+  DUMP SKIP(5)
+//*
+//

@@ -1,0 +1,279 @@
+/* REXX */
+/*                                       */
+/* AUTHOR: CHARLES FENTON                */
+/*                                       */
+/*********************************************************************/
+/* DISPLAY SYSTEM INFORMATION ON TERMINAL                            */
+/*********************************************************************/
+/*********************************************************************/
+/* THIS SCRIPT OBTAINS RACF GROUP RESOURCE CLASSES                   */
+/*********************************************************************/
+/* CHANGE SUMMARY:                                                   */
+/* 02/06/2012 CL Fenton Initial creation of script to obtain RACF    */
+/*            Dataset and/or other Resources rule permissions.       */
+/* 03/14/2013 CL Fenton Corrected processing past the length of      */
+/*            the value in resource and sr.x fields, STS-002031.     */
+/* 03/08/2017 CL Fenton Corrected processing to report on            */
+/*            specific profiles during comparision, STS-016255.      */
+/* 01/16/2018 CL Fenton Corrected issue with processing PROGRAM      */
+/*            resource class resources, ZSMS0012, STS-019009.        */
+/* 08/21/2018 CL Fenton Corrected issue with processing generic      */
+/*            profile resources that utilize ".*" over the use of    */
+/*            ".**' at the end of the resource, STS-020595,          */
+/*            STS-020720, STS-020766, STS-020768, STS-020770,        */
+/*            STS-020773.                                            */
+/* 09/29/2018 CL Fenton Corrected issue with processing resources    */
+/*            that end in a period (.) in collecting additional      */
+/*            profiles that begin with the resource when the RACF    */
+/*            SR command is issued, STS-020692, STS-020769.          */
+/* 06/05/2019 CL Fenton Chgs to evaluate ZCIC0021 for system that    */
+/*            are running both production and test/developement      */
+/*            CICS regions, STS-021044.                              */
+/* 06/29/2020 CL Fenton Chgs in evaluating PROGRAM resource class    */
+/*            where profile example of AHLGTF* for resource AHLGTF,  */
+/*            STS-024881.                                            */
+/* 11/30/2023 CL Fenton Chg made in DATASETs evaluations with a "#"  */
+/*            specified in dataset name.                             */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+/*trace r*/
+PGMNAME = 'CARC1001 11/30/23'
+TERMMSGS = 'OFF'
+COMLIST  = 'OFF'
+CONSLIST = 'OFF'
+SYMLIST  = 'OFF'
+TERMPRO  = 'OFF'
+last = 'N'
+lprd = 'N'
+resources =
+NUMERIC DIGITS 20
+parse upper arg class resource option
+option = translate(option,'=;','()')
+interpret option
+IF CONSLIST = ON | COMLIST = ON | SYMLIST = ON | TRACE = ON ,
+  THEN TRACE R
+/*say "Resource Class" class "Resource" resource*/
+if pos("#",resource) <> 0 &,
+   class <> "DATASET" then,
+  parse var resource class "#" resource
+if right(resource,1) = "*" then ,
+  last = "Y"
+tresource = strip(resource,"T","*")
+rlvl. = ""
+rnr = 0
+tres = tresource
+do until tres = ""
+  rnr = rnr + 1
+  parse var tres rlvl.rnr "." tres
+  end
+pass = ""
+temp = ""
+altnr = 0
+recheck:
+if right(tresource""temp,1) = "." then do
+  if temp <> "." then ,
+    lprd = "Y"
+  tst1 = outtrap('sr.')
+  pass = "YES"
+  address tso "SR ALL CLASS("class") MASK("rlvl.1")"
+  do x = 1 to sr.0
+/*  say "x:" x "sr.x" sr.x*/
+    sr.x = word(sr.x,1)
+    if compare(resource,sr.x) = 1 & left(sr.x,1) <> "*" then iterate
+    resnr = compare(resource,sr.x)
+    srnr = compare(sr.x,resource)
+    match = "YES"
+    srlvl. = ""
+    snr = 0
+    tres = sr.x
+    do until tres = ""
+      snr = snr + 1
+      parse var tres srlvl.snr "." tres
+/*    say srlvl.snr rlvl.snr snr rnr*/
+      if snr > rnr then iterate
+      if srlvl.snr <> rlvl.snr & ,
+         srlvl.snr <> "*" & ,
+         rlvl.snr <> "*" & ,
+        (rlvl.snr <> " " | rnr <> 1) &,
+         srlvl.snr <> "%" & ,
+         rlvl.snr <> "%" & ,
+         pos('*',srlvl.snr) = 0 & ,
+         srlvl.snr <> "**" then do
+        match = "NO"
+        iterate x
+        end
+      if srlvl.snr <> rlvl.snr & ,
+         rlvl.snr = " " & ,
+         rnr = 1 & ,
+         right(resource,1) <> "." then do
+        match = "NO"
+        iterate x
+        end
+      end
+    if resnr > 0 & srnr > 0 then ,
+    do forever
+      if resnr > length(resource) & ,
+        resnr >= srnr then leave
+      if resnr > length(resource) & ,
+        srnr > length(sr.x) then leave
+      if substr(resource,resnr,1) = substr(sr.x,srnr,1) then do
+        resnr = resnr + 1
+        srnr = srnr + 1
+        iterate
+        end
+      if substr(resource,resnr,1) = "%" & ,
+         length(resource) = resnr & ,
+         substr(sr.x,srnr,2) <> "**" & ,
+         length(sr.x) > srnr then do
+          match = "NO"
+          leave
+        end
+      if substr(resource,resnr,1) = "%" | ,
+         substr(sr.x,srnr,1) = "%" then do
+        resnr = resnr + 1
+        srnr = srnr + 1
+        iterate
+        end
+      if substr(resource,resnr,1) = "*" then do
+        resnr = resnr + 1
+        do srnr = srnr to length(sr.x)
+          if substr(resource,resnr,1) = substr(sr.x,srnr,1) then leave
+          end
+        iterate
+        end
+      if substr(sr.x,srnr,1) = "*" then do
+        srnr = srnr + 1
+        if substr(sr.x,srnr,1) = "*" & ,
+          resnr > 1 & ,
+          srnr = length(sr.x) then do
+          altnr = altnr + 1
+          altsr.altnr = sr.x
+          altcom.altnr = compare(resource,sr.x)
+          match = "NO"
+          leave
+          end
+        do resnr = resnr to length(resource)
+          if substr(resource,resnr,1) = substr(sr.x,srnr,1) then leave
+          end
+        iterate
+        end
+      match = "NO"
+      leave
+      end /* do forever */
+    if match = "YES" & ,
+       (class = "DATASET" | class = "DSN") & ,
+       lprd = "Y" & ,
+       substr(tresource" ",resnr,1) = " " & ,
+       substr(sr.x" ",srnr) = "**" then do
+/*    say sr.x "added"*/
+      resources = resources sr.x
+      end
+    else ,
+    if match = "YES" & ,
+       class <> "DATASET" & class <> "DSN" then do
+/*    say sr.x "added"*/
+      resources = resources sr.x
+      end
+    end /* do x = 1 to sr.0 */
+  end /* else do */
+ 
+if words(resources) > 1 then do
+  resources = " "resources" "
+  if pos(" ** ",resources) > 0 then do
+    parse var resources a " ** " b
+    resources = a b
+    end
+  end
+resourcesmax = 0
+/*say words(resources)*/
+do x = 1 to words(resources)
+  if resourcesmax < compare(resource,word(resources,x)) then ,
+    resourcesmax = compare(resource,word(resources,x))
+  end
+commax = 0
+do x = 1 to altnr
+  if altcom.x > commax then commax = altcom.x
+  end
+resources = strip(resources)
+if resources = "" | ,
+   resourcesmax = commax then do
+  do x = 1 to altnr
+    altsrt =
+    if pos('.** ',altsr.x' ') > 0 then ,
+      altsrt = left(altsr.x' ',pos('.** ',altsr.x' '))
+    if altcom.x = commax & ,
+       altsrt <> "" & ,
+       pos(" "altsrt," "resources) = 0 then ,
+      resources = resources altsr.x
+    end
+  end
+tst = msg("OFF")
+if resources = "" then
+  resources = resource
+/*say words(resources) "B"*/
+do cnt = 1 to words(resources)
+  tst = msg("OFF")
+  res = strip(word(resources,cnt),t,".")
+  if class = "DATASET" | class = "DSN" then do
+    cmd = "LD DA"
+    res = "('"res"')"
+    cmd1 = " ALL"
+    cmd2 = " ALL GEN"
+    end
+  else do
+    cmd = "RL "class" "
+    cmd1 = " ALL"
+    cmd2 = ". ALL GEN"
+    end
+  tst1 = outtrap('out.')
+  address tso cmd||res "ALL"
+  if RC <> 0 then,
+    if class = "PROGRAM" then,
+      call process_program
+    else,
+      cmd1 = cmd2
+  tst = msg("ON")
+  tst1 = outtrap('out.')
+/* uncomment below after testing */
+  address tso cmd||res||cmd1
+  if rc <> 0 then do
+    if pass = "" then do
+      temp = "."
+      resources = ""
+      signal recheck
+      end
+    say strip(word(resources,cnt),t,".") "RESOURCE NOT FOUND."
+/*  say res "RESOURCE NOT FOUND."*/
+    end /* if rc <> 0 */
+  else do
+    if class = "PROGRAM" &,
+       res = "*" then do
+      do x = 1 to out.0
+        if left(out.x,8) = "PROGRAM " &,
+           substr(out.x,12,1) <> "*" then do
+          out.0 = x-6
+          leave
+          end
+        end
+      end
+    do x = 1 to out.0
+      say out.x
+      end
+    end
+  end
+exit
+/**********************************************************************/
+ 
+ 
+process_program:
+/*do pgmind = length(res)-1 to 0 by -1*/
+do pgmind = length(res) to 0 by -1
+  tst = msg("OFF")
+  res = left(res,pgmind)"*"
+  address tso cmd||res cmd1
+  if rc = 0 then return
+  end
+return

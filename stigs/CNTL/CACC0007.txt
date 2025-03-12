@@ -1,0 +1,331 @@
+/* REXX */
+/*                                       */
+/* AUTHOR: Charles Fenton                */
+/*                                       */
+/*********************************************************************/
+/* DISPLAY SYSTEM INFORMATION ON TERMINAL                            */
+/*********************************************************************/
+/*********************************************************************/
+/* This script generates analysis of MQS PDI's ZWMQ0011 and ZWMQ0051.*/
+/*********************************************************************/
+/* Change summary:                                                   */
+/* 10/31/2008 CL.Fenton initial creation of script generate and      */
+/*            read WMQ utility reports and process them to create    */
+/*            finding details.                                       */
+/* 02/28/2009 CL.Fenton added process to check ZWMQ0020 and          */
+/*            creating CACT0008 entries for ZWMQ0060.  Changed       */
+/*            allowed SSLCIPH entries for ZWMQ0011.  Added           */
+/*            ZWMQ0020 check process.                                */
+/* 05/21/2010 CL.Fenton added return code process for ZISPFRC.       */
+/* 06/17/2010 CL.Fenton added reporting of zerrlm when MQSUTIL       */
+/*            returns a non 0 return code.                           */
+/* 03/24/2014 CL.Fenton added additional cipher spec for ZWMQ0011,   */
+/*            STS-004328.                                            */
+/* 06/12/2018 CL.Fenton Added "Not Reviewed" to ZWMQ0011 and         */
+/*            ZWMQ0051 for vuls that require additional analysis,    */
+/*            STS-019713.                                            */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+PGMNAME = 'CACC0007 06/12/18'
+BYP      = 'OFF'
+TERMMSGS = 'OFF'
+COMLIST  = 'OFF'
+CONSLIST = 'OFF'
+SYMLIST  = 'OFF'
+TERMPRO  = 'OFF'
+CACT0008 = 'CACT0008'
+CACM000B = 'CACM000B'
+Numeric digits 10                           /* dflt of 9 not enough  */
+Arg OPTION
+OPTION = translate(OPTION,'=;','()')
+interpret OPTION
+if TRACE = 'ON' then do
+  TERMMSGS = ON
+  COMLIST  = ON
+  CONSLIST = ON
+  SYMLIST  = ON
+  TERMPRO  = ON
+  end
+If CONSLIST = ON | COMLIST = ON | SYMLIST = ON | TRACE = ON ,
+  then Trace r
+Address ISPEXEC
+"CONTROL NONDISPL ENTER"
+"CONTROL ERRORS RETURN"
+"VPUT (CONSLIST COMLIST SYMLIST TERMPRO TERMMSGS TYPERUN) ASIS"
+"SELECT CMD(CACC1000 ACP)"
+"VGET (ACPNAME ACPVERS) ASIS"
+"lminit dataid(dialog) ddname(dialog)"
+lminit_dialog = RC
+"lminit dataid(table) ddname(table)"
+lminit_table = RC
+"lminit dataid(pdidd) ddname(pdidd)"
+lminit_pdidd = RC
+"lmopen dataid("dialog")"
+lmopen_dialog = RC
+"lmopen dataid("pdidd") option(output)"
+lmopen_pdidd = RC
+"lmmfind dataid("dialog") member(products)"
+lmmfind_dialog = RC
+ssn =
+GET:
+"lmget dataid("dialog") mode(invar) dataloc(data) datalen(lrecl)",
+"maxlen(80)"
+if RC > 0 then signal START
+if pos('MQS      S',data) = 1 then ,
+  ssn = ssn word(data,3)
+signal GET
+START:
+ssn = strip(ssn)
+"VGET (ZISPFRC) SHARED"
+if RC <> 0 then ,
+  ZISPFRC = 0
+"VPUT (SSN) ASIS"
+"EDIT DATAID("table") MACRO("CACM000B") MEMBER("CACT0008")"
+edit_table = RC
+x = LISTDSI("mqsrpt file")
+do b = 1 to words(ssn)
+mqssn = word(ssn,b)
+secline.mqssn.0 = 0
+chlline.mqssn.0 = 0
+select_csqutil  = 0
+Address TSO "alloc fi(sysprint) da('"SYSDSNAME"("mqssn")') shr reuse"
+zerrlm = ''
+if BYP = 'OFF' then ,
+  "SELECT PGM(CSQUTIL) PARM("mqssn")"
+select_csqutil.mqssn = RC
+select_csqutil = select_csqutil + RC
+if RC <> 0 then do
+  say PGMNAME 'SELECT PGM(CSQUTIL) error RC='RC
+  IF zerrlm <> '' then,
+    say PGMNAME ZERRLM
+  ZISPFRC = RC
+  end
+else do
+address tso "execio * diskr SYSPRINT (finis stem out."
+say PGMNAME 'Starting of' mqssn'.'
+line =
+ind =
+c = 1
+do a = 1 to out.0
+  out.a = substr(out.a,2)
+  if pos('DISPLAY SECURITY',out.a) > 0 then secind = "x"
+  if secind = "x" then do
+    if pos('CSQ',out.a) > 0 & line <> "" then do
+      secline.mqssn.c = strip(line)
+      c = c + 1
+      line =
+      end
+    line = strip(line) out.a
+    if pos("NORMAL COMPLETION",line) <> 0 then do
+      secline.mqssn.0 = c
+      secline.mqssn.c = strip(line)
+      line =
+      secind =
+      c = 1
+      end
+    end
+  if pos('DISPLAY CHANNEL',out.a) > 0 then chlind = "x"
+  if chlind = "x" then do
+    if pos('CHANNEL(',out.a) > 0 & line <> "" then do
+      chlline.mqssn.c = strip(line)
+      c = c + 1
+      line = strip(out.a)
+      end
+    if pos('TRPTYPE(',out.a) > 0 & line <> "" then do
+      line = line strip(out.a)
+      end
+    if pos('SSLCIPH(',out.a) > 0 & line <> "" then do
+      line = line strip(out.a)
+      end
+    if pos('CHANNEL(',out.a) > 0 then do
+      line = strip(out.a)
+      end
+    if pos("NORMAL COMPLETION",out.a) <> 0 then do
+      chlline.mqssn.0 = c
+      chlline.mqssn.c = strip(line)
+      line =
+      chlind =
+      c = 1
+      end
+    end
+  end
+end
+say PGMNAME 'Finished with' mqssn'.'
+end /* do b = 1 to words(ssn) */
+secfinding =
+seccat =
+subsys_chk = 0
+timefinding =
+timecat =
+chlfinding =
+chlcat =
+do b = 1 to words(ssn)
+mqssn = word(ssn,b)
+do a = 1 to secline.mqssn.0
+  parse var secline.mqssn.a . .", "text
+  if pos(": OFF,",secline.mqssn.a) = 0 & ,
+     pos("SUBSYS",text) <> 0 then do
+    subsys_chk = subsys_chk + 1
+    if seccat = "" then ,
+      seccat = "CATEGORY 2" text
+    else ,
+      seccat = seccat text
+    end
+  if pos(": OFF,",secline.mqssn.a) = 0 then iterate
+  if pos("CMD.RESC",text) = 0 then ,
+    secfinding = secfinding||mqssn"#"strip(text)"@"
+  end
+do a = 1 to secline.mqssn.0
+  if pos("CSQH015I",secline.mqssn.a) > 0 then do
+    parse var secline.mqssn.a . '=' to .
+    if to = O | to > 15 then do
+      text = "TIMEOUT("to")"
+      timefinding = timefinding||mqssn"#"strip(text)"@"
+      end
+    end
+  if pos("CSQH016I",secline.mqssn.a) > 0 then do
+    parse var secline.mqssn.a . '=' in .
+    if in = 0 | in > 5 then do
+      text = "INTERVAL("in")"
+      timefinding = timefinding||mqssn"#"strip(text)"@"
+      end
+    a = secline.mqssn.0
+    end
+  end
+do a = 1 to chlline.mqssn.0
+  chlline.mqssn.a = chlline.mqssn.a
+  if pos("TRPTYPE(TCP)",chlline.mqssn.a) = 0 then iterate
+  parse var chlline.mqssn.a . "SSLCIPH(" sslciph ")"
+  if sslciph = "" | ,
+     (pos("ECDHE_ECDSA_AES_128_CBC",sslciph) = 0 & ,
+     pos("ECDHE_ECDSA_AES_256_CBC",sslciph) = 0 & ,
+     pos("ECDHE_RSA_AES_128_CBC",sslciph) = 0 & ,
+     pos("ECDHE_RSA_AES_256_CBC",sslciph) = 0 & ,
+     pos("TLS_RSA_WITH_3DES",sslciph) = 0 & ,
+     pos("TLS_RSA_WITH_AES_128_CBC",sslciph) = 0 & ,
+     pos("TLS_RSA_WITH_AES_256_CBC",sslciph) = 0) then do
+    chlfinding = chlfinding||mqssn"#"strip(chlline.mqssn.a)"@"
+    end
+  end
+end
+if subsys_chk <> words(ssn) then ,
+  seccat = ""
+if select_csqutil = 0 then do
+  call process_pdi ZWMQ0011"$"chlcat"$"chlfinding
+  call process_pdi ZWMQ0020"$"timecat"$"timefinding
+  call process_pdi ZWMQ0051"$"seccat"$"secfinding
+  end
+continue:
+"lmclose dataid("dialog")"
+lmclose_dialog = RC
+"lmclose dataid("pdidd")"
+lmclose_pdidd = RC
+"lmfree dataid("dialog")"
+lmfree_dialog = RC
+"lmfree dataid("table")"
+lmfree_table = RC
+"lmfree dataid("pdidd")"
+lmfree_pdidd = RC
+If TERMMSGS = ON then do
+  say '=========================================='
+  say PGMNAME 'LMINIT_DIALOG        ' lminit_dialog
+  say PGMNAME 'LMINIT_TABLE         ' lminit_table
+  say PGMNAME 'LMINIT_PDIDD         ' lminit_pdidd
+  say PGMNAME 'LMOPEN_DIALOG        ' lmopen_dialog
+  say PGMNAME 'LMOPEN_PDIDD         ' lmopen_pdidd
+  say PGMNAME 'EDIT_TABLE_CACT0008  ' edit_table
+  say PGMNAME 'LMMFIND_DIALOG       ' lmmfind_dialog
+  do b = 1 to words(ssn)
+    mqssn = word(ssn,b)
+    say PGMNAME 'SELECT_CSQUTIL_'mqssn'   'select_csqutil.mqssn
+    end
+  say PGMNAME 'LMCLOSE_DIALOG       ' lmclose_dialog
+  say PGMNAME 'LMCLOSE_PDIDD        ' lmclose_pdidd
+  say PGMNAME 'LMFREE_DIALOG        ' lmfree_dialog
+  say PGMNAME 'LMFREE_TABLE         ' lmfree_table
+  say PGMNAME 'LMFREE_PDIDD         ' lmfree_pdidd
+  say '=========================================='
+  end
+/*********************************************************************/
+/* Done looking at all control blocks                                */
+/*********************************************************************/
+"VPUT (ZISPFRC) SHARED"
+Exit 0                                       /* End CACC1001 - RC 0  */
+/*********************************************************************/
+/*  Start of sub-routines                                            */
+/*********************************************************************/
+process_pdi:
+Address ISPEXEC
+parse arg pdi "$" cat "$" finding
+os =
+bl = " "
+say PGMNAME 'Processing PDI' pdi'.'
+if finding = "" then do
+  ac = 'Not a Finding'
+  "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(ac)",
+    "DATALEN("length(ac)") MEMBER("pdi")"
+  signal replace
+  end
+if cat <> "" then do
+  ac = cat
+  "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(ac)",
+    "DATALEN("length(ac)") MEMBER("pdi")"
+  end
+if pdi = "ZWMQ0011" then do
+  ac = "Not Reviewed"
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)")"
+  ac = "WebSphere MQ is configured and/or protected improperly."
+  "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(ac)",
+    "DATALEN("length(ac)") MEMBER("pdi")"
+  "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(bl)",
+    "DATALEN("length(bl)") MEMBER("pdi")"
+  ac = "The following channel(s) is (are) not using SSL:"
+  "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(ac)",
+    "DATALEN("length(ac)") MEMBER("pdi")"
+end
+if pdi = "ZWMQ0020" then do
+  ac = "The following Timeout and/or Interval parameter value(s)" ,
+       "is (are) set improperly:"
+  "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(ac)",
+    "DATALEN("length(ac)") MEMBER("pdi")"
+end
+if pdi = "ZWMQ0051" then do
+  ac = "Not Reviewed"
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)")"
+  ac = "The following MQADMIN switch resource(s) is (are) defined:"
+  "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(ac)",
+    "DATALEN("length(ac)") MEMBER("pdi")"
+end
+do until finding = ""
+if finding = "" then leave
+parse value finding with s"#"text"@"finding
+if s <> os then do
+  "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(bl)",
+    "DATALEN("length(bl)") MEMBER("pdi")"
+  ac = '    ' s
+  "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(ac)",
+    "DATALEN("length(ac)") MEMBER("pdi")"
+  os = s
+  end
+ac = '         ' text
+"LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(ac)",
+  "DATALEN("length(ac)") MEMBER("pdi")"
+end
+replace:
+"LMMADD DATAID("pdidd") MEMBER("pdi")"
+if RC = 4 then do
+  "LMMREP DATAID("pdidd") MEMBER("pdi")"
+  if RC <> 0 then,
+    say PGMNAME 'LMMREP_PDIDD =' RC PDI ZERRSM
+  end
+return
+ 
+syntax:
+failure:
+halt:
+error:
+say pgmname TYPERUN "ERRORTEXT"(rc) 'for processing' MEMBER'.'
+signal continue

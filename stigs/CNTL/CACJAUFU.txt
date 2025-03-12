@@ -1,0 +1,108 @@
+//CACJAUFU JOB (ACCOUNT),'FSO / SRR MVS AUDIT',
+//         REGION=0M,TIME=1440,CLASS=A,MSGCLASS=X ,USER=SRRAUDT
+//FSOSETS  SET SRRHLQ=SYS3.FSO.XXXX.MMMYYYY
+//*
+//*--------------------------------------------------------------------
+//*
+//* This job creates and copies data set for a Full review.
+//* It allocates all SYS3.FSO user library and copies
+//* selected members to be customized.
+//*
+//* Change XXXX and MMMYYYY in the SRRHLQ variable as follows:
+//*
+//*  1. Change XXXX to the SYSNAME specified in IEASYSxx member
+//*     in the logical parmlib concatination.
+//*  2. Change MMMYYYY to reflect the month and year of the review.
+//*
+//*     example:
+//*             SRRHLQ=SYS3.FSO.MMS.OCT2004
+//*--------------------------------------------------------------------
+// SET SRRINST=SYS2.SRRAUDIT        Install libraries - prefix
+// SET SRRUSER=SYS3.SRRAUDIT        User libraries - prefix
+//*
+//* DELETE PREVIOUS DATASETS
+//*
+//STEP1     EXEC PGM=IEFBR14
+//CNTL     DD DSN=&SRRHLQ..CNTL,
+//            DISP=(MOD,DELETE,DELETE),
+//            SPACE=(TRK,0),UNIT=SYSDA
+//EXAM     DD DSN=&SRRHLQ..EXAM.SCRIPT,
+//            DISP=(MOD,DELETE,DELETE),
+//            SPACE=(TRK,0),UNIT=SYSDA
+//LOADLIB  DD DSN=&SRRHLQ..LOADLIB,
+//            DISP=(MOD,DELETE,DELETE),
+//            SPACE=(TRK,0),UNIT=SYSDA
+//PARMLIB  DD DSN=&SRRHLQ..PARMLIB,
+//            DISP=(MOD,DELETE,DELETE),
+//            SPACE=(TRK,0),UNIT=SYSDA
+//*
+//* CREATE SYS3 USER LIBRARY TO CUSTOMIZE FOR THIS SITE
+//*
+//JSTEP001 EXEC PGM=IEBCOPY
+//SYSPRINT DD SYSOUT=*
+//SYSI     DD DISP=SHR,DSN=&SRRINST..CNTL
+//SYSU     DD DISP=(NEW,CATLG,DELETE),
+//            UNIT=SYSALLDA,SPACE=(TRK,(15,15,20)),
+//            VOL=REF=&SRRINST..CNTL,
+//            LIKE=&SRRINST..CNTL,
+//            DSNTYPE=LIBRARY,
+//            DSN=&SRRHLQ..CNTL
+//SYSUT3   DD UNIT=SYSDA,SPACE=(CYL,(20,5))
+//SYSUT4   DD UNIT=SYSDA,SPACE=(CYL,(20,5))
+//SYSIN    DD *
+  COPY    I=((SYSI,R)),O=SYSU,LIST=NO
+/*
+//JSTEP002 EXEC PGM=IEBCOPY
+//SYSPRINT DD SYSOUT=*
+//SYSI     DD DISP=SHR,DSN=&SRRINST..EXAM.SCRIPT
+//SYSU     DD DISP=(NEW,CATLG,DELETE),
+//            UNIT=SYSALLDA,SPACE=(TRK,(15,15,20)),
+//            VOL=REF=&SRRINST..EXAM.SCRIPT,
+//            LIKE=&SRRINST..EXAM.SCRIPT,
+//            DSNTYPE=LIBRARY,
+//            DSN=&SRRHLQ..EXAM.SCRIPT
+//SYSUT3   DD UNIT=SYSDA,SPACE=(CYL,(20,5))
+//SYSUT4   DD UNIT=SYSDA,SPACE=(CYL,(20,5))
+//SYSIN    DD *
+  COPY    I=((SYSI,R)),O=SYSU,LIST=NO
+/*
+//JSTEP003 EXEC PGM=IEBCOPY
+//SYSPRINT DD SYSOUT=*
+//SYSI     DD DISP=SHR,DSN=&SRRINST..LOADLIB
+//SYSU     DD DISP=(NEW,CATLG,DELETE),
+//            UNIT=SYSALLDA,SPACE=(TRK,(15,15,20)),
+//            VOL=REF=&SRRINST..LOADLIB,
+//            LIKE=&SRRINST..LOADLIB,
+//            DSNTYPE=LIBRARY,
+//            DSN=&SRRHLQ..LOADLIB
+//SYSUT3   DD UNIT=SYSDA,SPACE=(CYL,(20,5))
+//SYSUT4   DD UNIT=SYSDA,SPACE=(CYL,(20,5))
+//SYSIN    DD *
+  COPY    I=((SYSI,R)),O=SYSU,LIST=NO
+/*
+//JSTEP004 EXEC PGM=IEBCOPY
+//SYSPRINT DD SYSOUT=*
+//SYSI     DD DISP=SHR,DSN=&SRRUSER..CNTL
+//SYSU     DD DISP=OLD,
+//            DSN=&SRRHLQ..CNTL
+//SYSUT3   DD UNIT=SYSDA,SPACE=(CYL,(20,5))
+//SYSUT4   DD UNIT=SYSDA,SPACE=(CYL,(20,5))
+//SYSIN    DD *
+  COPY    I=((SYSI,R)),O=SYSU,LIST=NO
+  SELECT MEMBER=EXAMRPTS
+/*
+//JSTEP005 EXEC PGM=IEBCOPY
+//SYSPRINT DD SYSOUT=*
+//SYSI     DD DISP=SHR,DSN=&SRRINST..CNTL
+//SYSU     DD DISP=(NEW,CATLG,DELETE),
+//            UNIT=SYSALLDA,SPACE=(TRK,(2,1,5)),
+//            LIKE=&SRRINST..CNTL,
+//            DSNTYPE=LIBRARY,
+//            DSN=&SRRHLQ..PARMLIB
+//SYSUT3   DD UNIT=SYSDA,SPACE=(CYL,(20,5))
+//SYSUT4   DD UNIT=SYSDA,SPACE=(CYL,(20,5))
+//SYSIN    DD *
+  COPY    I=((SYSI,R)),O=SYSU,LIST=NO
+  SELECT MEMBER=$$$DUMMY
+/*
+//

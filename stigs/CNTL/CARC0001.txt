@@ -1,0 +1,257 @@
+/* REXX */
+/* CLS2REXXed by UMLA01S on 31 Jul 2019 at 17:05:32  */
+/*trace r?*/
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+ 
+/*********************************************************************/
+/* 05/04/2004 J.NELSON Changed to collect new RACF findings.         */
+/* 06/18/2004 J.NELSON Added EXIT code.                              */
+/* 06/23/2004 J.NELSON Added code to check security system.          */
+/* 11/02/2004 JL.NELSON Changed for renamed members.                 */
+/* 02/23/2005 JL.NELSON Changed constants to variables before        */
+/*            rename.                                                */
+/* 06/09/2005 JL.NELSON Pass MAXCC in ZISPFRC variable'              */
+/* 06/15/2005 JL.NELSON Reset return code to end job step.           */
+/* 09/10/2007 CL.Fenton Added resource collection.  Chgd several     */
+/*            variables and routines being executed by process.      */
+/* 07/31/2019 CL.Fenton Converted script from CLIST to REXX.         */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+CONSLIST = "OFF"                  /* DEFAULT IS OFF                  */
+COMLIST  = "OFF"                  /* DEFAULT IS OFF                  */
+SYMLIST  = "OFF"                  /* DEFAULT IS OFF                  */
+TERMMSGS = "OFF"                  /* DEFAULT IS OFF                  */
+CARM0001 = "CARM0001"
+CACC1000 = "CACC1000"
+CACT0008 = "CACT0008"
+CARM0010 = "CARM0010"
+TRACE    = "OFF"
+pgmname = "CARC0001 07/31/19"
+ 
+sysprompt = "OFF"                 /* CONTROL NOPROMPT                */
+sysflush = "OFF"                  /* CONTROL NOFLUSH                 */
+sysasis = "ON"                    /* CONTROL ASIS - caps off         */
+Numeric digits 10                 /* default of 9 not enough         */
+maxcc = 0
+rc01vput         = 0
+lminit_cntl_rc   = 0
+lminit_temp2_rc  = 0
+lminit_temp3_rc  = 0
+lmopen_temp2_rc  = 0
+edit_temp3_rc    = 0
+rm001rc          = 0
+rm01vget         = 0
+rm01sort         = 0
+view_cntl_rc     = 0
+rm010rc          = 0
+lmclose_temp2_rc = 0
+lmfree_temp2_rc  = 0
+lmfree_temp3_rc  = 0
+ 
+Arg OPTION
+do until OPTION = ""
+  parse var OPTION key"("val")" OPTION
+  val = strip(val,"b","'")
+  val = strip(val,"b",'"')
+  optcmd = key '= "'val'"'
+  interpret optcmd
+  end
+ 
+return_code = 0
+If trace = "ON" then do            /* TURN messages on          */
+  termmsgs = "ON"                  /* CONTROL MSG               */
+  comlist = "ON"                   /* CONTROL LIST              */
+  conslist = "ON"                  /* CONTROL CONLIST           */
+  symlist = "ON"                   /* CONTROL SYMLIST           */
+  end
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" | TRACE = "ON",
+  then Trace ?r
+ 
+syssymlist = symlist          /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist         /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist             /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs             /* CONTROL MSG/NOMSG         */
+Address ISPEXEC
+"CONTROL NONDISPL ENTER"
+"CONTROL ERRORS RETURN"
+zispfrc = 0
+"VPUT (ZISPFRC) SHARED"
+ 
+/* Determine which security system is running */
+return_code = 0
+"VPUT (CONSLIST COMLIST SYMLIST TERMMSGS) ASIS"
+rc01vput = return_code
+If return_code <> 0 then do
+  Say pgmname "VPUT RC =" return_code zerrsm
+    return_code = return_code + 16
+  SIGNAL  ERR_EXIT
+  end
+return_code = 0
+"SELECT CMD("cacc1000 "ACP)"
+"VGET (ACPNAME ACPVERS) ASIS"
+If acpname <> "RACF" then do
+  Say pgmname "RACF Job running on the wrong system"
+  Say pgmname acpname acpvers
+  return_code = 20
+  SIGNAL  ERR_EXIT
+  end
+ 
+/*******************************************/
+/* INITIALIZE LIBRARY MANAGEMENT           */
+/*******************************************/
+return_code = 0
+"LMINIT DATAID(CNTL) DDNAME(CNTL)"
+lminit_cntl_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT CNTL RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL  ERR_EXIT
+  end
+ 
+return_code = 0
+"LMINIT DATAID(TEMP2) DDNAME(TEMP2)"
+lminit_temp2_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT TEMP2   RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL  ERR_EXIT
+  end
+ 
+return_code = 0
+"LMINIT DATAID(TEMP3) DDNAME(TEMP3)"
+lminit_temp3_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT TEMP3 RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL  ERR_EXIT
+  end
+ 
+/*******************************************/
+/* OPEN TEMP DATASETS                      */
+/*******************************************/
+return_code = 0
+"LMOPEN DATAID("temp2") OPTION(OUTPUT)"
+lmopen_temp2_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMOPEN TEMP2 RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL  ERR_EXIT
+  end
+ 
+/*********************************************/
+/* PUT DSNLST INTO JOB FORMAT AND INTO TEMP2 */
+/*********************************************/
+return_code = 0
+"VPUT (TEMP2) ASIS"
+"EDIT DATAID("temp3") MACRO("carm0001")"
+edit_temp3_rc = return_code
+ 
+return_code = 0
+"VIEW DATAID("cntl") MACRO("carm0010") MEMBER("cact0008")"
+view_cntl_rc = return_code
+ 
+ 
+/*******************************************/
+/* CLOSE OUTPUT                            */
+/*******************************************/
+CLOSEUP:
+return_code = 0
+"LMCLOSE DATAID("temp2")"
+lmclose_temp2_rc = return_code
+ 
+/*******************************************/
+/* FREE FILES                              */
+/*******************************************/
+return_code = 0
+"LMFREE DATAID("temp2")"
+lmfree_temp2_rc = return_code
+ 
+return_code = 0
+"LMFREE DATAID("temp3")"
+lmfree_temp3_rc = return_code
+ 
+return_code = 0
+"LMFREE DATAID("cntl")"
+lmfree_cntl_rc = return_code
+return_code = 0
+ 
+ 
+/*******************************************/
+/* ERROR EXIT                              */
+/*******************************************/
+ERR_EXIT:
+If maxcc >= 16 | return_code > 0 then do
+    "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then,
+    zispfrc = maxcc
+  Else,
+    zispfrc = return_code
+  "VPUT (ZISPFRC) SHARED"
+  Say pgmname "ZISPFRC =" zispfrc
+  end
+"VGET (RM01VGET RM01SORT RM001RC RM010VG RM010RC) ASIS"
+If termmsgs = "ON" then do
+  Say "==============================================================="
+  Say pgmname "VPUT_RC                   "rc01vput
+  Say pgmname "LMINIT_CNTL_RC            "lminit_cntl_rc
+  Say pgmname "LMINIT_TEMP2_RC           "lminit_temp2_rc
+  Say pgmname "LMINIT_TEMP3_RC           "lminit_temp3_rc
+  Say pgmname "LMOPEN_TEMP2_RC           "lmopen_temp2_rc
+  Say "==============================================================="
+  Say pgmname "CREATE RACFSPL JOB"
+  Say "==============================================================="
+  Say pgmname "EDIT_TEMP3_RC             "edit_temp3_rc
+  Say pgmname carm0001 "RM001RC          "rm001rc
+  If rm001rc <> 0 then do
+    Say pgmname carm0001 "VGET             "rm01vget
+    Say pgmname carm0001 "SORT             "rm01sort
+    end
+  Say "==============================================================="
+  Say pgmname "CREATE RACFRSC JOB"
+  Say "==============================================================="
+  Say pgmname "VIEW_CNTL_RC              "view_cntl_rc
+  Say pgmname carm0010 "RM010RC          "rm010rc
+  If rm010rc <> 0 then do
+    Say pgmname carm0010 "VGET             "rm010vg
+    end
+  Say "==============================================================="
+  Say pgmname "LMCLOSE_TEMP2_RC          "lmclose_temp2_rc
+  Say pgmname "LMFREE_TEMP2_RC           "lmfree_temp2_rc
+  Say pgmname "LMFREE_TEMP3_RC           "lmfree_temp3_rc
+  Say "==============================================================="
+  end
+Exit (0)
+ 
+ 
+/*******************************************/
+/*  SYSCALL SUBROUTINES                    */
+/*******************************************/
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC > 4 & RC <> 8 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+  say SOURCELINE(sigl)
+  end
+if return_code > maxcc then
+  maxcc = return_code
+return
+ 
+ 

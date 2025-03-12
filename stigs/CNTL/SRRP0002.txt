@@ -1,0 +1,56 @@
+)ATTR
+ + TYPE(TEXT)   SKIP(ON) CAPS(OFF)
+ _ TYPE(INPUT)  INTENS(HIGH) CAPS(ON) PADC('_')
+ ^ AREA(SCRL) EXTEND(ON)
+ # TYPE(OUTPUT) INTENS(HIGH) SKIP(ON) COLOR(RED) CAPS(OFF)
+ @ TYPE(OUTPUT) INTENS(LOW)  SKIP(ON) CAPS(OFF)
+ ! TYPE(OUTPUT) INTENS(HIGH) SKIP(ON) CAPS(OFF) JUST(ASIS)
+ $ TYPE(OUTPUT) SKIP(ON) CAPS(OFF)
+)BODY WIDTH(80) EXPAND("")
+%"-" Security Readiness Review Self-Audit "-"+
+%&TITLE
+@PGM8     %" "Version:@SRRVERS +
+%Command ===>_ZCMD                                            %Scroll ===>_ZUSC+
+%  Commands:  CANCEL+- Exit without saving information
+             %EXIT/END/PF3+- Ends and saves information
++&LC1
++&LC2
++&LC3
++&LC4
+%"="
+%&HEADER
+)MODEL
+&DLINE1
+&DLINE2
+&DLINE3
+)INIT
+ .ZVARS = &VARS
+ .HELP = &HELPVAR
+ .CURSOR = ZCMD
+ &S      = ' '
+ 
+)REINIT
+ REFRESH *
+ &S      = ' '
+ 
+)PROC
+ VER (&ZCMD,LIST,CANCEL,END,EXIT,' ')
+ IF (&MBR EQ 'PRODUCTS')
+   VER (&S,LIST,D,' ')
+ IF (&MBR EQ 'VULQUES')
+   VER (&S,LIST,Y,N,' ')
+/*ER (&MEMBER,NB)
+/*ER (&MBRDSN,NB)
+/*ER (&PROGRAM,NB)
+/*ER (&PGMDSN,NB)
+/*ER (&RESOURCE,NB)
+/*ER (&MUSASS,NB)
+/*ER (&MLID,NB)
+)END
+/*
+/* 05/09/2005 JL.Nelson Created for dialog - Update auth user lists
+/* VER (&S,LIST,B,S,E,MSG=SRR002)
+/*
+/* SAMPLE MODEL LINE FOLLOWS:
+/* &MODLINE
+/*

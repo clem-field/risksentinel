@@ -1,0 +1,282 @@
+/************************* REXX **************************************/
+/*                                                                   */
+/*   Generate the report criteria with date for the unused lid       */
+/*   reports.                                                        */
+/*                                                                   */
+/*********************************************************************/
+/*Trace ?r*/
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+/*********************************************************************/
+/* Change summary:                                                   */
+/* 10/12/2016 CL Fenton initial creation of script to generate       */
+/*            the unused active, unused canceled, and unused         */
+/*            suspend lid reports, STS-015856.                       */
+/* 10/18/2019 CL Fenton Changes made to automate ACP00310 and        */
+/*            generate finding details, STS-023407.                  */
+/* 10/20/2022 CL Fenton Changes made to add non-interactive user     */
+/*            group, NONINTER, for ACP00310, STS-028849.             */
+/*********************************************************************/
+PGMNAME = 'CAAC0005 10/20/22'
+COMLIST  = 'OFF'
+CONSLIST = 'OFF'
+SYMLIST  = 'OFF'
+TERMMSGS = 'OFF'
+TRACE    = 'OFF'
+CACC1000 = "CACC1000"             /* Security check program          */
+maxcc = 0
+return_code = 0
+grpmbr = "NONINTER"
+ACF2DDN  = "ACF2CMDS"
+PDIDDN   = "PDIDD"
+DATADDN  = "DIALOG"           /* Dialog DD name for review           */
+vput_rc           = "N/A"
+lminit_dialog_rc  = "N/A"
+lmopen_dialog_rc  = "N/A"
+lmmfind_dialog_rc = "N/A"
+lmclose_dialog_rc = "N/A"
+lmfree_dialog_rc  = "N/A"
+ 
+Address ISPEXEC
+"CONTROL NONDISPL ENTER"
+"CONTROL ERRORS RETURN"
+ 
+Arg OPTION
+do until OPTION = ""
+  parse var OPTION key"("val")" OPTION
+  val = strip(val,"b","'")
+  val = strip(val,"b",'"')
+  optcmd = key '= "'val'"'
+  interpret optcmd
+  end
+ 
+If trace = "ON" then do            /* TURN messages on          */
+  termmsgs = "ON"                  /* CONTROL MSG               */
+  comlist = "ON"                   /* CONTROL LIST              */
+  conslist = "ON"                  /* CONTROL CONLIST           */
+  symlist = "ON"                   /* CONTROL SYMLIST           */
+  end
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" | TRACE = "ON",
+  then Trace ?r
+ 
+ 
+return_code = 0
+"VPUT (CONSLIST COMLIST SYMLIST TERMMSGS) ASIS"
+vput_rc = return_code
+"SELECT CMD("cacc1000 "ACP)"
+/*********************************************************************/
+/*                                                                   */
+/*   Obtain the data set name for the ACF2CMDS.RPT.                  */
+/*                                                                   */
+/*********************************************************************/
+ 
+tst = listdsi(acf2ddn "FILE")
+outdsn = sysdsname
+tst = listdsi(pdiddn "FILE")
+pdidsn = sysdsname
+tst = listdsi(dataddn "FILE")
+datadsn = sysdsname
+ 
+"LMINIT DATAID(DATAID) DDNAME("dataddn")"
+lminit_dialog_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT_DIALOG_RC =" return_code zerrsm
+  Say pgmname zerrlm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+return_code = 0
+"LMOPEN DATAID("dataid")"
+lmopen_dialog_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMOPEN_DIALOG_RC =" return_code zerrsm
+  Say pgmname zerrlm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+return_code = 0
+"LMMFIND DATAID("dataid") MEMBER("grpmbr")"
+lmmfind_dialog_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "The following members are missing from the",
+    "Dialog data set" datadsn"."
+  Say pgmname "  "grpmbr"   - Member containing Non-interactive",
+    "users."
+  Say pgmname "    To correct the above enter the Dialog",
+    "process and select the following options:"
+  Say pgmname "      Option C - Review reports for Findings,",
+    "User access & Dataset rules."
+  Say pgmname "      Option E - Verify and update Authorized user",
+    "groups"
+  Say pgmname "        Edit the member, add Users IDs (if",
+    "needed), and Save the member."
+  end
+Else do
+  userlist = ""
+  do while return_code = 0
+    return_code = 0
+    "LMGET DATAID("dataid") MODE(INVAR) DATALOC(TRECORD) MAXLEN(80)",
+      "DATALEN(LRECL)"
+    If return_code = 8 then,
+      leave
+    userlist = userlist"$"left(trecord,8)
+    end
+  end
+ 
+return_code = 0
+"LMCLOSE DATAID("dataid")"
+lmclose_dialog_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMCLOSE_DIALOG_RC =" return_code zerrsm
+  Say pgmname zerrlm
+  end
+ 
+return_code = 0
+"LMFREE DATAID("dataid")"
+lmfree_dialog_rc = return_code
+ 
+return_code = 0
+ 
+/*********************************************************************/
+/*                                                                   */
+/*   This section of code calculates the data in the correct format. */
+/*                                                                   */
+/*********************************************************************/
+ 
+minus35_date = DATE("U",DATE("B") - 36,"B")
+ 
+/*********************************************************************/
+/*                                                                   */
+/*   This section of code uses the date to build the report criteria,*/
+/*   Write it to a temporary data set, and call the ACFRPTCL program.*/
+/*                                                                   */
+/*********************************************************************/
+ 
+Address TSO
+"alloc fi(sysprint) dsn('"outdsn"(UNUSD35A)') old reuse"
+"NEWSTACK"
+QUEUE "INPUT(ACF2)"
+QUEUE "REPORT(SHORT) DTCFIELD(NO)"
+QUEUE "TITLE(ACTIVE UNUSED 35 DAYS)"
+QUEUE "SFLDS(ACC-DATE ACC-CNT PSWD-TOD)"
+QUEUE "IF(((ACC-DATE LE D'"minus35_date"') AND - "
+QUEUE "(ACC-CNT GT 0) AND NOT(STC) AND NOT(RESTRICT) AND - "
+QUEUE "NOT(SUSPEND) AND NOT(CANCEL) ) OR  ((ACC-CNT EQ 0) AND - "
+QUEUE " (PSWD-TOD LE D'"minus35_date"' ) AND NOT(RESTRICT) AND - "
+QUEUE " NOT(STC) AND NOT(SUSPEND) AND NOT(CANCEL)))"
+QUEUE ""
+"EXECIO * DISKW SYSIN (FINIS"
+Address ISPEXEC "SELECT PGM(ACFRPTSL)"
+"execio * diskr SYSPRINT (finis stem out."
+"FREE FI(SYSPRINT)"
+"DELSTACK"
+say pgmname "Created the unused active lid report."
+do x = 1 to out.0
+  if out.x = " " then iterate
+  if left(out.x,5) <> "     " then iterate
+  if left(out.x,19) = "     LOGONID  NAME" then iterate
+  userid = "$"left(word(out.x,1),8)
+  if pos(userid,userlist) = 0 then,
+    queue strip(out.x,"t")
+  end
+if queued() = 0 then,
+  queue "Not a Finding "
+else do
+  push " "
+  push "Userids found inactive for more than 35 days and not",
+    "suspended."
+  end
+say pgmname queued() "records written for ACP00310 PDI finding."
+queue ""
+"alloc fi(pdiout) dsn('"pdidsn"(ACP00310)') old reuse"
+"execio * diskw PDIOUT (finis"
+"DELSTACK"
+ 
+"alloc fi(sysprint) dsn('"outdsn"(UNUSD35C)') old reuse"
+"NEWSTACK"
+QUEUE "INPUT(ACF2)"
+QUEUE "REPORT(SHORT) DTCFIELD(NO)"
+QUEUE "TITLE(CANCELLED UNUSED 35 DAYS)"
+QUEUE "SFLDS(ACC-DATE ACC-CNT PSWD-TOD)"
+QUEUE "IF(((ACC-DATE LE D'"minus35_date"') AND - "
+QUEUE "(ACC-CNT GT 0) AND NOT(STC) AND - "
+QUEUE "NOT(SUSPEND) AND (CANCEL) ) OR  ((ACC-CNT EQ 0) AND - "
+QUEUE " (PSWD-TOD LE D'"minus35_date"' ) AND - "
+QUEUE " NOT(STC) AND NOT(SUSPEND) AND (CANCEL)))"
+QUEUE ""
+"EXECIO * DISKW SYSIN (FINIS"
+Address ISPEXEC "SELECT PGM(ACFRPTSL)"
+"FREE FI(SYSPRINT)"
+"DELSTACK"
+say pgmname "Created the unused canceled lid report."
+ 
+"alloc fi(sysprint) dsn('"outdsn"(UNUSD35S)') old reuse"
+"NEWSTACK"
+QUEUE "INPUT(ACF2)"
+QUEUE "REPORT(SHORT) DTCFIELD(NO)"
+QUEUE "TITLE(SUSPENDED UNUSED 35 DAYS)"
+QUEUE "SFLDS(ACC-DATE ACC-CNT PSWD-TOD)"
+QUEUE "IF(((ACC-DATE LE D'"minus35_date"') AND - "
+QUEUE "(ACC-CNT GT 0) AND NOT(STC) AND - "
+QUEUE "(SUSPEND) AND NOT(CANCEL) ) OR  ((ACC-CNT EQ 0) AND - "
+QUEUE " (PSWD-TOD LE D'"minus35_date"' ) AND - "
+QUEUE " NOT(STC) AND (SUSPEND) AND NOT(CANCEL)))"
+QUEUE ""
+"EXECIO * DISKW SYSIN (FINIS"
+Address ISPEXEC "SELECT PGM(ACFRPTSL)"
+Address TSO "FREE FI(SYSPRINT)"
+"DELSTACK"
+say pgmname "Created the unused suspend lid report."
+ 
+ 
+ERR_EXIT:
+If maxcc >= 16 | return_code > 0 then do
+  "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then,
+    zispfrc = maxcc
+  Else,
+    zispfrc = return_code
+  "VPUT (ZISPFRC) SHARED"
+  Say pgmname "ZISPFRC =" zispfrc
+  end
+ 
+If termmsgs = "ON" then do
+  Say "==============================================================="
+  Say pgmname "VPUT_RC              " vput_rc
+  Say pgmname "LMINIT_DIALOG_RC     " lminit_dialog_rc
+  Say pgmname "LMOPEN_DIALOG_RC     " lmopen_dialog_rc
+  Say pgmname "LMMFIND_DIALOG_RC    " lmmfind_dialog_rc
+  Say pgmname "LMCLOSE_DIALOG_RC    " lmclose_dialog_rc
+  Say pgmname "LMFREE_DIALOG_RC     " lmfree_dialog_rc
+  Say "==============================================================="
+  end
+ 
+exit 0
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC > 4 & RC <> 8 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname 'REXX error' rc 'in line' sigl':' ERRORTEXT(rc)
+  say SOURCELINE(sigl)
+  end
+if return_code > maxcc then
+  maxcc = return_code
+return
+ 
+ 

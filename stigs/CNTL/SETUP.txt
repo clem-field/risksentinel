@@ -1,0 +1,18 @@
+/* REXX */
+/* CLS2REXXed by FSOX001 on 12 Jul 2016 at 10:52:11  */
+/*trace ?r*/
+Signal On NoValue
+Parse source opsys . exec_name . dsn .
+if dsn = "?" then do
+  say "Unable to allocate dataset that contains" exec_name"."
+  exit 4
+  end
+ 
+x = outtrap("info.")
+Address TSO "ALLOC FI(SYSUPROC) DA('"dsn"') SHR REUSE"
+say dsn "has been allocated for SYSUPROC."
+Address TSO "ALTLIB ACTIVATE USER (CLIST)"
+x = outtrap("OFF")
+Address TSO "ALTLIB DISPLAY"
+Exit 0
+ 

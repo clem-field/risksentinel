@@ -1,0 +1,140 @@
+/* REXX */
+/* CLS2REXXed by UMLA01S on 19 Jul 2021 at 19:54:58  */
+/*Trace r?*/
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+Address ISREDIT
+ 
+"MACRO"               /* CAAM0007 EDIT MACRO */
+/*********************************************************************/
+/* 08/24/2007 C Sterm Created for AAMV0420                           */
+/* 07/19/2021 CL Fenton Converted script from CLIST to REXX.         */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname = "CAAM0007 07/19/21"
+zerrsm  = ""
+zerrlm  = ""
+/*******************************************/
+/* THIS EDIT MACRO PROVIDES THE FINDING    */
+/* DETAILS FOR AAMV0420.                   */
+/* IT REVIEWS THE OUTPUT OF THE ACF2       */
+/* COMMAND 'SHOW SYSTEMS' TO DETERMINE IF  */
+/* THE DATABASE IS BEING BACKED-UP.        */
+/* STIG SECTIONS: 2.3.2, 2.3.3             */
+/*******************************************/
+return_code = 0
+Address ISPEXEC "VGET (CONSLIST COMLIST SYMLIST TERMMSGS PDIDD)",
+  "ASIS"
+am07vge = return_code
+If return_code <> 0 then do
+  Say pgmname "VGET RC =" return_code zerrsm
+  Say pgmname "CONSLIST/"conslist "COMLIST/"comlist,
+    "SYMLIST/"symlist "TERMMSGS/"termmsgs
+  end
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" ,
+  then Trace ?r
+ 
+return_code = 0
+/*******************************************/
+/* Turn on messages                        */
+/*******************************************/
+syssymlist = symlist                    /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist                   /* CONTROL CONLIST/NOCONLIST */
+syslist    = comlist                    /* CONTROL LIST/NOLIST       */
+sysmsg     = termmsgs                   /* CONTROL MSG/NOMSG         */
+sysprompt  = "OFF"                      /* CONTROL PROMPT/NOPROMPT   */
+sysasis = 'ON'
+return_code = 0                         /* SET RETURN CODE TO 0      */
+ 
+/*******************************************/
+/* Main Process                            */
+/*******************************************/
+row = 0
+pdimbr = "AAMV0420"
+text = "AUTO BACKUP TIME=00:00"
+Address ISPEXEC "LMOPEN DATAID("pdidd") OPTION(OUTPUT)"
+return_code = 0
+"CAPS = OFF"
+"STATS = OFF"
+"(A) = DATASET"
+Say pgmname "A =" a
+"(LASTLINE) = LINENUM .ZLAST"
+"FIND 'BACKUP:'"
+"(ROW) = LINENUM .ZCSR"
+ 
+return_code = 0
+row = row + 1
+"(DATA) = LINE" row
+If pos(text,data) > 0 then do
+  ac = "No BACKUP of ACP database is scheduled."
+  Call put_it
+  Call add_member
+  end
+Else do
+  ac = "Not a Finding."
+  Call put_it
+  Call add_member
+  End
+ 
+ 
+END_IT:
+Address ISPEXEC "VPUT (AM07VGE) ASIS"
+"END"
+Exit
+ 
+ 
+/*******************************************/
+/*  SYSCALL SUBROUTINES                    */
+/*******************************************/
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL end_it
+ 
+ 
+Error:
+return_code = RC
+if RC >= 16 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+  say SOURCELINE(sigl)
+  end
+return
+ 
+ 
+ADD_MEMBER:
+return_code = 0
+Address ISPEXEC "LMMADD DATAID("pdidd") MEMBER("pdimbr")"
+If return_code = 4 then do
+  return_code = 0
+  Address ISPEXEC "LMMREP DATAID("pdidd") MEMBER("pdimbr")"
+  If return_code <> 0 then,
+    Say pgmname "LMMREP_PDI_RCODE =" return_code pdimbr zerrsm
+  End
+Else do
+  If return_code <> 0 then,
+    Say pgmname "LMMADD_PDI_RCODE =" return_code pdimbr zerrsm
+  End
+Return
+ 
+ 
+BLANK_LINE:
+ac = " "
+Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+  "DATALEN("length(ac)") MEMBER("pdimbr")"
+Return
+ 
+ 
+PUT_IT:
+Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+  "DATALEN("length(ac)") MEMBER("pdimbr")"
+Return
+ 
+ 

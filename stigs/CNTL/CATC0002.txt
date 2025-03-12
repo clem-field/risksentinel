@@ -1,0 +1,828 @@
+/* REXX */
+/* CLS2REXXed by UMLA01S on 5 Oct 2020 at 14:02:24  */
+/*Trace ?r*/
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+ 
+/*********************************************************************/
+/* 06/16/2004 JL Nelson Changed EXIT CODE.                           */
+/* 06/23/2004 JL Nelson Added code to check security system.         */
+/* 07/08/2004 JL Nelson Added code for whohas dsn('xxxx').           */
+/* 07/20/2004 JL Nelson Added whoami to get return code of zero.     */
+/* 11/30/2004 JL Nelson Changed to use CACM042T for table.           */
+/* 12/21/2004 JL Nelson Write out highest access level, dups         */
+/*            dropped.                                               */
+/* 12/22/2004 JL Nelson Adjust access levels.                        */
+/* 02/08/2005 JL Nelson Changed constants to variables before        */
+/*            rename.                                                */
+/* 03/28/2005 JL Nelson Added TYPERUN for Reports without PDIs.      */
+/* 06/01/2005 JL Nelson Made change to allow generic data set        */
+/*            names.                                                 */
+/* 06/08/2005 JL Nelson Pass MAXCC in ZISPFRC variable.              */
+/* 06/15/2005 JL Nelson Reset return code to end job step.           */
+/* 07/19/2005 JL Nelson Changed to allow DSN = *.                    */
+/* 08/19/2005 JL Nelson Added macro to VIEW TSS LIST() PROFILE       */
+/*            dataset.                                               */
+/* 11/29/2005 JL Nelson Modified to drop dups by access per Charles. */
+/* 03/15/2006 JL Nelson Made changes to avoid SUBSTR abend 920/932.  */
+/* 03/21/2006 JL Nelson Use NRSTR avoid abend 900 if ampersand in    */
+/*            data.                                                  */
+/* 04/19/2006 JL Nelson Add rule period count to XAUTH output.       */
+/* 04/20/2006 JL Nelson Ignore invalid rules from WHOHAS.            */
+/* 04/20/2006 JL Nelson Fixed ACID length, picking up until data.    */
+/* 05/09/2006 JL Nelson Added WRITE &LASTCC for debugging.           */
+/* 05/31/2006 JL Nelson Use TM0528 to find global audit prefixes.    */
+/* 10/20/2006 CL Fenton Removed TM0528 to find global audit, may     */
+/*            cause insufficient storage with large number of dsns   */
+/*            being auditted.                                        */
+/* 10/20/2006 CL Fenton Added script to obtain global audit.         */
+/* 02/10/2008 CL Fenton Removed CACCACP0 to refer to CACC1000.       */
+/* 03/31/2008 CL Fenton Chgd process for TEMP6 to create PDS         */
+/*            members.                                               */
+/* 07/07/2008 CL Fenton Corrected issue with dsn not having any      */
+/*            permissions specified.                                 */
+/* 06/02/2009 CL Fenton Changes CACT0001 to CACT0000, CACM042T to    */
+/*            CACM000T.  Changes for reflect new table information.  */
+/* 10/09/2009 CL Fenton Changes to check for masking characters in   */
+/*            ADSN field when compared to DSN field.                 */
+/* 03/02/2010 CL Fenton Changes to check for masking character, (*)  */
+/*            ADSN field when compared to DSN field dropping record  */
+/*            when other masking characters are in the ADSN field.   */
+/* 05/13/2010 CL Fenton Changes to drop records when (*) is in first */
+/*            position of DSN and ADSN contains other masking        */
+/*            characters are in first position.                      */
+/* 07/01/2010 CL Fenton Changes to drop records when (*) is in       */
+/*            first position of DSN and ADSN starts with (*) and     */
+/*            alphanumbic characters in positions after mask.        */
+/* 04/19/2011 CL Fenton Added ISPEXEC CONTROL statement. Changed     */
+/*            comparison of DSN and ADSN to evaluate masking         */
+/*            characters in both fields, CSD-AR002692245.            */
+/* 09/07/2011 CL Fenton Added bypass for permissions for temporary   */
+/*            data sets, CSD-AR002965170.                            */
+/* 08/26/2016 CL Fenton Correct issue with TBLMBR.                   */
+/* 06/14/2018 CL Fenton Deleted CATM0528 varible.                    */
+/* 10/02/2020 CL Fenton Converted script from CLIST to REXX.         */
+/* 10/01/2021 CL Fenton Correct issue when resource and permission   */
+/*            characters match, CATALOG.MSTRMTY and CATALOG.MSTR,    */
+/*            STS-027538.                                            */
+/* 04/18/2024 CL Fenton Correct issue variables not being            */
+/*            initialized, SCTASK0098454.                            */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+CONSLIST = "OFF"                  /* DEFAULT IS OFF                  */
+COMLIST  = "OFF"                  /* DEFAULT IS OFF                  */
+SYMLIST  = "OFF"                  /* DEFAULT IS OFF                  */
+TERMMSGS = "OFF"                  /* DEFAULT IS OFF                  */
+TYPERUN  = "FSO"                  /* Run for SRRAUDIT | FSO          */
+NOUSR    = "OFF"                  /* PRODUCE USER LIST               */
+CACT0000 = "CACT0000"             /* DEFAULT name table              */
+CACC1000 = "CACC1000"             /* SELECT SECURITY CHECK PGM       */
+CATM0402 = "CATM0002"             /* DEFAULT EDIT MACRO TEMP6        */
+CATM0405 = "CATM0405"             /* DEFAULT MACRO TSSLISTP          */
+CACM000T = "CACM000T"             /* SELECT EDIT macro CT0000        */
+TRACE    = "OFF"                  /* TRACE ACTIONS AND ERRORS        */
+pgmname  = "CATC0002 04/18/24"
+sysprompt = "OFF"                 /* CONTROL NOPROMPT                */
+sysflush = "OFF"                  /* CONTROL NOFLUSH                 */
+sysasis = "ON"                    /* CONTROL ASIS - caps off         */
+Numeric digits 10                 /* default of 9 not enough         */
+maxcc = 0
+lminit_cntl_rc      = "N/A"
+lminit_temp5_rc     = "N/A"
+lminit_temp6_rc     = "N/A"
+lminit_sensitve_rc  = "N/A"
+lminit_tsslistp_rc  = "N/A"
+lmopen_temp5_rc     = "N/A"
+lmopen_temp6_rc     = "N/A"
+lmopen_sensitve_rc  = "N/A"
+lmclose_temp5_rc    = "N/A"
+lmclose_temp6_rc    = "N/A"
+lmclose_sensitve_rc = "N/A"
+lmfree_cntl_rc      = "N/A"
+lmfree_temp3_rc     = "N/A"
+lmfree_temp5_rc     = "N/A"
+lmfree_temp6_rc     = "N/A"
+lmfree_sensitve_rc  = "N/A"
+lmfree_tsslistp_rc  = "N/A"
+tc02vput            = "N/A"
+tm02vget            = "N/A"
+t2lmmr              = "N/A"
+t2lmput             = "N/A"
+t2save              = "N/A"
+t2sort1             = "N/A"
+t2sort2             = "N/A"
+tm002rc             = "N/A"
+tm405vg             = "N/A"
+tm405rc             = "N/A"
+cm0tvget            = "N/A"
+cm0tvput            = "N/A"
+cm00trc             = "N/A"
+lmget_temp5_rc      = 12
+lmput_temp6_rc      = 12
+edit_temp6_rc       = 12
+ 
+zerrsm           = ""
+zerrlm           = ""
+zerrmsg          = ""
+return_code = 0
+ 
+Arg OPTION
+do until OPTION = ""
+  parse var OPTION key"("val")" OPTION
+  val = strip(val,"B","'")
+  val = strip(val,"B",'"')
+  optcmd = key '= "'val'"'
+  interpret optcmd
+  end
+ 
+return_code = 0
+If trace = "ON" then do            /* TURN messages on          */
+  termmsgs = "ON"                  /* CONTROL MSG               */
+  comlist = "ON"                   /* CONTROL LIST              */
+  conslist = "ON"                  /* CONTROL CONLIST           */
+  symlist = "ON"                   /* CONTROL SYMLIST           */
+  end
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" | TRACE = "ON",
+  then Trace ?r
+ 
+syssymlist = symlist          /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist         /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist             /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs             /* CONTROL MSG/NOMSG         */
+Address ISPEXEC
+"CONTROL NONDISPL ENTER"
+"CONTROL ERRORS RETURN"
+zispfrc = 0
+"VPUT (ZISPFRC) SHARED"
+ 
+ 
+/* Determine which security system is running */
+ 
+/*******************************************/
+/* INITIALIZE LIBRARY MANAGEMENT           */
+/*******************************************/
+return_code = 0
+"LMINIT DATAID(CNTL) DDNAME(CNTL)"
+lminit_cntl_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT_CNTL_RC" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+return_code = 0
+"LMINIT DATAID(TEMP3ID) DDNAME(TEMP3)"
+lminit_temp3_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT_TEMP3_RC" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+return_code = 0
+"LMINIT DATAID(TEMP5) DDNAME(TEMP5)"
+lminit_temp5_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT_TEMP5_RC" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+return_code = 0
+"LMINIT DATAID(TEMP6) DDNAME(TEMP6)"
+lminit_temp6_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT_TEMP6_RC" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+return_code = 0
+"LMINIT DATAID(SENSITVE) DDNAME(SENSITVE) ENQ(EXCLU)"
+lminit_sensitve_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT_SENSITVE_RC" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+return_code = 0
+"LMINIT DATAID(TSSLISTP) DDNAME(TSSLISTP)"
+lminit_tsslistp_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT_TSSLISTP_RC" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+return_code = 0
+"LMOPEN DATAID("temp6") OPTION(OUTPUT)"
+lmopen_temp6_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMOPEN_TEMP6_RC" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+return_code = 0
+"LMOPEN DATAID("sensitve") OPTION(OUTPUT)"
+lmopen_sensitve_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMOPEN_SENSITVE_RC" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+return_code = 0
+"LMOPEN DATAID("temp5") OPTION(INPUT)"
+lmopen_temp5_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMOPEN_TEMP5_RC" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+return_code = 0
+"VPUT (CONSLIST COMLIST SYMLIST NOUSR TERMMSGS CACT0000 CACM000T",
+  "CATM0405 SENSITVE TSSLISTP TYPERUN ) ASIS"
+tc02vput = return_code
+If return_code <> 0 then do
+  Say pgmname "VPUT error" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+"SELECT CMD("cacc1000 "ACP)"
+ 
+"VGET (ACPNAME ACPVERS) ASIS"
+If left(acpname,3) <> "TSS" then do
+  Say pgmname "Top Secret Job running on the wrong system."
+  Say pgmname acpname acpvers
+  return_code = 20
+  SIGNAL ERR_EXIT
+  end
+ 
+/********************************************************************/
+/* MAIN PROCESS LOOP                                                */
+/********************************************************************/
+ 
+member = ""
+adsn = " "
+dsn = " "
+access = "NONE    "
+action = "N"
+ 
+Call get_audit_rec "DATASET"
+ 
+ 
+/* GETFILE: GETFILE TEMP5 */
+GETFILE:
+do until return_code > 0
+  return_code = 0
+  "LMGET DATAID("temp5") MODE(INVAR) DATALOC(INDATA)",
+    "DATALEN(INLNGTH) MAXLEN(300)"
+  lmget_temp5_rc = return_code
+  If return_code = 8 then do
+    lmget_temp5_rc = 0
+    return_code = 0
+    Call write_rec
+    lmput_temp6_rc = return_code
+    Call add_member
+    leave
+    end
+ 
+  If lmget_temp5_rc > 4 then do
+    Say pgmname "LMGET_TEMP5_RC" return_code zerrsm
+    return_code = return_code + 16
+    SIGNAL ERR_EXIT
+    end
+ 
+  recid = substr(indata,5,4)
+  If recid = 0001 then do
+    If dsn <> " " then do
+      return_code = 0
+      Call write_rec
+      lmput_temp6_rc = return_code
+      end
+ 
+    If pos("TSS WHOAMI",indata) = 33 then do
+      If member <> " " then
+        Call add_member
+      member = substr(indata,49,2)
+      dsn = " "
+      adsn = " "
+      acid = "        "
+      end
+ 
+    If pos("TSS WHOH DSN",indata) = 33 then do
+      parse var indata . "DSN(" dsn ")" .
+      If substr(dsn,1,1) = "'" then do
+        dsn = strip(dsn,"B","'")
+        end
+      dsn = left(dsn,44)
+      adsn = " "
+      acid = "        "
+      access = "NONE    "
+      action = "N"
+      end
+    iterate
+    end
+ 
+  If recid = 2007 then do
+    If acid <> " " then do
+      return_code = 0
+      Call write_rec
+      lmput_temp6_rc = return_code
+      access = "NONE    "
+      action = "N"
+      end
+    parse var indata . 41 acid +8 . 65 adsn .
+    /* until mm/dd/yy  49:56*/
+    If left(adsn,1) = "'" then do
+      adsn = strip(adsn,"B","'")
+      exp = "Y"
+      end
+    Else,
+      If dsn = adsn then,
+        exp = "N"
+      Else
+        exp = " "
+    iterate
+    end
+ 
+  If recid = 1950 then do
+    parse var indata . 49 adsn .
+    If left(adsn,1) = "'" then do
+      adsn = strip(adsn,"B","'")
+      exp = "Y"
+      end
+    Else,
+      If dsn = adsn then,
+        exp = "N"
+      Else,
+        exp = " "
+    adsn = left(adsn,44)
+    iterate
+    end
+ 
+  If recid = 2021 then do
+    parse var indata . 33 access 153 .
+    iterate
+    end
+ 
+  If recid = 2016 then do
+    If pos("AUDIT",indata) <> 0 then,
+      action = "Y"
+    end
+  end
+ 
+ 
+JOBDONE:
+return_code = 0
+"LMCLOSE DATAID("temp5")"
+lmclose_temp5_rc = return_code
+ 
+return_code = 0
+"LMCLOSE DATAID("temp6")"
+lmclose_temp6_rc = return_code
+If return_code > 4 then do
+  Say pgmname "LMCLOSE_TEMP6_RC" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+/*******************************************/
+/* GET TABLE VALUES                        */
+/*******************************************/
+return_code = 0
+"VIEW DATAID("cntl") MACRO("cacm000t") MEMBER("cact0000")"
+view_cact0000_rc = return_code
+If return_code > 4 then do
+  Say pgmname "Error on VIEW of" cact0000 "RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+return_code = 0
+"VGET (TBLMBR) ASIS"
+tblmbr = strip(tblmbr,"T")
+ 
+return_code = 0
+Do X = 2 to length(tblmbr)
+  iter = substr(tblmbr,x,2)
+  "EDIT DATAID("temp6") MACRO("catm0402") MEMBER("iter")"
+  edit_temp6_rc = return_code
+  x = pos("#",tblmbr,x)
+  end
+ 
+return_code = 0
+"LMCLOSE DATAID("sensitve")"
+lmclose_sensitve_rc = return_code
+ 
+return_code = 0
+"LMFREE DATAID("cntl")"
+lmfree_cntl_rc = return_code
+ 
+return_code = 0
+"LMFREE DATAID("temp3id")"
+lmfree_temp3_rc = return_code
+ 
+return_code = 0
+"LMFREE DATAID("temp5")"
+lmfree_temp5_rc = return_code
+ 
+return_code = 0
+"LMFREE DATAID("temp6")"
+lmfree_temp6_rc = return_code
+ 
+return_code = 0
+"LMFREE DATAID("sensitve")"
+lmfree_sensitve_rc = return_code
+ 
+return_code = 0
+"LMFREE DATAID("tsslistp")"
+lmfree_tsslistp_rc = return_code
+ 
+return_code = 0
+ 
+ 
+/*******************************************/
+/* ERROR EXIT                              */
+/*******************************************/
+ERR_EXIT:
+If maxcc >= 16 | return_code > 0 then do
+  "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then,
+    zispfrc = maxcc
+  Else,
+    zispfrc = return_code
+  "VPUT (ZISPFRC) SHARED"
+  Say pgmname "ZISPFRC =" zispfrc
+  end
+ 
+"VGET (T2LMMR T2LMPUT T2SAVE T2SORT1 T2SORT2 TM02VGET TM002RC",
+  "TM405RC TM405VG CM0TVGET CM0TVPUT CM00TRC) ASIS"
+If termmsgs = "ON" then do
+    Say "================================================================"
+    Say pgmname "LMINIT_CNTL_RC            " lminit_cntl_rc
+    Say pgmname "LMINIT_TEMP3_RC           " lminit_temp3_rc
+    Say pgmname "LMINIT_TEMP5_RC           " lminit_temp5_rc
+    Say pgmname "LMINIT_TEMP6_RC           " lminit_temp6_rc
+    Say pgmname "LMINIT_SENSITVE_RC        " lminit_sensitve_rc
+    Say pgmname "LMINIT_TSSLISTP_RC        " lminit_tsslistp_rc
+    Say pgmname "LMOPEN_TEMP5_RC           " lmopen_temp5_rc
+    Say pgmname "LMOPEN_TEMP6_RC           " lmopen_temp6_rc
+    Say pgmname "LMOPEN_SENSITVE_RC        " lmopen_sensitve_rc
+    Say pgmname "LMGET_TEMP5_RC            " lmget_temp5_rc
+    Say pgmname "LMPUT_TEMP6_RC            " lmput_temp6_rc
+    Say pgmname "TC02VPUT                  " tc02vput
+    Say pgmname "EDIT_TEMP6_RC             " edit_temp6_rc
+    Say "================================================================"
+    Say pgmname catm0402 "VGET             " tm02vget
+    Say pgmname catm0402 "LMMR             " t2lmmr
+    Say pgmname catm0402 "LMPUT            " t2lmput
+    Say pgmname catm0402 "SAVE             " t2save
+    Say pgmname catm0402 "SORT1            " t2sort1
+    Say pgmname catm0402 "SORT2            " t2sort2
+    Say pgmname catm0402 "TM002RC          " tm002rc
+    Say pgmname catm0405 "VGET             " tm405vg
+    Say pgmname catm0405 "TM405RC          " tm405rc
+    Say pgmname cacm000t "VGET             " cm0tvget
+    Say pgmname cacm000t "VPUT             " cm0tvput
+    Say pgmname cacm000t "CM42TRC          " cm00trc
+    Say "================================================================"
+    Say pgmname "LMCLOSE_TEMP5_RC          " lmclose_temp5_rc
+    Say pgmname "LMCLOSE_TEMP6_RC          " lmclose_temp6_rc
+    Say pgmname "LMCLOSE_SENSITVE_RC       " lmclose_sensitve_rc
+    Say pgmname "LMFREE_CNTL_RC            " lmfree_cntl_rc
+    Say pgmname "LMFREE_TEMP3_RC           " lmfree_temp3_rc
+    Say pgmname "LMFREE_TEMP5_RC           " lmfree_temp5_rc
+    Say pgmname "LMFREE_TEMP6_RC           " lmfree_temp6_rc
+    Say pgmname "LMFREE_SENSITVE_RC        " lmfree_sensitve_rc
+    Say pgmname "LMFREE_TSSLISTP_RC        " lmfree_tsslistp_rc
+    Say "================================================================"
+    end
+Exit (0)
+ 
+ 
+/*******************************************/
+/*  SYSCALL SUBROUTINES                    */
+/*******************************************/
+ADD_MEMBER:
+return_code = 0
+"LMMADD DATAID("temp6") MEMBER("member")"
+If return_code = 4 then do
+  return_code = 0
+  "LMMREP DATAID("temp6") MEMBER("member")"
+  If return_code <> 0 then,
+    Say pgmname "LMMREP TEMP6 RCODE =" return_code zerrsm
+  end
+Else do
+  If return_code <> 0 then,
+    Say pgmname "LMMADD TEMP6 RCODE =" return_code zerrsm
+  end
+Return (rc)
+ 
+ 
+WRITE_REC:
+/* Ignore invalid records from WHOHAS   .*.*.*.    */
+rpc = 0         /* Rule period counter */
+rpi = 0         /* Rule period index   */
+dpc = 0         /* DSN period counter  */
+dsn = strip(dsn,"T")
+adsn = strip(adsn,"T")
+ 
+If left(dsn,1) = "*" &,
+   pos("+",adsn) = 0 &,
+   pos("%",adsn) = 0 &,
+   pos("-",adsn) = 0 then do
+  Do X = 1 to length(adsn) while substr(adsn,x,1) <> " "
+    If substr(adsn,x,1) > "*" then,
+      SIGNAL BYPASS_LMPUT
+    end
+  Call PERFORM_LMPUT
+  SIGNAL BYPASS_LMPUT
+  end
+ 
+If left(dsn,1) = "*" &,
+  (pos("+",adsn) = 1 |,
+   pos("%",adsn) = 1 |,
+   pos("-",adsn) = 1) then,
+  SIGNAL BYPASS_LMPUT
+ 
+Do RBI = 1 to length(adsn) while substr(adsn,rbi,1) <> " "
+  If substr(adsn,rbi,1) = "." then do
+    rpc = rpc + 1
+    rpi = rbi
+    end
+  end
+ 
+If rpc <= 1 &,
+   rpi+1 = rbi &,
+   pos("*",adsn) = 0 then do
+  Call PERFORM_LMPUT
+  SIGNAL BYPASS_LMPUT
+  end
+ 
+ 
+NEXT_AST:
+Do forever while rbi > 2
+  If rbi > 2 then do
+    If substr(adsn,rbi-1,1) = "*" then do
+      rbi = rbi - 1
+      iterate
+/*    SIGNAL NEXT_AST*/
+      end
+    leave
+    end
+  end
+ 
+Do DBI = 1 to length(dsn) while substr(dsn,dbi,1) <> " "
+  If substr(dsn,dbi,1) = "." then,
+    dpc = dpc + 1
+  end
+ 
+/******************************************************/
+/* Bypass invalid data set rule if:                   */
+/*   The rule has more qualiferes than the dataset or */
+/*   The rule is longer than the dataset name.        */
+/******************************************************/
+ 
+If substr(dsn,dbi-1,1) <> "." then,
+  If rpc > dpc |,
+     rbi > dbi then,
+    SIGNAL BYPASS_LMPUT
+ 
+If left(dsn,1) = "*" &,
+   rbi > dbi then,
+  SIGNAL BYPASS_LMPUT
+ 
+bypass_lmput_sw = ""
+ri = 1
+di = 1
+rx = 0
+dx = 0
+match = ""
+dsn = strip(dsn)
+adsn = strip(adsn)
+ 
+ccnt = compare(dsn,adsn)
+Do until substr(dsn,di,1) = " " | substr(dsn,ri,1) = " "
+  If ccnt = 0 then leave
+  If ccnt > 0 & substr(adsn,ccnt,1) = " " then leave
+  If substr(dsn,di,1) = substr(adsn,ri,1) |,
+     substr(adsn,ri,1) = "+" |,
+     substr(dsn,di,1) = "+" then do
+    di = di + 1
+    ri = ri + 1
+    rx = 0
+    dx = 0
+    end
+  Else do
+    If rx > 0 then do
+      rx = rx - 1
+      ri = ri - 1
+      end
+    Else,
+    If dx > 0 then do
+      dx = dx - 1
+      di = di - 1
+      end
+    Else,
+    If substr(adsn,ri,1) = "*" then do
+      rx = rx + 8
+      end
+    Else,
+    If substr(dsn,di,1) = "*" then do
+      dx = dx + 8
+      end
+    Else,
+    If substr(adsn,ri,1) = "-" then do
+      rx = rx + 256
+      end
+    Else,
+    If substr(dsn,di,1) = "-" then do
+      dx = dx + 256
+      end
+    Else do
+/*    say dsn adsn compare(dsn,adsn) compare(adsn,dsn)*/
+      bypass_lmput_sw = "X"
+      leave
+      end
+ 
+ 
+    COMPARE_NEXT:
+    di = di + 1
+    ri = ri + 1
+    end
+  end
+ 
+If bypass_lmput_sw = "X" then,
+  SIGNAL BYPASS_LMPUT
+ 
+If ri > 1 & di > 1 then,
+  If substr(adsn,ri,1) <> " " &,
+     substr(dsn,di-1,1) <> "." then,
+    SIGNAL BYPASS_LMPUT
+ 
+/* Bypass permission rule for temporary data set names */
+If pos("SYS+++++.T",adsn) = 1 |,
+   pos("SYS0++++.T",adsn) = 1 |,
+   pos("SYS1++++.T",adsn) = 1 then,
+  SIGNAL BYPASS_LMPUT
+ 
+Call PERFORM_LMPUT
+ 
+ 
+BYPASS_LMPUT:
+return_code = 0
+adsn = " "
+acid = "        "
+access = "NONE    "
+action = "N"
+Return (rc)
+ 
+ 
+/*******************************************/
+/*  SYSCALL SUBROUTINES                    */
+/*******************************************/
+GET_AUDIT_REC:
+Arg RESOURCE
+auddsns = ""
+x = outtrap("out.")
+Address TSO "TSS LIST(AUDIT) RESCLASS("resource")"
+Do I = 1 to out.0
+  data = out.i
+  If left(data,8) <> resource then,
+    iterate
+/*  SIGNAL NEXT_DO */
+  auddsn = substr(data,14)
+  if auddsn = "*ALL*" then do
+    auddsns = auddsns""auddsn" "
+    iterate
+    end
+  dl = length(data)
+  x = 14
+  y = 41
+ 
+ 
+NEXT_AUDIT:
+  If y > dl then,
+    y = dl
+  If x < y & y <= dl then do
+    If auddsn = " " then,
+      iterate I
+/*    SIGNAL NEXT_DO*/
+    end
+  /* Remove masking character from end of audit information. */
+  a1 = pos("* ",auddsn" ")
+  If a1 > 1 then,
+    auddsn = left(auddsn,a1-1)
+  a1 = pos("*." ,auddsn" ")
+  If a1 > 1 then,
+    auddsn = left(auddsn,a1-1)
+  auddsn = strip(auddsn,"T")
+  auddsns = auddsns""auddsn" "
+ 
+ 
+NEXT_DO:
+  end
+"VPUT (AUDDSNS) ASIS"
+al = length(auddsns)
+Say pgmname "Length of global audit list is" al
+Return (rc)
+ 
+ 
+PERFORM_LMPUT:
+return_code = 0
+xpc = 000||rpc
+l = length(xpc)
+xdsn = substr(xpc,l,1)left(adsn,43)
+plvl = 0
+acc = "NONE    "
+acidt = "         "    /* 9 blanks filled in by CATM0002*/
+Do X = 1 to length(access) by 8 while substr(access,x,1) <> " "
+  acc8 = substr(access,x,8)
+  Select
+    When acc8 = "NONE    " then lvl = 0
+    When acc8 = "FETCH   " then lvl = 1
+    When acc8 = "NOCREATE" then lvl = 2
+    When acc8 = "READ    " then lvl = 3
+    When acc8 = "INQUIRE " then lvl = 3
+    When acc8 = "WRITE   " then lvl = 4
+    When acc8 = "UPDATE  " then lvl = 5
+    When acc8 = "CONTROL " then lvl = 6
+    When acc8 = "CREATE  " then lvl = 7
+    When acc8 = "SCRATCH " then lvl = 8
+    When acc8 = "ALL     " then lvl = 9
+    Otherwise do
+      Say pgmname "Unknown access" acc8 "not found in list"
+      lvl = 9
+      end
+    end
+  If plvl < lvl then do
+      plvl = lvl
+      acc = acc8
+    end
+  end
+ 
+Do XA = 1 to length(auddsns)
+  ya = pos(" ",auddsns,xa)
+  parse var auddsns . =(xa) auddsn .
+  xa = ya
+  xb = pos("'",auddsn)
+  If xb = 1 then do
+    auddsn = strip(auddsn,"B","'")
+    If auddsn = adsn then do
+      If action = "N" then,
+        action = "X"
+      Else,
+        action = "Z"
+          xa = length(auddsns)
+      iterate xa
+      end
+    end
+ 
+  If pos(auddsn,adsn) = 1 |,
+     pos(auddsn,dsn) = 1 then do
+    If action = "N" then,
+      action = "X"
+    Else,
+      action = "Z"
+    xa = length(auddsns)
+    end
+ 
+  If auddsn > dsn then,
+    xa = length(auddsns)
+  end
+ 
+outdata = member""xdsn""acid""acidt""acc""plvl""action""left(dsn,44)"1"
+"LMPUT DATAID("temp6") MODE(INVAR) DATALOC(OUTDATA)",
+  "DATALEN("length(outdata)")"
+return
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC > 4 & RC <> 8 & RC <> 14 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname 'REXX error' rc 'in line' sigl':' ERRORTEXT(rc)
+  say SOURCELINE(sigl)
+  end
+if return_code > maxcc then,
+  maxcc = return_code
+return

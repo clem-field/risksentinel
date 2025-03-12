@@ -1,0 +1,127 @@
+* This table is used to identify products used on the system/
+*
+* 04/11/2007 CL.Fenton created for Products
+* 06/19/2007 CL.Fenton removed rec type 2 from IOA, versions requiring
+*            this information are no longer supported by vendor.
+* 06/22/2007 CL.Fenton Removed must select option on SDSF.
+* 09/07/2007 CL.Fenton Changed statement for DBMSs NOT using ACP.
+* 11/30/2007 CL.Fenton Changed statement for DBMSs internally by DBMS.
+* 11/16/2008 CL.Fenton Changed table format to allow for a larger number
+*            of Record Types.
+* 06/06/2008 CL.Fenton Changed CATSOL to require loadlib data sets as a
+*            new Record Type.
+* 03/14/2014 CL.Fenton Changed Netview to add configuration variable
+*            setting as a new Record Type.
+* 05/29/2014 CL.Fenton Chgs made to add DIALOG information for CSFTP,
+*            CSTCP, and CSTNT, STS-000653.
+* 05/29/2014 CL.Fenton Chgs made to remove product information for DBMS
+*            and IDMS, STS-007219 and STS-007637.
+* 08/19/2015 CL.Fenton Added user dataset collection for AbendAID,
+*            STS-011534.
+* 10/26/2016 CL.Fenton Added requirements CA1 Started Tasks datasets,
+*            STS-015909.
+* 11/08/2016 CL.Fenton Removed DFSMS from Dialog Process, STS-015211.
+* 07/21/2017 CL.Fenton Added STC dataset for CSSMTP, STS-017966.
+* 01/22/2021 CL.Fenton Removed STC dataset for CSSMTP, STS-025549.
+*
+* AN * (ASTERISK) AT THE BEGINNING OF A LINE WILL BE IGNORED
+*
+* THE FOLLOWING INFORMATION IS TO EXPLAIN THIS FILE:
+*
+* 01-08 - Product Name
+* 09    - Product Record number
+*         1 - Description
+*         2 - Default Status/Record Type data
+* 10    - Default Status on Product Record 1
+* 12-72 - Description on Product Record 1
+* 10    - Default Status on Product Record 2
+* 12-72 - Record Type data on Product Record 2
+*   Values
+*     1 - Request for Userid/JCL member and dsn location
+*     2 - Request for module name and dsn location
+*     3 - Request for Resource Class information
+*     4 - Request for configuration settings
+*     5 - Request member and dsn location of configuration source
+*     6 - Request for loadlib data set name
+*     7 - Request for configuration variable settings
+*     D - Request for Install datasets
+*     E - Request for STC datasets
+*     F - Request for User datasets
+*     G - Request for All datasets or other datasets
+*     S - Request SubSystem identifier
+*
+*PROD
+*NAME      DESCRIPTION
+*....... . ...........................................................
+ABNDAID 1  Compuware Abend-AID
+ABNDAID 2  1DEF
+BMCCTD  1  BMC CONTROL-D
+BMCCTD  2  15DEF
+BMCCTM  1  BMC CONTROL-M
+BMCCTM  2  15DEFG
+BMCCTO  1  BMC CONTROL-O
+BMCCTO  2  15DE
+BMCCTR  1  BMC CONTROL-M/Restart
+BMCCTR  2  1DF
+BMCIOA  1  BMC INCONTROL (IOA)
+BMCIOA  2  15DEF
+BMCMVZ  1  BMC MAINVIEW for z/OS
+BMCMVZ  2  S135DE
+CAAUDTR 1  CA AUDITOR (CA EXAMINE)
+CAAUDTR 2  DF
+CAMICS  1  CA MICS Resource Management
+CAMICS  2  DF
+CATSOL  1  Catalog Solutions
+CATSOL  2  6D
+CAMIM   1  CA MIM Resource Sharing for z/OS
+CAMIM   2  1DE
+CA1     1  CA1 Tape Management System
+CA1     2  125DEF
+CCS     1  CA Common Services (CCS)
+CCS     2  1D
+CICS    1  CICS Transaction Server
+CICS    2  123DE
+CLSUPER 1  CL/SuperSession
+CLSUPER 2  14DE
+CSSMTP  1  IBM Comm Server Simple Mail Transfer Protocol (CSSMTP)
+CSSMTP  2  1
+CSTCP   1  IBM Comm Server TCP/IP (CSTCP)
+CSTCP   2  1
+CSFTP   1  IBM Comm Server File Transfer Protocol (CSFTP)
+CSFTP   2  1
+CSTNT   1  IBM Comm Server TN3270E Telnet Server (CSTNT)
+CSTNT   2  1
+FDR     1  FDR
+FDR     2  2D
+FEP     1  Front End Processor
+FEP     2  G
+HCD     1  IBM Hardware Configuration Definition (HCD)
+HCD     2  DF
+HLTHCK  1  IBM Health Checker
+HLTHCK  2  1E
+ICSF    1  IBM Integrated Crypto Service Facility (ICSF)
+ICSF    2  15DE
+MQS     1  MQSeries/Websphere MQ
+MQS     2  S1
+NCPASS  1  NC-PASS
+NCPASS  2  1DE
+NETVIEW 1  Tivoli NetView for z/OS
+NETVIEW 2  157DE
+ROSCOE  1  CA ROSCOE
+ROSCOE  2  135DE
+SDSF    1  System Display and Search Facility
+SDSF    2  1D
+SRRAUDT 1  SRRAUDIT Process
+SRRAUDT 2  DF
+TADZ    1  Tivoli Asset Discovery for z/OS (TADz)
+TADZ    2  1DE
+TDMF    1  Transparent Data Migration Facility (TDMF)
+TDMF    2  G
+VSS     1  Vanguard Security Solutions (VSS)
+VSS     2  DF
+VTAM    1S VTAM
+VTAM    2S 1G
+VTAPE   1  CA VTAPE
+VTAPE   2  S1DE
+WAS     1  HTTP/Web Application Server
+WAS     2  1

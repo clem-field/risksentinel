@@ -1,0 +1,171 @@
+/* REXX */
+/* CLS2REXXed by UMLA01S on 1 Apr 2024 at 16:09:27  */
+/*trace r?*/
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+Address ISREDIT
+ 
+"MACRO"
+/*********************************************************************/
+/* This EDIT MACRO (CATM1001) generates the WHOOWNS reports and      */
+/* creates the WHOOXXXX member depending on the values in variable   */
+/* RESOURCE.                                                         */
+/*********************************************************************/
+/* 10/03/2011 CL Fenton Added error checking.                        */
+/* 04/01/2024 CL Fenton Converted script from CLIST to REXX.         */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname = "CATM1001 04/01/24"
+sysprompt = "OFF"                       /* CONTROL NOPROMPT          */
+sysflush = "OFF"                        /* CONTROL NOFLUSH           */
+sysasis = "ON"                          /* CONTROL ASIS - caps off   */
+return_code = 0
+maxcc = 0
+cnt = 0
+member = ""
+Address ISPEXEC "CONTROL NONDISPL ENTER"
+Address ISPEXEC "CONTROL ERRORS RETURN"
+ 
+/*******************************************/
+/* VARIABLES ARE PASSED TO THIS MACRO      */
+/* RESOURCE                                */
+/* OUTPUT                                  */
+/* CONSLIST                                */
+/* COMLIST                                 */
+/* SYMLIST                                 */
+/* TERMMSGS                                */
+/*******************************************/
+Address ISPEXEC "VGET (RESOURCE OUTPUT CONSLIST COMLIST SYMLIST",
+  "TERMMSGS) ASIS"
+ 
+ 
+MESSAGE_HOUSEKEEPING:
+syssymlist = symlist                    /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist                   /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist                       /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs                       /* CONTROL MSG/NOMSG         */
+ 
+/*********************************************************************/
+/* Set different attributes within currently opened member           */
+/*********************************************************************/
+/*  Set AUTOSAVE for WHOOWNS variable in RESOURCE.                   */
+/*********************************************************************/
+If substr(resource,13,1) = "Y" then,
+  "AUTOSAVE ON"
+Else,
+  "AUTOSAVE OFF NOPROMPT"
+ 
+/*********************************************************************/
+/*  Set variables and control variables for this process.            */
+/*********************************************************************/
+line = 1
+x = outtrap("out.")
+var = strip(substr(resource,1,8),"T")  /* SET RESOURCE CLASS */
+Say pgmname "Processing" var"."
+tssrc = 0
+return_code = 0
+ 
+/*********************************************************************/
+/*  Issue TSS command to obtain ownership of the resource values.    */
+/*********************************************************************/
+"LINE_AFTER .ZLAST = ""READY"""
+syslist = "ON"
+Address TSO "TSS WHOO" var"(*)"
+tssrc = return_code
+syslist = comlist
+data = "TSS WHOO" var"(*)"
+"LINE_AFTER .ZLAST = (DATA)"
+Do X = 1 to out.0
+  data = strip(out.x,"T")
+  "LINE_AFTER .ZLAST = (DATA)"
+  end
+ 
+"LINE_AFTER .ZLAST = ""READY"""
+"LINE_AFTER .ZLAST = ""END"""
+ 
+"(ENDER) = LINENUM .ZLAST"
+return_code = 0
+"FIND 'TSS0301I' ALL"
+If return_code = 0 & tssrc = 0 then,
+  tssrc = 4
+ 
+/*********************************************************************/
+/*  Depending on results of TSS command and the value in resource    */
+/*  is used to generate the WHOHAS member.                           */
+/*********************************************************************/
+If substr(resource,14,1) = "Y" & tssrc = 0 then do
+  Do INDEX = 1 to ender
+    "(LINE) = LINE" index
+    If substr(line,10,4) = "OWNS" then do
+      value = strip(substr(line,24),"T")
+      If value = "*(G)" then,
+        value = "*ALL*"
+      If pos("(",value) > 0 then do
+        parse var value value "(" .
+        end
+      Address ISPEXEC "VPUT (VALUE)"
+      member = strip("WHOH"substr(resource,9,4),"T")
+      Address ISPEXEC "EDIT DATAID("output") MACRO(CATM1002)",
+        "MEMBER("member")"
+      cnt = cnt + 1
+      If cnt > 10 then do
+        cnt = 0
+        return_code = 0
+        Address ISPEXEC "LMCOMP DATAID("output")"
+        end
+      end
+    end
+ 
+/*********************************************************************/
+/*  Adds finishing touches to the WHOHAS member.                     */
+/*********************************************************************/
+  Address ISPEXEC "EDIT DATAID("output") MACRO(CATM1003)",
+    "MEMBER("member")"
+  end
+ 
+ 
+END_EXIT:
+return_code = 0
+ 
+ 
+ERR_EXIT:
+If maxcc >= 16 | return_code > 0 then do
+  Address ISPEXEC "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then
+    zispfrc = maxcc
+  Else
+    zispfrc = return_code
+  Address ISPEXEC "VPUT (ZISPFRC) SHARED"
+  Say pgmname "ZISPFRC =" zispfrc
+  end
+zispfrc = 0
+Address ISPEXEC "VPUT (ZISPFRC) SHARED"
+"END"
+Exit 0
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC > 4 & RC <> 8 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname 'REXX error' rc 'in line' sigl':' ERRORTEXT(rc)
+  say SOURCELINE(sigl)
+  end
+if return_code > maxcc then
+  maxcc = return_code
+return
+ 
+ 

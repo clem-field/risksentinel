@@ -1,0 +1,248 @@
+ISREDIT MACRO       /* CATM0405 EDIT TSSLISTP  */
+ 
+/* 08/19/2005 JL.NELSON Created to resolve storage problems.
+/* 08/23/2005 JL.NELSON Fixed error 900 & in Name field
+/* 03/15/2006 JL.NELSON Made changes to avoid SUBSTR abend 920/932.
+/* 03/21/2006 JL.NELSON Use NRSTR avoid abend 900 if ampersand in data.
+/* 03/30/2006 JL.NELSON Test for empty member LINENUM Rcode = 4.
+/* 06/01/2006 JL.NELSON Added Dataset name to detail line for TSSSIM
+/* 03/31/2008 CL.Fenton Changes made to reduce collection time.
+/*            Changes include replacing contents of dataset.
+/* 04/08/2008 CL.Fenton Corrected INSUFFICIENT STORAGE by collecting
+/*            250 ACIDs in ACIDLIST variable.
+ 
+SET PGMNAME = &STR(CATM0405 04/08/08)
+ 
+SET SYSPROMPT = OFF                /* CONTROL NOPROMPT          */
+SET SYSFLUSH  = OFF                /* CONTROL NOFLUSH           */
+SET SYSASIS   = ON                 /* CONTROL ASIS - caps off   */
+ 
+ 
+/* *************************************** */
+/* VARIABLES ARE PASSED TO THIS MACRO      */
+/* CONSLIST                                */
+/* COMLIST                                 */
+/* TERMPRO                                 */
+/* TERMMSGS                                */
+/* *************************************** */
+ 
+/* ERROR ROUTINE */
+ERROR DO
+  SET RETURN_CODE = &LASTCC          /* SAVE LAST ERROR CODE */
+  IF &LASTCC GE 16 THEN DO
+    WRITE &PGMNAME LASTCC = &LASTCC &ZERRLM
+    END
+  RETURN
+  END
+ 
+NGLOBAL RETURN_CODE PGMNAME
+ 
+SET RETURN_CODE = 0
+ 
+ISPEXEC VGET ( +
+  CONSLIST     +
+  COMLIST      +
+  SYMLIST      +
+  TERMMSGS     +
+  CURACID      +
+  ) ASIS
+ 
+SET TM405VG  = &RETURN_CODE
+IF &RETURN_CODE NE 0 THEN DO
+  WRITE &PGMNAME VGET RC = &RETURN_CODE  &ZERRSM
+  WRITE &PGMNAME CONSLIST/&CONSLIST COMLIST/&COMLIST SYMLIST/&SYMLIST +
+    TERMMSGS/&TERMMSGS CURACID/&CURACID
+  SET RETURN_CODE = &RETURN_CODE + 16
+  GOTO ERR_EXIT
+  END
+ 
+SET RETURN_CODE = 0
+ 
+/* *************************************** */
+/* TURN ON MESSAGES                        */
+/* *************************************** */
+ 
+SET SYSSYMLIST = &SYMLIST          /* CONTROL SYMLIST/NOSYMLIST */
+SET SYSCONLIST = &CONSLIST         /* CONTROL CONLIST/NOCONLIST */
+SET SYSLIST    = &COMLIST          /* CONTROL LIST/NOLIST       */
+SET SYSMSG     = &TERMMSGS         /* CONTROL MSG/NOMSG         */
+ 
+/* *************************************** */
+/* MAIN PROCESS                            */
+/* *************************************** */
+ 
+ISREDIT CAPS OFF
+ISREDIT (DSNAME) = DATASET
+SET RETURN_CODE = 0
+ 
+ISREDIT (LASTLINE) = LINENUM .ZLAST
+ 
+IF &RETURN_CODE GT 0 THEN DO    /* Empty RC = 4
+  IF &LASTLINE EQ 0 THEN +
+    WRITE &PGMNAME Empty file RCode = &RETURN_CODE +
+          DSN=&DSNAME  &ZERRSM
+  ELSE +
+    WRITE &PGMNAME LINENUM Error RCode = &RETURN_CODE +
+          DSN=&DSNAME  &ZERRSM
+  GOTO ERR_EXIT
+  END
+ 
+ISREDIT FIND ALL 'ACCESSORID = ' 1
+ 
+IF &RETURN_CODE EQ 0 THEN +
+  SYSCALL PROCESS_ACIDS
+ 
+SET RETURN_CODE = 0
+SET ACIDCNT = 0
+SET SPC = &STR(          )
+SET SPC = &STR(&SPC&SPC&SPC&SPC)
+ISPEXEC VGET (ACIDNUM) ASIS
+IF &RETURN_CODE GT 0 OR +
+  &DATATYPE(&ACIDNUM) NE NUM THEN +
+  SET ACIDNUM = 1
+ 
+ 
+/* *************************************** */
+/* MAIN process                            */
+/* *************************************** */
+ 
+ISREDIT CURSOR = &ACIDNUM 0
+ 
+SET RETURN_CODE = 0
+ 
+SET ACIDLIST =
+NEXT_USER: +
+ISREDIT FIND '&CURACID' 1
+ 
+IF &RETURN_CODE NE 0 THEN +
+  IF &ACIDCNT EQ 0 AND +
+     &ACIDNUM EQ 1 THEN DO
+    SET ACIDNUM = &STR(FINISHED)
+    ISPEXEC VPUT (ACIDNUM) ASIS
+    GOTO NOTFND_PROFILE
+    END
+  ELSE DO
+    SET ACIDNUM = &STR(FINISHED)
+    ISPEXEC VPUT (ACIDNUM) ASIS
+    GOTO END_EDIT
+    END
+ 
+ISREDIT (DATA) = LINE .ZCSR
+ 
+SET ACIDCNT = &ACIDCNT + 1
+SET ACIDLIST = &NRSTR(&ACIDLIST)&SUBSTR(09:46,&NRSTR(&DATA))
+SET ACID = &SUBSTR(09:16,&NRSTR(&DATA))
+SET NAME = &SUBSTR(17:46,&NRSTR(&DATA))
+ 
+IF &ACIDCNT LT 250 THEN +
+  GOTO NEXT_USER
+ELSE DO
+  ISREDIT (ACIDNUM) = LINENUM .ZCSR
+  SET ACIDNUM = &ACIDNUM + 1
+  ISPEXEC VPUT (ACIDNUM) ASIS
+  GOTO END_EDIT
+  END
+ 
+NOTFND_PROFILE: +
+SET NAME = &STR(PROFILE not found RC=&RETURN_CODE )
+SET NAME = &SUBSTR(1:30,&NRSTR(&NAME &SPC))
+SET ACID = &SUBSTR(1:8,&STR(ERROR* &SPC))
+SET ACIDLIST = &NRSTR(&ACID&NAME)
+SET RETURN_CODE = 0
+ 
+ 
+END_EDIT: +
+SET RETURN_CODE = 0
+ 
+ERR_EXIT: +
+IF &MAXCC GE 16 OR +
+   &RETURN_CODE GT 0 THEN DO
+  ISPEXEC VGET (ZISPFRC) SHARED
+  IF &MAXCC GT &ZISPFRC THEN +
+    SET ZISPFRC = &MAXCC
+  ELSE +
+    SET ZISPFRC = &RETURN_CODE
+  ISPEXEC VPUT (ZISPFRC) SHARED
+  WRITE &PGMNAME ZISPFRC = &ZISPFRC
+  END
+ 
+SET TM405RC = &RETURN_CODE
+ 
+ISPEXEC VPUT ( +
+  TM405RC      +
+  TM405VG      +
+  ACIDLIST     +
+  ) ASIS
+ 
+ISREDIT END
+ 
+EXIT CODE(0)
+ISREDIT MEND
+ 
+ 
+PROCESS_ACIDS: PROC 0
+SET SPC = &STR(          )
+SET SPC = &STR(&SPC&SPC&SPC&SPC)
+ 
+/* First drop all &s in the NAME field. */
+ 
+ISREDIT EXCLUDE ALL ' '
+ISREDIT FIND ALL 'NAME       = ' 24
+ISREDIT CHANGE ALL X'50' '' NX
+ISREDIT RESET
+ISREDIT (LASTLINE) = LINENUM .ZLAST
+ISREDIT CURSOR = 1 0
+ 
+FIND_LOOP: +
+SET RETURN_CODE = 0
+ 
+ISREDIT FIND 'ACIDS      = ' 1
+ 
+IF &RETURN_CODE GT 0 THEN +
+  GOTO FINISH_PROCESS
+ 
+ISREDIT (ACIDLINE) = LINENUM .ZCSR
+ 
+ISREDIT FIND 'ACCESSORID = ' 1 PREV
+ 
+IF &RETURN_CODE GT 0 THEN +
+  GOTO FINISH_PROCESS
+ 
+ISREDIT (DATA) = LINE .ZCSR
+SET PROFILE = &SUBSTR(14:21,&NRSTR(&DATA))
+DO UNTIL &NRSTR(&DATA) EQ &STR( )
+  ISREDIT (DATA) = LINE &ACIDLINE
+  DO X = 14 TO &LENGTH(&NRSTR(&DATA)) BY 12 +
+    UNTIL &SUBSTR(&X,&NRSTR(&DATA &SPC)) EQ &STR( )
+    SET ACID = &SUBSTR(&X:&X+7,&NRSTR(&DATA))
+    IF &NRSTR(&ACID) NE &STR( ) THEN DO
+      SET RETURN_CODE = 0
+      ISREDIT FIND 'ACCESSORID = &ACID ' 1 FIRST
+      IF &RETURN_CODE EQ 0 THEN DO
+        ISREDIT (ACIDDATA) = LINE .ZCSR
+        SET NAME = &SUBSTR(37:66,&NRSTR(&ACIDDATA &SPC))
+        END
+      ELSE +
+        IF &NRSTR(&ACID) NE &STR(*NONE*) THEN +
+          SET NAME = &SUBSTR(1:30,&STR(Not_Defined &SPC))
+        ELSE +
+          SET NAME = &STR(Empty PROFILE no ACIDs found )
+      SET CMD = &NRSTR(&PROFILE&ACID&NAME)
+      ISREDIT LINE_AFTER .ZLAST = (CMD)
+      END
+  END
+  SET ACIDLINE = &ACIDLINE + 1
+END
+ISREDIT CURSOR = &ACIDLINE
+GOTO FIND_LOOP
+ 
+FINISH_PROCESS: +
+SET RETURN_CODE = 0
+ 
+ISREDIT DELETE 1 &LASTLINE
+ 
+RETURN CODE(0)
+ 
+END
+ 
+ 

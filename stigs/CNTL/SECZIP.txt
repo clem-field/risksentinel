@@ -1,0 +1,8 @@
+//SECZIP    PROC PKZIP=SYS2A.PKZIP.LOAD                                 00010001
+//*                                                                     00020000
+//* PROCEDURE TO COMPRESS AND ENCRYPT DATA SETS                         00030000
+//*                                                                     00040000
+//PSTEP010 EXEC PGM=SECZIP,REGION=0K                                    00050000
+//STEPLIB  DD DISP=SHR,DSN=&PKZIP                                       00060000
+//SYSPRINT DD SYSOUT=*                                                  00070000
+//  PEND                                                                00080000

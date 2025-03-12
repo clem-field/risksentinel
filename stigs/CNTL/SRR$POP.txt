@@ -1,0 +1,323 @@
+/* REXX */
+/* CLS2REXXed by FSOX001 on 16 Aug 2017 at 11:18:03  */
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+ 
+/*********************************************************************/
+/* 05/09/2005 JL.Nelson Created for dialog - update auth user lists  */
+/* 05/23/2005 JL.Nelson Check for environment TSO or BATCH           */
+/* 06/22/2005 JL.Nelson Set return_code after SYSDSN                 */
+/* 10/28/2005 JL.Nelson Modified to reset status after EDIT.         */
+/* 10/31/2005 JL.Nelson Correct error on Browse of empty member.     */
+/* 11/08/2005 JL.NELSON Re-did data set checks with error panel.     */
+/* 01/12/2006 C. Stern  Changed ERROR to EMPTY for member.           */
+/* 06/08/2006 C. Stern  Changed ERROR to EMPTY for member.           */
+/* 03/19/2007 CL Fenton Copied and written from SRR$RACF, chgs to    */
+/*            use table and provide for 7 selection over previous 3  */
+/*            selections.                                            */
+/* 02/28/2009 CL Fenton Added sort of authorized users groups.       */
+/* 08/16/2017 CL.FENTON Converted script from CLIST to REXX.         */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname = "SRR$POP  08/16/17"
+pgm8 = substr(pgmname,1,8)
+CACT0000 = "CACT0000"         /* table 2 user groups         */
+CACP0425 = "SRRPPOP"          /* panel to process table info */
+JOBINST  = "CACJ051D"         /* BATCH Install job           */
+SRRCNTL  = "CNTL"             /* CNTL DATA SET QUALIFIER     */
+DATASUF  = "DATA"             /* Data file suffix            */
+DATAMBR  = "ALLUSERS"         /* Data file member            */
+/*******************************************/
+/* CONSLIST = CONLIST                      */
+/* COMLIST = LIST                          */
+/* SYMLIST = SYMLIST                       */
+/* TERMPRO = PROMPT                        */
+/* TERMMSGS = MESSAGES                     */
+/* TRACE TURNS ON MESSAGING                */
+/*******************************************/
+Address ISPEXEC
+"VGET (CONSLIST COMLIST SYMLIST TERMMSGS) ASIS"
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" then,
+  Trace r
+ 
+syssymlist = symlist           /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist          /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist              /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs              /* CONTROL MSG/NOMSG         */
+sysprompt = "OFF"              /* CONTROL NOPROMPT          */
+sysflush = "OFF"               /* CONTROL NOFLUSH           */
+sysasis = "ON"                 /* CONTROL ASIS - CAPS OFF   */
+"CONTROL ERRORS RETURN"
+If SysVar('SysEnv') <> "FORE" then do
+  Say pgmname "CLIST running in background, can not receive",
+    "input SYSENV =" SysVar('SysEnv')
+  return_code = 8
+  SIGNAL  ERR_EXIT
+  end
+return_code = 0
+"VGET (SRRINST SRRUSER) PROFILE"
+/*******************************************/
+/* VERFIY HLQ FOR DATA DIALOG LIBRARY      */
+/*******************************************/
+srrdata = srruser"."datasuf             /* Output file*/
+dsnmbr = srruser"."datasuf"("datambr")"   /* Input file*/
+return_code = 0
+locate = sysdsn("'"dsnmbr"'")
+If locate <> "OK" then do
+  srrerr = "Member" datambr "is missing, batch job" jobinst,
+    "must first be run to create the member."
+  srrerc = return_code
+  zerrlm = dsnmbr
+  srrmsg1 = locate
+  srrmsg2 = " "
+  "DISPLAY PANEL(SRRPERR)"
+  SIGNAL  ERR_EXIT
+  end
+/*******************************************/
+/* VERFIY HLQ FOR CNTL AND CLIST LIBRARIES */
+/*******************************************/
+cntldsn = srrinst"."srrcntl
+return_code = 0
+locate = sysdsn("'"cntldsn"("cact0000")'")
+If locate <> "OK" then do
+  srrerr = "Member" cact0000 "is missing, batch job" jobinst,
+    "must be ran to create the member first."
+  srrerc = return_code
+  zerrlm = cntldsn"("cact0000")"
+  srrmsg1 = locate
+  srrmsg2 = " "
+  "DISPLAY PANEL(SRRPERR)"
+  SIGNAL  ERR_EXIT
+  end
+return_code = 0
+locate = sysdsn("'"srrdata"'")
+If locate <> "OK" then do
+  srrerr = "File DATA is missing, batch job" jobinst "must be",
+    "ran to create this file."
+  srrerc = return_code
+  zerrlm = datadsn
+  srrmsg1 = locate
+  srrmsg2 = " "
+  "DISPLAY PANEL(SRRPERR)"
+  SIGNAL  ERR_EXIT
+  end
+itin.0 = 0
+Address TSO "ALLOC F(ITIN) DA('"dsnmbr"') SHR"
+"LMINIT DATAID(DATAOUT) DATASET('"srrdata"') ENQ(SHRW)"
+lminit_dataout_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT_DATAOUT_RC" return_code zerrsm
+  Say pgmname "DSN="srrdata "Data Set Error"
+  SIGNAL  ERR_EXIT
+  end
+"LMOPEN DATAID("dataout") OPTION(OUTPUT)"
+lmopen_dataout_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMOPEN_DATAOUT_RC" return_code zerrsm
+  Say pgmname "DSN="srrdata "Data Set Error"
+  SIGNAL  ERR_EXIT
+  end
+return_code = 0
+"TBCREATE GRPTABLE REPLACE NOWRITE KEYS(PREF) NAMES(DESC ACTION",
+  "ZZ1 ZZ2 ZZ3 ZZ4 ZZ5 ZZ6 ZZ7)"
+ 
+If return_code > 4 then do
+  Say pgmname "TBCREATE  RC =" return_code zerrsm
+  SIGNAL  ERR_EXIT
+  end
+return_code = 0
+ 
+Address TSO "ALLOC FI(TBLMBR) DA('"cntldsn"(CACT0000)') SHR"
+Address TSO "EXECIO * DISKR TBLMBR (FINIS STEM TBLDATA."
+Address TSO "FREE FILE(TBLMBR)"
+GET_NEXT_TBL:
+do cnt = 1 to tbldata.0
+  trecord = tbldata.cnt
+  if left(trecord,1) = "*" &,
+     index(trecord,"DIALOG") = 3 then do
+    parse var trecord . "DIALOG" pref desc 73 .
+    pref = strip(pref,"B")
+    desc = strip(desc,"B")
+    action = " "
+    zz1 = " "
+    zz2 = " "
+    zz3 = " "
+    zz4 = " "
+    zz5 = " "
+    zz6 = " "
+    zz7 = " "
+    return_code = 0
+    "TBADD GRPTABLE"
+    end
+  end
+ 
+return_code = 0
+"TBSORT GRPTABLE FIELDS(PREF)"
+return_code = 0
+"TBTOP GRPTABLE"
+curnr = 1
+ 
+ 
+TBDISPL:
+do until return_code > 0
+  return_code = 0
+  pref = " "
+  "TBDISPL GRPTABLE PANEL("cacp0425") AUTOSEL(NO)"
+  srrmsg = ""
+  curnr = ztdtop
+  If return_code = 8 then,
+    leave
+  "VGET (ZVERB ZSCROLLN) ASIS"
+  return_code = 0
+  Do until ztdsels = 0
+    pref = pref
+    action = " "
+    desc = desc
+    zz1 = zz1
+    zz2 = zz2
+    zz3 = zz3
+    zz4 = zz4
+    zz5 = zz5
+    zz6 = zz6
+    zz7 = zz7
+    "TBMOD GRPTABLE"
+    if ztdsels > 1 then,
+      "TBDISPL GRPTABLE"
+    else,
+      ztdsels = 0
+    end
+  Select
+    When zverb = "UP" then,
+      "TBSKIP GRPTABLE NUMBER("-zscrolln")"
+    When zverb = "DOWN" then,
+      "TBSKIP GRPTABLE NUMBER("zscrolln")"
+    Otherwise nop
+    end
+  if zverb <> "" then do
+    iterate
+    end
+ 
+ 
+PROCESS_TABLE:
+  tbl_nr = 1
+  tblnr = 1
+  return_code = 0
+  "TBTOP GRPTABLE"
+  "TBSKIP GRPTABLE ROW("tbl_nr")"
+  Do while return_code = 0
+    If action <> " " then do
+      action = " "
+      "TBMOD GRPTABLE"
+      end
+    tblnr = tblnr + 1
+    "TBSKIP GRPTABLE ROW("tblnr")"
+    end
+  tbl_nr = 1
+  tblnr = 1
+  return_code = 0
+  "TBTOP GRPTABLE"
+  "TBSKIP GRPTABLE ROW("tbl_nr")"
+  "TBGET GRPTABLE POSITION(TBLNR)"
+  return_code = 0
+  Do while return_code = 0
+    If zz1 <> " " | zz2 <> " " | zz3 <> " " | zz4 <> " " |,
+       zz5 <> " " | zz6 <> " " | zz7 <> " " then do
+      Call process_data
+      action = "*Done*"
+      zz1 = " "
+      zz2 = " "
+      zz3 = " "
+      zz4 = " "
+      zz5 = " "
+      zz6 = " "
+      zz7 = " "
+      "TBMOD GRPTABLE"
+      end
+    tblnr = tblnr + 1
+    "TBSKIP GRPTABLE ROW("tblnr")"
+    end
+  return_code = 0
+  srrmsg = "Processing complete."
+  "TBTOP GRPTABLE"
+  "TBSKIP GRPTABLE ROW("curnr")"
+  end
+ 
+ 
+END_EXIT:
+return_code = 0
+"TBEND GRPTABLE"
+return_code = 0
+"LMCLOSE DATAID("dataout")"
+lmclose_dataout_rc = return_code
+return_code = 0
+"LMFREE DATAID("dataout")"
+lmfree_dataout_rc = return_code
+ 
+ 
+ERR_EXIT:
+zispfrc = return_code
+"VPUT (ZISPFRC) SHARED"
+Exit
+ 
+ 
+/* PROCESS DATA FROM TABLE */
+PROCESS_DATA:
+incnt = 0
+cnt = 0
+sel = ""
+if itin.0 = 0 then do
+  Address TSO "EXECIO * DISKR ITIN (FINIS STEM ITIN."
+  Address TSO "FREE FILE(ITIN)"
+  end
+ 
+ 
+READ_ITIN:
+do incnt = 1 to itin.0
+  return_code = 0
+  itin = itin.incnt
+  grps = substr(itin,27)
+  Do aa = 1 to 7
+    if value("zz"aa) = "" then iterate
+    zz = value("zz"aa)
+    If pos(zz,grps) > 0 then do
+      sel = "YES"
+      x = 7
+      end
+    end
+  If sel = "YES" then do
+    "LMPUT DATAID("dataout") MODE(INVAR) DATALOC(ITIN)",
+      "DATALEN("length(itin)")"
+    cnt = cnt + 1
+    sel = ""
+    end
+  end
+END_READ:
+/*Address TSO "EXECIO * DISKR ITIN (FINIS"*/
+return_code = 0
+If cnt > 0 then do
+  "LMMADD DATAID("dataout") MEMBER("pref")"
+  If return_code > 0 then
+    "LMMREP DATAID("dataout") MEMBER("pref")"
+  end
+return_code = 0
+Return
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+Exit
+ 
+ 
+Error:
+return_code = RC
+return
+ 
+ 

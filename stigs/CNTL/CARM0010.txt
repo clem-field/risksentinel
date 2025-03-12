@@ -1,0 +1,204 @@
+/* REXX */
+/* CLS2REXXed by UMLA01S on 2 Aug 2019 at 14:42:54  */
+/*trace ?r*/
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+Address ISREDIT
+ 
+"MACRO"               /* CARM0010 VIEW MACRO CACT0008 */
+/*********************************************************************/
+/* 09/10/2007 CL.Fenton Created for resource process.  To generate   */
+/*            JCL and commands for resources.                        */
+/* 04/29/2008 CL.Fenton Changes to determine if discrete profile is  */
+/*            available and write command for discrete profile.      */
+/*            Otherwise the generic profile command is used.         */
+/* 10/01/2008 CL.Fenton Changes to drop generating resource commands */
+/*            for entries in the table that do not have a resource   */
+/*            class specified for the PDI entries.                   */
+/* 04/15/2009 CL.Fenton Changes to evaluate GEN and .* in resource   */
+/*            command entries.                                       */
+/* 04/15/2009 CL.Fenton Changes to remove space at end of NRES.      */
+/*            command entries.                                       */
+/* 09/19/2011 CL.Fenton Changes RL gen command and to catch CC 14.   */
+/* 08/02/2019 CL.Fenton Converted script from CLIST to REXX.         */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname = "CARM0010 08/02/19"
+sysprompt = "OFF"                 /* CONTROL NOPROMPT          */
+sysflush  = "OFF"                 /* CONTROL NOFLUSH           */
+sysasis   = "ON"                  /* CONTROL ASIS - caps off   */
+return_code = 0
+maxcc = 0
+zerrsm = ""
+Address ISPEXEC "CONTROL NONDISPL ENTER"
+Address ISPEXEC "CONTROL ERRORS RETURN"
+/*******************************************/
+/* VARIABLES ARE PASSED TO THIS MACRO      */
+/*******************************************/
+Address ISPEXEC "VGET (CONSLIST COMLIST SYMLIST TERMMSGS TEMP2)",
+  "ASIS"
+rm010vg = return_code
+If return_code <> 0 then do
+  Say pgmname "VGET RC =" return_code zerrsm
+  Say pgmname "CONSLIST/"conslist "COMLIST/"comlist
+    "SYMLIST/"symlist "TERMMSGS/"termmsgs "TEMP2/"temp2
+  return_code = return_code + 16
+  SIGNAL  ERR_EXIT
+  end
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" ,
+  then Trace r
+ 
+return_code = 0
+/*******************************************/
+/* TURN ON MESSAGES                        */
+/*******************************************/
+syssymlist = symlist           /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist          /* CONTROL CONLIST/NOCONLIST */
+syslist    = comlist           /* CONTROL LIST/NOLIST       */
+sysmsg     = termmsgs          /* CONTROL MSG/NOMSG         */
+/*******************************************/
+/* GET DSN                                 */
+/*******************************************/
+"(MEMBER) = MEMBER"
+"(OLDDSN) = DATASET"
+/*******************************************/
+/* STARTUP                                 */
+/*******************************************/
+return_code = 0
+"(ENDER) = LINENUM .ZLAST"
+orptname = ""
+nrptname = ""
+members = ""
+ 
+ 
+/*******************************************/
+/* MAIN LOOP                               */
+/*******************************************/
+LOOP:
+do counter = 1 to ender
+  return_code = 0
+  "(DATA) = LINE" counter
+  If left(data,1) = " " |,
+     left(data,1) = "*" then iterate
+  nrptname = left(data,8)
+  nflag = substr(data,10,1)
+  If orptname = " " then,
+    orptname = strip(nrptname,"B")
+  If orptname <> nrptname then do
+    return_code = 0
+    Address ISPEXEC "LMMREP DATAID("temp2") MEMBER("orptname")"
+    If return_code <= 8 then,
+      members = members""left(orptname,8)
+      orptname = strip(nrptname,"B")
+    end
+  Select
+    When nflag = "1" then do
+      parse var data . 21 nrescl 29 .
+      If nrescl = " " then do
+        "FIND '"nrptname"' 1 LAST"
+        "(COUNTER) = CURSOR"
+        nrptname = left(orptname,8)
+        end
+      end
+    When nflag = "2" then do
+      parse var data . 21 nres .
+      ac = " CARC1001" nrescl nres
+      Address ISPEXEC "LMPUT DATAID("temp2") MODE(INVAR)",
+        "DATALOC(AC) DATALEN("length(ac)") MEMBER("orptname")"
+      end
+    Otherwise nop
+    end
+  end
+ 
+ 
+END_INPUT:
+return_code = 0
+Address ISPEXEC "LMMREP DATAID("temp2") MEMBER("orptname")"
+members = members""orptname
+/*******************************************/
+/* WRITE JCL STATMENTS                     */
+/*******************************************/
+j1 = "//*"
+j2 = "//PSTEP  EXEC RACFSPL"
+j3 = "//SYSTSIN  DD DISP=SHR,DSN=&HLQINP..TEMP2"
+j4 = "//SYSTSPRT DD DISP=OLD,DSN=&HLQOUT..RACFCMDS.RPT"
+j2l = length(j2)
+ml = length(members)
+ax = 0
+Do until members = ""
+  mb = strip(left(members,8),"B")
+  parse var members mb =9 members
+  mb = strip(mb,"B")
+  ac = j1
+  ax = ax + 1
+  Address ISPEXEC "LMPUT DATAID("temp2") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(RACFRSC)"
+  ac = "//PSTEP"ax"  EXEC RACFSPL"
+  Address ISPEXEC "LMPUT DATAID("temp2") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(RACFRSC)"
+  ac = j3"("mb")"
+  Address ISPEXEC "LMPUT DATAID("temp2") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(RACFRSC)"
+  ac = j4"("mb")"
+  Address ISPEXEC "LMPUT DATAID("temp2") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(RACFRSC)"
+  End
+ac = j1
+Address ISPEXEC "LMPUT DATAID("temp2") MODE(INVAR) DATALOC(AC)",
+  "DATALEN("length(ac)") MEMBER(RACFRSC)"
+Address ISPEXEC "LMMREP DATAID("temp2") MEMBER(RACFRSC)"
+zedsmsg = "FINISHED"
+zedlmsg = "Finished processing RACFRSC RC="return_code
+Address ISPEXEC "LOG MSG(ISRZ000)"
+ 
+ 
+/*******************************************/
+/* END PROCESSES                           */
+/*******************************************/
+END_EDIT:
+return_code = 0
+ 
+ 
+ERR_EXIT:
+If maxcc >= 16 | return_code > 0 then do
+  Address ISPEXEC "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then,
+    zispfrc = maxcc
+  Else,
+    zispfrc = return_code
+  Address ISPEXEC "VPUT (ZISPFRC) SHARED"
+  Say pgmname "ZISPFRC =" zispfrc
+  end
+rm010rc = return_code
+Address ISPEXEC "VPUT (RM010VG RM010RC) ASIS"
+"END"
+Exit (0)
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname "REXX error" rc "in line" sigl":" strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC >= 16 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname "REXX error" rc "in line" sigl":" ERRORTEXT(rc)
+  say SOURCELINE(sigl)
+  end
+if return_code > maxcc then
+  maxcc = return_code
+return
+ 
+ 

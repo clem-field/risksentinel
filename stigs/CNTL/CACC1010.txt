@@ -1,0 +1,278 @@
+/* REXX */
+/*trace r*/
+/*                                       */
+/* AUTHOR: Charles Fenton                */
+/*                                       */
+/*********************************************************************/
+/* DISPLAY SYSTEM SYSTEM COMMAND TO TERMINAL                         */
+/*********************************************************************/
+/* EXECUTION SYNTAX:                                                 */
+/*                                                                   */
+/* CACC1010 command                    (as a command)                */
+/*  or                                                               */
+/* var = CACC1010(command)             (as a function)               */
+/*                                                                   */
+/* This REXX recieves a MVS/JES2 command and returns the results of  */
+/* the command to the calling script.                                */
+/*                                                                   */
+/* Examples:                                                         */
+/*  Within a Clist use the following combinitation of statements:    */
+/*                                                                   */
+/*    SET &SYSOUTTRAP = 999999999                                    */
+/*    CACC1010 D D                                                   */
+/*    SET A = &SYSOUTLINE                                            */
+/*    DO X = 1 TO &A                                                 */
+/*      SET DATA = &&SYSOUTLINE&X                                    */
+/*      ... process of DATA variable ...                             */
+/*    END                                                            */
+/*                                                                   */
+/*  Within a REXX as a function use the following combination of     */
+/*  statements:                                                      */
+/*                                                                   */
+/*    x = OUTTRAP("out.")                                            */
+/*    test = cacc1010('D D')                                         */
+/*    do a = 1 to out.0                                              */
+/*      ... process of out.a variable ...                            */
+/*      end                                                          */
+/*                                                                   */
+/*********************************************************************/
+/* Change summary:                                                   */
+/*   2009/04/03 - CLF, added SDSF API script evaluation for z/OS 1.9.*/
+/*   2010/06/03 - CLF, chgd ISFDELAY from 0 to 5.                    */
+/*   2010/12/06 - CLF, added additional statements on SDSF function. */
+/*   2014/07/29 - CLF, removed VERBOSE from ISFEXEC SDSF function.   */
+/*   2015/02/17 - CLF, trimmed CONSOLE process commands.             */
+/*   2017/01/30 - CLF, Added ERROR function to report errors.        */
+/*   2018/06/27 - CLF, Chgd ERROR function to bypass problems with   */
+/*                CONSPROF commands.                                 */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+Call On Error
+PGMNAME = 'CACC1010 06/27/18'
+trc = 0
+Arg command
+if command = "" then do
+  say PGMNAME 'No MVS or JES2 command passed to routine.'
+  return 16
+  end
+x = outtrap("msgs.")
+call console
+if trc <> 0 then call sdsf
+return trc
+ 
+console:
+Cart_V = USERID()
+address TSO
+"console deactivate"
+x = OUTTRAP("OFF")
+x = outtrap("msgs.")
+msgs.0 = 0
+sd = sysvar("soldisp")
+ud = sysvar("unsdisp")
+sn = sysvar("solnum")
+un = sysvar("unsnum")
+say pgmname "SOLDISP" sd "UNSDISP" ud "SOLNUM" sn "UNSNUM" un
+RC = 0
+if sd = "YES" then do
+  "consprof soldisp(no) solnum(1000) unsoldisp(no) unsolnum(1000)"
+  sd1 = sysvar("soldisp")
+  ud1 = sysvar("unsdisp")
+  sn1 = sysvar("solnum")
+  un1 = sysvar("unsnum")
+  say pgmname "SOLDISP" sd1 "UNSDISP" ud1 "SOLNUM" sn1 "UNSNUM" un1
+  end
+trc = RC
+if RC = 0 then do
+  "console SYSCMD("command") CART("Cart_V")"
+  trc = RC
+  indx = 0
+  if RC = 0 then do until ind = 1
+    PRTMSG.0 = 0
+    getcode = getmsg('PRTMSG.','sol',Cart_V,,30)
+    if getcode <> 0 then do
+      ind = 1
+      iterate
+      end
+    if indx = 0 then ,
+      say PGMNAME 'Information obtained from Console command.'
+    DO indx = 1 TO PRTMSG.0
+      say PRTMSG.indx
+      end /* DO indx = 1 */
+    end /* if RC = 0 ... forever */
+  else
+    trc = 12
+  if indx = 0 then trc = 16
+  end
+if trc > 0 | ,
+   msgs.0 > 0 then ,
+  Call MSGwrite
+if trc = 0 then do
+  "console deactivate"
+  "consprof soldisp("sd") solnum("sn") unsoldisp("ud") unsolnum("un")"
+  end
+bypass:
+return
+ 
+sdsf:
+rcode = ISFCALLS('ON')
+if rcode = 0 then do
+  trc = sdsf_extend()
+  rcode = ISFCALLS('OFF')
+  return trc
+  end
+address tso
+"newstack"
+x=MSG(OFF)
+queue "w/"command
+queue "end"
+"ALLOC FI(ISFIN) UNIT(SYSDA)  NEW DELETE"
+"EXECIO" QUEUED() "DISKW ISFIN (finis"
+"ALLOC FI(ISFOUT) NEW DELETE Space(5,2)",
+"TRACK  RECFM(F B A) BLKSIZE(13300) LRECL(133) REUSE"
+x=MSG(On)
+Address ispexec "select pgm(sdsf) parm(++30,133)"
+rcode = rc
+ 
+"EXECIO * DISKR ISFOUT (FINIS STEM out."
+ 
+"free fi(isfin isfout)"
+sw =
+if rcode = 0 then do
+  say PGMNAME 'Information obtained from SDSF commands.'
+  do a = 1 to out.0
+    line = strip(substr(out.a,1,132),t)
+    tsw = substr(out.a,133)
+    if pos('RESPONSE=',out.a) > 0 then sw = x
+    if sw = x &tsw <> ' ' then
+      say substr(line,3)
+    if tsw = ' ' & sw = x then sw =
+    end
+  end
+return
+ 
+MSGwrite:
+x = outtrap(off)
+do x = 1 to msgs.0
+  say PGMNAME msgs.x
+  end
+x = outtrap("msgs.")
+return
+ 
+sdsf_extend:
+if find_emcs_console(5) <> 0 then do
+  say PGMNAME 'Unable to obtain console.'
+  rcode = 8
+  return rcode
+  end
+slash_cmd = "/" || command
+/* issue SDSF host command */
+ISFDELAY = 5
+address SDSF "ISFEXEC '"slash_cmd"' (WAIT)"
+/*address SDSF "ISFEXEC '"slash_cmd"' (WAIT VERBOSE)"*/
+rcode = rc
+say PGMNAME 'SDSF short message:' isfmsg
+/* write SDSF long messages */
+do ix = 1 to isfmsg2.0
+  say PGMNAME 'SDSF long message:' isfmsg2.ix
+end /* do loop */
+/* write command responses */
+if rcode = 0 then do
+  if isfulog.0 > 2 then do
+    say PGMNAME 'Information obtained from SDSF API commands.'
+    do a = 1 to isfulog.0
+      say strip(substr(ISFULOG.a,43),t)
+      end
+    end
+  else do
+    say PGMNAME 'No response from SDSF API.'
+    rcode = 8
+    end
+  end
+else do
+  say PGMNAME 'Error from SDSF API' rcode'.'
+  rcode = 8
+  end
+return rcode
+ 
+find_emcs_console:
+parse arg emcs_index
+if emcs_index = 0 then
+  rcode = 0
+else do
+  /*set up customizable fields */
+  test_cmd = 'D T'
+  saved_isfcons = ''
+  rcode = 0 /* default return code */
+  do jx = 1 to emcs_index
+    if issue_command(test_cmd) <> 0 then do
+      /* ISFEXEC error */
+      rcode = 24
+      leave
+      end /* if */
+    if (pos('SHARED',ISFULOG.1) = 0) & ,
+       (pos('FAILED',ISFULOG.1) = 0) then
+      /* primary EMCS console */
+      leave
+    else do
+      /* shared EMCS console or internal console */
+      if saved_isfcons = '' then
+        saved_isfcons = word(ISFULOG.1,6)
+      if length(saved_isfcons) < 8 then
+        ISFCONS = saved_isfcons || jx
+      else do
+        say '***WARNING: original EMCS console' ,
+        saved_isfcons 'has 8 characters,' ,
+        'RETRY operand ignored'
+        leave
+        end /* else */
+      end /* if */
+  end /* do loop */
+  end /* else */
+return rcode
+ 
+issue_command:
+parse arg sys_cmd
+slash_cmd = "/" || sys_cmd
+options = '(' || wait || ')'
+if quiet_opt = 'N' then do
+  say copies('-',131)
+  say 'ISFEXEC options :' options
+  if sys_cmd = test_cmd then
+    say 'Test command :' slash_cmd
+  else
+    say 'Original command :' slash_cmd
+  end /* if */
+/* issue SDSF host command */
+address SDSF "ISFEXEC '"slash_cmd"' " options
+rcode = rc
+if quiet_opt = 'N' then do
+  /* write SDSF short message */
+  say ' '
+  say 'SDSF short message:' ISFMSG
+  /* write SDSF long messages */
+  do ix = 1 to ISFMSG2.0
+    say 'SDSF long message:' ISFMSG2.ix
+  end /* do loop */
+  /* write command responses */
+  say ' '
+  say 'SDSF ULOG messages:'
+  do ix = 1 to ISFULOG.0
+    say ISFULOG.ix
+  end /* do loop */
+  end /* if */
+return rcode
+ 
+ 
+Error:
+return_code = RC
+if RC = 8 & pos("consprof",SOURCELINE(sigl)) > 0 then return
+if RC > 4 & RC <> 20 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname 'REXX error' rc 'in line' sigl':' ERRORTEXT(rc)
+  say pgmname SOURCELINE(sigl)
+  end
+return
+ 
+ 

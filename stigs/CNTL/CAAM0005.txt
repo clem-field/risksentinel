@@ -1,0 +1,306 @@
+/* REXX */
+/* CLS2REXXed by UMLA01S on 21 Jul 2021 at 12:05:41  */
+/*trace ?r*/
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+Address ISREDIT
+ 
+"MACRO"               /* CAAM0005 EDIT MACRO */
+/*********************************************************************/
+/* 06/06/2006 C Stern Updated ERROR ROUTINE.                         */
+/* 09/21/2006 CL Fenton Added test for NO RULE MATCHED, to prevent   */
+/*            864 return code.                                       */
+/* 08/13/2008 CL Fenton Corrections made to avoid E37 abend on rule  */
+/*            without uid permission.                                */
+/* 07/09/2010 CL Fenton Correction to delete headings that cause 856 */
+/*            return codes.                                          */
+/* 09/25/2020 CL Fenton Removed TERMPRO variable.                    */
+/* 07/21/2021 CL Fenton Converted script from CLIST to REXX.         */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname = "CAAM0005 07/21/21"
+return_code = 0   /* SET RETURN CODE TO 0 */
+key = ""
+Address ISPEXEC "CONTROL NONDISPL ENTER"
+Address ISPEXEC "CONTROL ERRORS RETURN"
+ 
+/*******************************************/
+/* Variables are passed to this MACRO.     */
+/*******************************************/
+Address ISPEXEC "VGET (CONSLIST COMLIST SYMLIST TERMMSGS OUTPUT)",
+  "ASIS"
+am5vge = return_code
+If return_code <> 0 then do
+  Say pgmname "VGET RC =" return_code zerrsm
+  Say pgmname "CONSLIST/"conslist "COMLIST/"comlist "SYMLIST/"symlist ,
+    "TERMMSGS/"termmsgs
+  Say pgmname "OUTPUT/"output
+  end
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" ,
+  then Trace ?r
+ 
+return_code = 0
+ 
+/*******************************************/
+/* Turn on messages                        */
+/*******************************************/
+syssymlist = symlist                    /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist                   /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist                       /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs                       /* CONTROL MSG/NOMSG         */
+sysprompt = "OFF"                       /* CONTROL PROMPT/NOPROMPT   */
+uidkey = "UID("
+lid_line = ""
+cont_uid = ""
+lid_cnt = 0
+"CURSOR = 1 0"
+/* Main Information */
+MAIN_LOOP:
+"FIND '----------' 2 11 FIRST"
+If return_code = 0 then,
+  "DEL .ZF .ZCSR"
+ 
+ 
+CONTINUE_PROCESS_2:
+"X 'RESOURCE CLASS:' 2 16 ALL"
+"X 'STORED:' 2 8 ALL"
+"X '1ACF2 UTILITY LIBRARY' 1 ALL"
+"X '1ETRUST CA-ACF2 SECURITY' 1 ALL"
+"X ' ACFRPTXR ' ALL"
+"X ' DATE ' 1 6 ALL"
+"X '                    ' 1 20 ALL"
+"DEL ALL X"
+ 
+"(LASTLINE) = LINENUM .ZLAST"
+"CURSOR = 1 1"
+ 
+ 
+WITHOUT_RULE:
+do until return_code > 0
+  return_code = 0
+  "FIND 'LOGONIDS THAT HAVE ACCESS WITHOUT RULES' 2"
+  If return_code > 0 then do
+    "DEL ALL X"
+    leave
+    end
+  "(ROW,COL) = CURSOR"
+  "XSTATUS" row "= X"
+  row = row + 1
+  do until row > lastline
+    "(DATA) = LINE" row
+    If pos(uidkey,data) = 0 &,
+       pos("RULE SET NOT FOUND",data) = 0 then do
+      "XSTATUS" row "= X"
+      row = row + 1
+      iterate
+      end
+    "CURSOR =" row 1
+    leave
+    end
+  end
+ 
+ 
+START_PROCESS:
+return_code = 0
+"RESET"
+"CURSOR = .ZLAST 1"
+"(ROW,COL) = CURSOR"
+"CURSOR = 1 1"
+counter = 1
+ 
+ 
+LOOP:
+Do counter = 1 to row
+  If counter > row then do
+    If lid_line <> " " then do
+      cmd = "               "uidspc""lid_line
+      return_code = 0
+      Address ISPEXEC "LMPUT DATAID("output") MODE(INVAR) DATALOC(CMD)",
+        "DATALEN("length(cmd)")"
+      lid_cnt = 0
+      lid_line = ""
+      end
+     leave counter
+/*   SIGNAL END_IT*/
+    end
+  "CURSOR =" counter 1
+  "(DATA) = LINE" counter
+  ac = strip(data,"T")
+  If pos("RULE KEY: ",ac) > 0 then do
+    If lid_line <> " " then do
+      cmd = "               "uidspc""lid_line
+      return_code = 0
+      Address ISPEXEC "LMPUT DATAID("output") MODE(INVAR) DATALOC(CMD)",
+        "DATALEN("length(cmd)")"
+      lid_cnt = 0
+      lid_line = ""
+      end
+    rulerow = counter
+    "FIND NEXT '"uidkey"'"
+    "(UIDROW,COL) = CURSOR"
+    cmd = "      "
+    return_code = 0                         /* SET RETURN CODE TO 0  */
+    Address ISPEXEC "LMPUT DATAID("output") MODE(INVAR) DATALOC(CMD)",
+      "DATALEN("length(cmd)")"
+    am5lmp = return_code
+ 
+    type = substr(data,13,3)
+    key = strip(substr(data,16),"B")
+    cmd = "     $KEY("key") TYPE("type")"
+    uidspc = ""
+ 
+    return_code = 0                         /* SET RETURN CODE TO 0  */
+    Address ISPEXEC "LMPUT DATAID("output") MODE(INVAR)",
+      "DATALOC(CMD) DATALEN ("length(cmd)")"
+    am5lmp = return_code
+    iterate
+/*  iterate counter*/
+/*  SIGNAL END_TEST*/
+    end
+ 
+  ac = strip(ac,"T")
+ 
+  If pos(uidkey,ac) > 0 |,
+     pos("NO RULE MATCHED",ac) > 0 then do
+    Call UID_TEST
+    iterate
+    end
+ 
+  If pos("RULE SET NOT FOUND",ac) > 0 then do
+    counter = row
+    call UID_TEST
+    iterate
+    end
+ 
+  If counter > uidrow then do
+    call LID_TEST
+    iterate
+    end
+ 
+  controls = substr(ac,11)
+  If controls = " " then,
+    iterate
+/*  iterate counter*/
+/*  SIGNAL END_TEST*/
+ 
+  controls = strip(controls,"B")
+  /*l = length(controls)
+    Do X = 1 to 11
+      If substrc(x,x,controls) <> " " then do
+        controls = substrc(x,l,controls)
+        x = 11
+        end
+      end*/
+ 
+  If cont_uid = "Y" then do
+    cmd = "          "uidspc||ac
+    cont_uid = ""
+    end
+  Else,
+    cmd = "          "controls
+ 
+  uidspc = "     "
+  return_code = 0                         /* SET RETURN CODE TO 0  */
+  Address ISPEXEC "LMPUT DATAID("output") MODE(INVAR)",
+    "DATALOC(CMD) DATALEN("length(cmd)")"
+  am5lmp = return_code
+  iterate
+/*iterate counter*/
+/*SIGNAL END_TEST*/
+ 
+ 
+/*END_TEST:
+  counter = counter + 1
+  SIGNAL LOOP*/
+  end
+ 
+ 
+END_IT:
+Address ISPEXEC "VPUT (AM5VGE AM5LMP) ASIS"
+"CANCEL"
+Exit
+ 
+ 
+/*******************************************/
+/*  SYSCALL SUBROUTINES                    */
+/*******************************************/
+ 
+ 
+LID_TEST:
+ac = substr(ac,2)
+If pos("LOGONIDS MATCH",ac) > 0 then do
+  cmd = "                    "ac
+  cmd = "               "uidspc||ac
+  return_code = 0
+  Address ISPEXEC "LMPUT DATAID("output") MODE(INVAR)",
+    "DATALOC(CMD) DATALEN("length(cmd)")"
+  Return
+/*  iterate counter*/
+/*  SIGNAL END_TEST*/
+  end
+ 
+y = 0
+Do until ac = ""
+  ac = strip(ac,"B")
+  parse var ac lid ac
+  parse var lid lid "(" .
+  lid_line = lid_line""left(lid,10)
+  lid_cnt = lid_cnt + 1
+  If lid_cnt = 5 then do
+    cmd = "               "uidspc""lid_line
+    return_code = 0
+    Address ISPEXEC "LMPUT DATAID("output") MODE(INVAR)",
+      "DATALOC(CMD) DATALEN("length(cmd)")"
+    lid_cnt = 0
+    lid_line = ""
+    end
+  end
+Return
+ 
+ 
+UID_TEST:
+If lid_line <> " " then do
+  cmd = "               "uidspc||lid_line
+  return_code = 0
+  Address ISPEXEC "LMPUT DATAID("output") MODE(INVAR)",
+    "DATALOC(CMD) DATALEN("length(cmd)")"
+  lid_cnt = 0
+  lid_line = ""
+  end
+ 
+ac = substr(ac,2)
+If pos(" - ",ac" ") > 0 then,
+  cont_uid = "Y"
+cmd = "          "uidspc||ac
+return_code = 0                         /* SET RETURN CODE TO 0  */
+Address ISPEXEC "LMPUT DATAID("output") MODE(INVAR) DATALOC(CMD)",
+  "DATALEN("length(cmd)")"
+am5lmp = return_code
+Return
+/*iterate counter*/
+/*SIGNAL END_TEST*/
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL end_it
+ 
+ 
+Error:
+return_code = RC
+if RC >= 16 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+  say SOURCELINE(sigl)
+  end
+return
+ 
+ 

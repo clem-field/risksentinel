@@ -1,0 +1,32 @@
+*/ THE FIRST FOUR POSITIONS ARE FOR THE GROUP ID */
+1234                                    */                   */
+SYSP                                    */                   */
+*/ THE FIFTH IS A BLANK SPACE                    */
+    5                                   */                   */
+                                        */                   */
+*/ THE SIXTH THROUGH THIRTEENTH IS FOR THE USER OF THE GROUP */
+     67890123                           */                   */
+     USERIDXX                           */                   */
+*/ THE FOLLOWING ARE SUGGESTED GROUPS                        */
+SYSP                                    */                   */
+SECA                                    */                   */
+APPL                                    */                   */
+DASD                                    */                   */
+OPER                                    */                   */
+TAPE                                    */                   */
+AUTO                                    */                   */
+*/ TO EXCLUDE THE MEMBERS OF THE GROUP OR ALL USERS          */
+*/ ENTER THE MACRO COMMAND CACM000U FOLLOWED BY THE          */
+*/ PARAMETER OF THE GROUP OR ALL FOR ALL USERS               */
+*/ EXAMPLE: CACM000U SECA      TO EXCLUDE SECURITY ADMIN     */
+*/ EXAMPLE: CACM000U SYSP      TO EXCLUDE SYSPROGS           */
+*/ EXAMPLE: CACM000U ALL       TO EXCLUDE ALL USERS IN TABLE */
+SYSP
+SECA
+APPL
+DASD
+OPER
+TAPE
+AUTO
+1234567890123                           */                   */
+GRUP USERIDXX                           */                   */

@@ -1,0 +1,467 @@
+/* REXX */
+/* CLS2REXXed by UMLA01S on 7 Dec 2020 at 19:47:54  */
+/*trace ?r*/
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+ 
+/*********************************************************************/
+/* 06/23/2004 JL Nelson Added code to check security system.         */
+/* 12/20/2005 C Stern Added CAAM0007 to VPUT statement.              */
+/* 12/22/2005 C Stern Added TEST option to bypass TEMP9 open.        */
+/* 03/23/2006 C Stern Modifications per JL Nelson.                   */
+/* 06/06/2006 C Stern Updated ERROR ROUTINE.                         */
+/* 07/09/2007 CL Fenton Changes made to include ASSET mbr of Dialog  */
+/*            data set.  Obtaining CLASS for ASSET mbr.              */
+/* 02/28/2009 CL Fenton Changes made removing compress and delete    */
+/*            for PDI dataset.                                       */
+/* 07/16/2009 CL Fenton Changes to evaluate masked sysid.            */
+/* 10/22/2015 CL Fenton Changed VMS asset to Asset Definition.       */
+/* 12/09/2020 CL Fenton Converted script from CLIST to REXX.         */
+/* 04/19/2021 CL Fenton ACP00000 automation for ACF2-ES-000450 to    */
+/*            determine which ACP is on the system, STS-026207.      */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname = "CAAC0003 04/19/21"
+CONSLIST = "OFF"              /* DEFAULT IS OFF                      */
+COMLIST  = "OFF"              /* DEFAULT IS OFF                      */
+SYMLIST  = "OFF"              /* DEFAULT IS OFF                      */
+TERMMSGS = "ON"               /* DEFAULT IS OFF                      */
+TEST     = "OFF"              /* FINDING MESSAGES = OFF|MOD|FINDING  */
+TRACE    = "OFF"              /* TRACE ACTIONS AND ERRORS            */
+TYPERUN  = "FSO"              /* RUN FOR SRRAUDIT|FSO                */
+PDIDDN   = "PDIDD"            /* PDI DDNAME IN JCL                   */
+DATADDN  = "DIALOG"           /* Dialog DD name for review           */
+ASSET    = "ASSET"            /* Dialog Asset Definition member      */
+CAAM0007 = "CAAM0507"         /* PDI EDIT MACRO                      */
+CAAM0006 = "CAAM0006"         /* PDI EDIT MACRO                      */
+CACC1000 = "CACC1000"         /* PDI EDIT MACRO                      */
+sysprompt = "OFF"             /* CONTROL NOPROMPT                    */
+sysflush = "OFF"              /* CONTROL NOFLUSH                     */
+sysasis = "ON"                /* CONTROL ASIS - caps off             */
+esm      = "ACF2"             /* external security manager           */
+Numeric digits 10             /* default of 9 not enough             */
+maxcc = 0
+vput_rc           = "N/A"
+lminit_dialog_rc  = "N/A"
+lminit_temp9_rc   = "N/A"
+lminit_pdidd_rc   = "N/A"
+lmopen_pdidd_rc   = "N/A"
+lmclose_pdidd_rc  = "N/A"
+lmopen_dialog_rc  = "N/A"
+lmopen_temp9_rc   = "N/A"
+lmclose_temp9_rc  = "N/A"
+lmmfind_dialog_rc = "N/A"
+lmclose_dialog_rc = "N/A"
+lmfree_dialog_rc  = "N/A"
+vput_pdidd_rc     = "N/A"
+view_temp9_rc     = "N/A"
+vget_rc           = "N/A"
+am06vge           = "N/A"
+am07vge           = "N/A"
+lmfree_temp9_rc   = "N/A"
+lmfree_pdidd_rc   = "N/A"
+zerrsm = " "
+ 
+Arg OPTION
+do until OPTION = ""
+  parse var OPTION key"("val")" OPTION
+  val = strip(val,"b","'")
+  val = strip(val,"b",'"')
+  optcmd = key '= "'val'"'
+  interpret optcmd
+  end
+ 
+return_code = 0
+If trace = "ON" then do            /* TURN messages on          */
+  termmsgs = "ON"                  /* CONTROL MSG               */
+  comlist = "ON"                   /* CONTROL LIST              */
+  conslist = "ON"                  /* CONTROL CONLIST           */
+  symlist = "ON"                   /* CONTROL SYMLIST           */
+  end
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" | TRACE = "ON",
+  then Trace ?r
+ 
+syssymlist = symlist          /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist         /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist             /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs             /* CONTROL MSG/NOMSG         */
+Address ISPEXEC
+"CONTROL NONDISPL ENTER"
+"CONTROL ERRORS RETURN"
+/***********************************************/
+/* CONSLIST = CONLIST                          */
+/* COMLIST = LIST                              */
+/* SYMLIST = SYMLIST                           */
+/* TERMMSGS = MESSAGES                         */
+/* TRACE TURNS ON MESSAGING                    */
+/***********************************************/
+return_code = 0                 /* SET RETURN CODE TO 0 */
+old_resource = "               "
+uidstr = "UID("
+zispfrc = 0
+"VPUT (ZISPFRC) SHARED"
+return_code = 0
+"VPUT (CONSLIST COMLIST SYMLIST TERMMSGS TEST CAAM0007) ASIS"
+vput_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "VPUT RC =" return_code strip(zerrsm)
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+return_code = 0
+"SELECT CMD("cacc1000 "ACP)"
+"VGET (ACPNAME,ACPVERS) ASIS"
+If acpname <> "ACF2" then do
+  Say pgmname "ACF2 Job running on the wrong system"
+  Say pgmname acpname acpvers
+/*return_code = 20
+  SIGNAL ERR_EXIT*/
+  end
+ 
+/*******************************************/
+/* INITIALIZE LIBRARY MANAGEMENT           */
+/*******************************************/
+return_code = 0
+"LMINIT DATAID(DATAID) DDNAME("dataddn")"
+lminit_dialog_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT_DIALOG_RC =" return_code zerrsm
+  Say pgmname zerrlm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+"LMINIT DATAID(TEMP9) DDNAME(TEMP9)"
+lminit_temp9_rc = return_code             /* TRAP ERROR CODE */
+If return_code <> 0 then do
+  Say pgmname "LMINIT_TEMP9_RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+"LMINIT DATAID(PDIDD) DDNAME(PDIDD) ENQ(EXCLU)"
+lminit_pdidd_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT_PDIDD_RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+/*Call ListDSI pdiddn "FILE"*/
+x = listdsi(pdiddn "FILE")
+If sysreason = 0 then do
+  pdidsn = sysdsname
+  end
+Else do
+  Say pgmname "UNABLE TO DETERMINE DSNAME FOR" pdiddn,
+    "SYSREASON" sysreason zerrsm
+  Say pgmname sysmsglvl1
+  Say pgmname sysmsglvl2
+  return_code = sysreason + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+return_code = 0
+"LMOPEN DATAID("pdidd") OPTION(OUTPUT)"
+lmopen_pdidd_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMOPEN_PDIDD_RC =" return_code zerrsm
+  Say pgmname zerrlm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+If acpname = esm then do
+  ac   = ""
+  line = acpname "is running on the system."
+  end
+Else do
+  ac   = esm "is not installed and active on the system."
+  line = "Found" acpname "running on the system."
+  end
+call process_pdi "ACP00000#"ac"$"line
+ 
+return_code = 0
+"LMCLOSE DATAID("pdidd")"
+lmclose_pdidd_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMCLOSE_PDIDD_RC =" return_code zerrsm
+  Say pgmname zerrlm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+return_code = 0
+"LMOPEN DATAID("dataid")"
+lmopen_dialog_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMOPEN_DIALOG_RC =" return_code zerrsm
+  Say pgmname zerrlm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+If test <> "MOD" then do
+  return_code = 0
+  "LMOPEN DATAID("temp9") OPTION(OUTPUT)"  /* OPEN TEMP9 */
+  lmopen_temp9_rc = return_code
+  If return_code > 4 then do
+    Say pgmname "LMOPEN_TEMP9_RC =" return_code zerrsm
+    return_code = return_code + 16
+    SIGNAL ERR_EXIT
+    end
+ 
+  x = outtrap("out.")
+ 
+  queue "SET CONTROL(GSO)"
+  queue "LIST LIKE(-)"
+  queue "QUIT"
+  Address TSO "ACF"
+  Do X = 1 to out.0
+    ab = out.x
+    abl = length(ab)
+    return_code = 0
+    "LMPUT DATAID("temp9") MODE(INVAR) DATALOC(AB) DATALEN("abl")",
+      "NOBSCAN"
+    If return_code > 4 then do
+      Say pgmname "LMPUT TEMP9 RC =" return_code zerrsm
+      return_code = return_code + 16
+      SIGNAL ERR_EXIT
+      end
+    end
+ 
+  x = outtrap("out.")
+ 
+  queue "SET CONTROL(GSO)"
+  queue "SET SYSID(****)"
+  queue "LIST LIKE(-)"
+  queue "QUIT"
+  Address TSO "ACF"
+  Do X = 1 to out.0
+    ab = out.x
+    abl = length(ab)
+    return_code = 0
+    "LMPUT DATAID("temp9") MODE(INVAR) DATALOC(AB) DATALEN("abl")",
+      "NOBSCAN"
+    If return_code > 4 then do
+      Say pgmname "LMPUT TEMP9 RC =" return_code zerrsm
+      return_code = return_code + 16
+      SIGNAL ERR_EXIT
+      end
+    end
+ 
+  return_code = 0
+  "LMCLOSE DATAID("temp9")"
+  lmclose_temp9_rc = return_code
+  If return_code > 4 then do
+    Say pgmname "LMCLOSE_TEMP9_RC =" return_code zerrsm
+    return_code = return_code + 16
+    SIGNAL ERR_EXIT
+    end
+  end
+ 
+ 
+BYPASS_SETROPTS:
+return_code = 0
+class = 9
+"LMMFIND DATAID("dataid") MEMBER("asset")"
+lmmfind_dialog_rc = return_code
+If return_code <> 0 then do
+  x = listdsi(dataddn "FILE")
+  datadsn = sysdsname
+  Say pgmname "The following members are missing from the",
+    "Dialog data set" datadsn"."
+  Say pgmname "  ASSET    - Member containing Asset Definition",
+    "information."
+  Say pgmname "    To correct the above enter the Dialog",
+    "process and select the following options:"
+  Say pgmname "      Option C - Review reports for Findings,",
+    "User access & Dataset rules."
+  Say pgmname "      Option F - Asset Definition Process"
+  Say pgmname "        Enter the information requested on the",
+    "screen.  Enter CREATE to create the"
+  Say pgmname "        Asset File and save the information.  Or",
+    "enter SAVE to save the information."
+  Say
+  end
+ 
+ 
+GET_DIALOG:
+do while return_code = 0
+  return_code = 0
+  "LMGET DATAID("dataid") MODE(INVAR) DATALOC(TRECORD) MAXLEN(80)",
+    "DATALEN(LRECL)"
+  If return_code = 8 then,
+    leave
+  If left(trecord,10) = "CLASS" then do
+    class = substr(trecord,11,1)
+    leave
+    end
+  end
+ 
+ 
+BYPASS_DIALOG:
+return_code = 0
+"LMCLOSE DATAID("dataid")"
+lmclose_dialog_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMCLOSE_DIALOG_RC =" return_code zerrsm
+  Say pgmname zerrlm
+  end
+ 
+return_code = 0
+"LMFREE DATAID("dataid")"
+lmfree_dialog_rc = return_code
+ 
+return_code = 0
+"VPUT (CLASS PDIDD PDIDSN) ASIS"
+vput_pdidd_rc = return_code
+If return_code > 4 then do
+  Say pgmname "VPUT_PDIDD_RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+"VIEW DATAID("temp9") MACRO("caam0006")"
+view_temp9_rc = return_code
+If return_code > 4 then do
+  Say pgmname "VIEW_TEMP9_RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+return_code = 0
+"VGET (AM06VGE AM07VGE) ASIS"
+vget_rc = return_code
+ 
+return_code = 0
+"LMFREE DATAID("temp9")"
+lmfree_temp9_rc = return_code
+ 
+return_code = 0
+"LMFREE DATAID("pdidd")"
+lmfree_pdidd_rc = return_code
+ 
+ 
+END_EXIT:
+return_code = 0
+/*******************************************/
+/* ERROR EXIT                              */
+/*******************************************/
+ 
+ 
+ERR_EXIT:
+If maxcc >= 16 | return_code > 0 then do
+  "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then,
+    zispfrc = maxcc
+  Else,
+    zispfrc = return_code
+  "VPUT (ZISPFRC) SHARED"
+  Say pgmname "ZISPFRC =" zispfrc
+  end
+ 
+If termmsgs = "ON" then do
+  Say "==============================================================="
+  Say pgmname "VPUT_RC              " vput_rc
+  Say pgmname "LMINIT_DIALOG_RC     " lminit_dialog_rc
+  Say pgmname "LMINIT_TEMP9_RC      " lminit_temp9_rc
+  Say pgmname "LMINIT_PDIDD_RC      " lminit_pdidd_rc
+  Say pgmname "LMOPEN_DIALOG_RC     " lmopen_dialog_rc
+  Say pgmname "LMOPEN_PDIDD_RC      " lmopen_pdidd_rc
+  Say pgmname "LMOPEN_TEMP9_RC      " lmopen_temp9_rc
+  Say pgmname "LMMFIND_DIALOG_RC    " lmmfind_dialog_rc
+  Say pgmname "LMCLOSE_DIALOG_RC    " lmclose_dialog_rc
+  Say pgmname "LMCLOSE_PDIDD_RC     " lmclose_pdidd_rc
+  Say pgmname "LMCLOSE_TEMP9_RC     " lmclose_temp9_rc
+  Say pgmname "LMFREE_DIALOG_RC     " lmfree_dialog_rc
+  Say pgmname "VPUT_PDIDD_RC        " vput_pdidd_rc
+  Say pgmname "VIEW_TEMP9_RC        " view_temp9_rc
+  Say pgmname "VGET_RC              " vget_rc
+  Say pgmname caam0006 "AM06VGE     " am06vge
+  Say pgmname caam0007 "AM07VGE     " am07vge
+  Say pgmname "LMFREE_TEMP9_RC      " lmfree_temp9_rc
+  Say pgmname "LMFREE_PDIDD_RC      " lmfree_pdidd_rc
+  Say "==============================================================="
+  end
+Exit 0
+ 
+ 
+/*******************************************/
+/*  SYSCALL SUBROUTINES                    */
+/*******************************************/
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC >= 16 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname 'REXX error' rc 'in line' sigl':' ERRORTEXT(rc)
+  say SOURCELINE(sigl)
+  end
+if return_code > maxcc then
+  maxcc = return_code
+return
+ 
+ 
+process_pdi:
+Address ISPEXEC
+parse arg pdi "#" findtxt "$" finding
+os = "999999"
+bl = " "
+say PGMNAME 'Processing PDI' pdi'.'
+if findtxt = "" then do
+  ac = "Not a Finding"
+  "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(ac)",
+    "DATALEN("length(ac)") MEMBER("pdi")"
+  end
+else ,
+  "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(findtxt)",
+    "DATALEN("length(findtxt)") MEMBER("pdi")"
+sp = "    "
+do until finding = ""
+  if finding = "" then leave
+  parse value finding with s"{"text"}"finding
+  if s <> os then do
+    "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(bl)",
+      "DATALEN("length(bl)") MEMBER("pdi")"
+    if s <> '' then do
+      ac = '    ' s
+      "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(ac)",
+        "DATALEN("length(ac)") MEMBER("pdi")"
+      sp = '         '
+      end
+    os = s
+    end
+  if text <> "" then do
+    ac = sp text
+    "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(ac)",
+      "DATALEN("length(ac)") MEMBER("pdi")"
+    end
+  end
+ 
+ 
+replace:
+"LMMADD DATAID("pdidd") MEMBER("pdi")"
+if RC = 4 then do
+  "LMMREP DATAID("pdidd") MEMBER("pdi")"
+  if RC <> 0 then,
+    say PGMNAME 'LMMREP_PDIDD =' RC PDI ZERRSM
+  end
+return
+ 
+ 

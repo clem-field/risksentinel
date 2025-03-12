@@ -1,0 +1,51 @@
+//*--------------------------------------------------------------------
+//*-------------------------->> ZIPJCL   <<----------------------------
+//*--------------------------------------------------------------------*
+//* NOTE  NOTE  NOTE                                                   *
+//*                                                                    *
+//* Change all occurrances of XXXX to the SYSNAME specified in the     *
+//* IEASYSxx member of the logical parmlibs.                           *
+//*                                                                    *
+//* Change all occurrances of MMMYYYY to the month and year            *
+//*                                                                    *
+//*    Example:                                                        *
+//*            CHG ALL 'XXXX' 'ABC'                                    *
+//*            CHG ALL 'MMMYYYY' 'AUG2004'                             *
+//*                                                                    *
+//* Verify the STEPLIB DD statement to ensure that the data set is     *
+//* valid and available.                                               *
+//*                                                                    *
+//**********************************************************************
+//*
+//ZIPIT    EXEC PGM=PKZIP
+//STEPLIB  DD DISP=SHR,DSN=SYS2A.PKZIP.LOAD
+//*         ENSURE THAT ABOVE DATASET IS CORRECT
+//SYSPRINT DD SYSOUT=*
+//SYSIN    DD *
+-ARCHIVE_DSN(SYS3.FSO.XXXX.MMMYYYY.ZIP)
+-ARCHIVE_DSORG(PS)
+-ACTION(ADD)
+-DATA_TYPE(TEXT)
+-STRIP
+-ZDW
+-ATTRIB_COMPAT(MV25)
+-TRANSLATE_TABLE_DATA(ASCIIUS)
+-NOVSAM
+-FILE_TERMINATOR()
+-ZIPPED_DSN(SYS3.FSO.XXXX.MMMYYYY.XML*,XXXX/XML*.xml)
+-ZIPPED_DSN(SYS3.FSO.XXXX.MMMYYYY.*.RPT(*),XXXX/*/*.txt)
+-ZIPPED_DSN(SYS3.FSO.XXXX.MMMYYYY.*.RPT,XXXX/*.txt)
+-ZIPPED_DSN(SYS3.FSO.XXXX.MMMYYYY.**(*),XXXX/**/*.txt)
+-ZIPPED_DSN(SYS3.FSO.XXXX.MMMYYYY.**,XXXX/**.txt)
+SYS3.FSO.XXXX.MMMYYYY.**
+-EXCLUDE(**.AUACCESS(*))
+-EXCLUDE(**.CNTL(*))
+-EXCLUDE(**.DATA(*))
+-EXCLUDE(**.COMMON.**)
+-EXCLUDE(**.LOADLIB(*))
+-EXCLUDE(**.PARMLIB.**)
+-EXCLUDE(**.SCRIPT(*))
+-EXCLUDE(**.TEMP*(*))
+-EXCLUDE(**.TEMP*)
+-EXCLUDE(**.ZIP*)
+/*

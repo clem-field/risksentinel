@@ -1,0 +1,149 @@
+/* REXX */
+/* CLS2REXXed by FSOX001 on 28 Aug 2018 at 11:19:49  */
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+ 
+/*********************************************************************/
+/* 10/19/2005 JL.NELSON Changed TERMMSGS to ON.                      */
+/* 10/19/2005 JL.NELSON Added VPUT to get error messages from        */
+/*            program.                                               */
+/* 12/16/2005 JL.NELSON Made commands variables to allow input.      */
+/* 08/28/2018 CL.FENTON Converted script from CLIST to REXX.         */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+conslist = "OFF"                         /* DEFAULT IS OFF           */
+comlist  = "OFF"                         /* DEFAULT IS OFF           */
+symlist  = "OFF"                         /* DEFAULT IS OFF           */
+termmsgs = "ON"                          /* DEFAULT IS ON            */
+sysflush = "OFF"
+cacc1000 = "CACC1000"                    /* security check program   */
+acf2list = "LIST LIKE(-)"                /* default list command     */
+racflist = "LISTUSER * "                 /* default list command     */
+tssclist = "TSS LIST(ACIDS) DATA(BASIC)" /* default list command     */
+trace    = "OFF"                         /* trace actions and errors */
+pgmname = "CACC041A 08/28/18"
+ 
+sysprompt = "OFF"                 /* CONTROL NOPROMPT                */
+sysflush = "OFF"                  /* CONTROL NOFLUSH                 */
+sysasis = "ON"                    /* CONTROL ASIS - caps off         */
+Numeric digits 10                 /* default of 9 not enough         */
+maxcc = 0
+ 
+Arg OPTION
+do until OPTION = ""
+  if pos("TSSCLIST",OPTION) = 1 then do
+    parse var OPTION key"('"val"')" OPTION
+    end
+  else,
+    parse var OPTION key"("val")" OPTION
+  option = strip(option)
+  val = strip(val,"b","'")
+  val = strip(val,"b",'"')
+  optcmd = key '= "'val'"'
+  interpret optcmd
+  end
+ 
+return_code = 0
+If trace = "ON" then do           /* TURN messages on                */
+  termmsgs = "ON"                 /* CONTROL MSG                     */
+  comlist  = "ON"                 /* CONTROL LIST                    */
+  conslist = "ON"                 /* CONTROL CONLIST                 */
+  symlist  = "ON"                 /* CONTROL SYMLIST                 */
+  end
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" | TRACE = "ON",
+  then Trace ?r
+ 
+syssymlist = symlist               /* CONTROL SYMLIST/NOSYMLIST      */
+sysconlist = conslist              /* CONTROL CONLIST/NOCONLIST      */
+syslist = comlist                  /* CONTROL LIST/NOLIST            */
+sysmsg = termmsgs                  /* CONTROL MSG/NOMSG              */
+Address ISPEXEC
+"CONTROL NONDISPL ENTER"
+"CONTROL ERRORS RETURN"
+zispfrc = 0
+return_code = 0                         /* SET RETURN CODE TO 0 */
+"VPUT (CONSLIST COMLIST SYMLIST TERMMSGS) ASIS"
+If return_code > 4 then do
+  Say pgmname "VPUT RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+/* Determine which security system is running */
+return_code = 0
+"SELECT CMD("cacc1000 "ACP)"
+"VGET (ACPNAME ACPVERS) ASIS"
+ 
+Say "LISTUSER START OF DATA"
+Select
+  When acpname = "ACF2" then do
+    Say "ACF"
+    Say "SET LID"
+    Say "SET VERBOSE"
+    Say acf2list
+    Queue "SET LID"
+    Queue "SET VERBOSE"
+    Queue acf2list
+    Queue "QUIT"
+    Address TSO "ACF"
+    end
+  When acpname = "RACF" then do
+    Say racflist
+    Address TSO racflist
+    end
+  When acpname = "TSS" then do
+    Say tssclist
+    Address TSO tssclist
+    end
+  Otherwise do
+    Say pgmname "Unable to determine ACP"
+    Say pgmname acpname acpvers
+    return_code = 12
+    end
+  end
+Say "END"
+ 
+/*******************************************/
+/* ERROR EXIT                              */
+/*******************************************/
+ 
+ 
+ERR_EXIT:
+If maxcc >= 16 | return_code > 0 then do
+  "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then
+    zispfrc = maxcc
+  Else
+    zispfrc = return_code
+  "VPUT (ZISPFRC) SHARED"
+  Say pgmname "ZISPFRC =" zispfrc
+  end
+Exit
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC > 4 & RC <> 8 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname 'REXX error' rc 'in line' sigl':' ERRORTEXT(rc)
+  say SOURCELINE(sigl)
+  end
+if return_code > maxcc then
+  maxcc = return_code
+return
+ 
+ 

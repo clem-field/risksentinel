@@ -1,0 +1,4141 @@
+/* REXX */
+/*                                       */
+/* AUTHOR: Charles Fenton                */
+/*                                       */
+/*********************************************************************/
+/* DISPLAY SYSTEM INFORMATION ON TERMINAL                            */
+/*********************************************************************/
+/*********************************************************************/
+/* This Edit macro to add additional resources to CACT0008           */
+/*********************************************************************/
+/* Change summary:                                                   */
+/* 10/21/2008 CL Fenton Initial creation of script read CA-Examine   */
+/*            CONSOLE report obtaining current available consoles.   */
+/*            Script modified to accommidate products.               */
+/* 02/28/2009 CL Fenton Chgs to ACP00293 added ZJES0041 for TSS      */
+/*            only.  Added ZCSL0020 and ZWMQ0060 for evaluation.     */
+/* 07/16/2009 CL Fenton Chgs to add ZCA10040.                        */
+/* 09/22/2009 CL Fenton Chgs CONSOLE evaluation and added TSS0780    */
+/*            for MODE access.                                       */
+/* 10/01/2009 CL Fenton Added ZCA10045 resource collection to        */
+/*            evaluate CATAPE resources.                             */
+/* 10/29/2009 CL Fenton Dropped generation of TSS0244 and TSS0248.   */
+/*            Added ZROS0020 resource collection.                    */
+/* 02/12/2010 CL Fenton Added collection for ZVSS0020. Commented     */
+/*            out TSS0780 until information provided to allow        */
+/*            admin attribute other that MISC9(MODE).                */
+/* 02/26/2010 CL Fenton Chgd paragraph name and interpret call       */
+/*            statements.                                            */
+/* 03/18/2010 CL Fenton Cdded additional resources for ROSCOE.       */
+/*            Added collection for VSS.                              */
+/* 06/18/2010 CL Fenton Chgd access requirement for ZROS0020.        */
+/* 07/19/2010 CL Fenton Added requirements for HCD and bypass        */
+/*            entires for ICSF and TADZ.                             */
+/* 09/14/2010 CL Fenton Added requirement request for Master SCA     */
+/*            of TSS to ACP00282 and ACP00293.  Also added           */
+/*            specific consoles to their own CONSOLE resource for    */
+/*            ACP00293.                                              */
+/* 09/29/2010 CL Fenton Added SYSPAUDT to several ZVSS0020           */
+/*            resources.                                             */
+/* 03/15/2011 CL Fenton ZCA10045 chgs, ALTER to READ for FORNORES,   */
+/*            for non inquiry passwords (300) added operaudt,        */
+/*            syspaudt, and tapeaudt.                                */
+/* 06/17/2011 CL Fenton Chgd resources that only specify a HLQ to    */
+/*            have a period (.).                                     */
+/* 09/12/2011 CL Fenton Added collection of information for SDSF     */
+/*            resources, CSD-AR002893724.  Changed collection of     */
+/*            ACP00293 to obtain consoles from current parmlib       */
+/*            CONSOLxx member.                                       */
+/* 12/13/2011 CL Fenton Chged collection of information for CA1      */
+/*            and SDSF resources, CSD-AR003079950.  of ACP00293 to   */
+/*            obtain consoles from current parmlib CONSOLxx          */
+/*            member.                                                */
+/* 01/20/2012 CL Fenton Added collection of symbolics in CONSOLxx    */
+/*            member for CSD-AR003216767.                            */
+/* 02/08/2012 CL Fenton Added CICS UPDATE access for CSVLLA          */
+/*            resource for CSD-AR003233236.                          */
+/* 02/17/2012 CL Fenton Added evaluation of '000'x for CA1 user      */
+/*            passwords that specify DEF, '000'x.                    */
+/* 03/07/2012 CL Fenton Added evaluation of EZB.CSSMTP resources     */
+/*            when CSSMTP is installed, CSD-AR003025654              */
+/* 03/14/2012 CL Fenton Added AUDTAUDT to all VRA$ resources in      */
+/*            ZVSS0020, CSD-AR003072757.                             */
+/* 06/14/2012 CL Fenton Added CSVDYLPA to CA1 and CCS,               */
+/*            CSD-AR003396448.                                       */
+/* 06/14/2012 CL Fenton Added addition Product collection for        */
+/*            Abend-AID and Health Checker, CSD-AR003400260.         */
+/* 08/09/2012 CL Fenton Added DPCSAUDT to resources in ZIOA0020,     */
+/*            CSD-AR002702726 and CSD-AR002745061.                   */
+/* 08/10/2012 CL Fenton Chgd logging requirements on resources for   */
+/*            ZCTD0020, ZCTM0020, ZCTO0020, and ZIOA0020,            */
+/*            CSD-AR002745061.                                       */
+/* 08/10/2012 CL Fenton Added PRODAUDT to resources $$DELCND for     */
+/*            ZIOA0020, CSD-AR002968219.                             */
+/* 08/10/2012 CL Fenton Added * access READ for $$SECxxx.qname       */
+/*            resources in ZCTD0020, ZCTM0020, ZCTO0020, and         */
+/*            ZIOA0020, CSD-AR003009795.                             */
+/* 08/15/2012 CL Fenton Added BMC STCs to $$CTMPNL3 in ZCTM0020,     */
+/*            CSD-AR003324258.                                       */
+/* 09/12/2012 CL Fenton Added SHARED.IDS access NONE to ZUSS0023     */
+/*            for RACF only, CSD-AR003331326.  Also added READ for   */
+/*            all user for ISFCMD.FILTER.INPUT.                      */
+/* 12/09/2012 CL Fenton Chgd ZVSS0020 adding backstop VRA$ and       */
+/*            removing logging on requested resources,               */
+/*            CSD-AR003346171.  Added CAMIM resource requirements,   */
+/*            STS-001238.  Added Mainview resource access            */
+/*            requirements for ZMVZ0020, CSD-AR002914302.            */
+/* 12/09/2012 CL Fenton Added APPDAUDT and APPSAUDT to ZISF0020      */
+/*            ISFATTR.OUTPUT resource, STS-001990.                   */
+/* 03/12/2013 CL Fenton Added PROGRAM resource vuls, ACF0870,        */
+/*            RACF0770, and TSS1040, STS-001935.                     */
+/* 03/22/2013 CL Fenton Corrected RESCLASS for ZMVZ0020, STS-002186. */
+/* 05/31/2013 CL Fenton Added Mainview STCs to selected resources    */
+/*            in ZMVZ0020, STS-002039.                               */
+/* 06/03/2013 CL Fenton Added Control-O access to the CSVLLA         */
+/*            resource for STS-002385.                               */
+/* 06/06/2013 CL Fenton Changed ZCSL0020 to obtian prefix for        */
+/*            resources, STS-002427.                                 */
+/* 06/24/2013 CL Fenton Added ZNET0020 for NetView resources,        */
+/*            STS-002881.                                            */
+/* 07/23/2013 CL Fenton Added TIQ to ROSCOE resources, STS-003125.   */
+/* 08/13/2013 CL Fenton Added AUDTAUDT to GIMSMP in ACF0870,         */
+/*            RACF0770, and TSS1040, STS-002915.                     */
+/* 09/12/2013 CL Fenton Added OPERAUDT to SDSF GROUP resource        */
+/*            STS-003230.                                            */
+/* 12/02/2013 CL Fenton Removed repeating rec 1 from ZWMQ0060,       */
+/*            STS-003763.                                            */
+/* 12/02/2013 CL Fenton Added period on various resources,           */
+/*            STS-003318, STS-004287.                                */
+/* 12/05/2013 CL Fenton Added AUTOAUDT to IOA resources,             */
+/*            STS-004507.                                            */
+/* 12/10/2013 CL Fenton Chgd ZUSS0023 SUPERUSER.FILESYS to           */
+/*            SUPERUSER.FILESYS.FILE for TSS only, STS-004310.       */
+/* 03/14/2014 CL Fenton Added addition access requirements for       */
+/*            ZNET0020, STS-005281.                                  */
+/* 03/25/2014 CL Fenton Chgd access from ALTER to READ for           */
+/*            ACP00293, STS-003712.                                  */
+/* 05/29/2014 CL Fenton Chgs made to add DIALOG information for      */
+/*            CSFTP, CSTCP, and CSTNT, STS-000653.                   */
+/* 06/02/2014 CL Fenton Added READ access for PCSPAUDT and           */
+/*            SYSPAUDT for $$CTMSTC in ZCTM0020, STS-005597.         */
+/* 06/03/2014 CL Fenton Added CSVDYLPA to BMCMVZ, STS-005774         */
+/* 12/03/2014 CL Fenton Chgd SDSF GROUP resources to specify that    */
+/*            all access needs justification, STS-002801.            */
+/* 12/15/2014 CL Fenton Added additional resources for ZMVZ0020      */
+/*            for Mainview STCs, STS-008604.                         */
+/* 05/04/2015 CL Fenton Removed DBMS and IDMS from automation,       */
+/*            STS-007219 and STS-007637.                             */
+/* 05/13/2015 CL Fenton Added AUTOAUDT access UPDATE to CAMIM        */
+/*            resource prefix.FREE, STS-009549.                      */
+/* 05/14/2015 CL Fenton Added resources for accessing AXR            */
+/*            information for ACP00282, STS-00990.                   */
+/* 08/03/2015 CL Fenton Added SYSPAUDT to resources for ZMVZ0020,    */
+/*            STS-011535.                                            */
+/* 08/24/2015 CL Fenton Added new group access for APPBAUDT for      */
+/*            ZCTM0020, STS-011536.                                  */
+/* 10/29/2015 CL Fenton Chgd resources for ACP00270 on CSVDYLPA to   */
+/*            specify second level of ADD and DELETE, STS-011658.    */
+/* 04/05/2016 CL Fenton Chgd ZVSS0020 to add additional resource     */
+/*            VSR$.SCOPE, STS-013815.                                */
+/* 07/26/2016 CL Fenton Added generation of information for          */
+/*            ACP00270 dialog question, STS-014148.                  */
+/* 08/15/2016 CL Fenton Added new SDSF resources for ZISF0020,       */
+/*            STS-015243.                                            */
+/* 10/25/2016 CL Fenton Added DEVMAN to ICKDSF in ACF0870,           */
+/*            RACF0770, and TSS1040, STS-015907.                     */
+/* 11/14/2016 CL Fenton Added MICSADM to IFASMFDP in ACF0870,        */
+/*            RACF0770, and TSS1040, STS-015910.                     */
+/* 02/13/2017 CL Fenton Added IOABAUDT to resource $$IOAVIW, in      */
+/*            ZIOA0020, STS-016604.                                  */
+/* 03/08/2017 CL Fenton Added resource for SDSF access to START      */
+/*            and STOP SDSFAUX, STS-016671.                          */
+/* 04/24/2017 CL Fenton Added new resources for SDSF ZISF0020,       */
+/*            STS-016876.                                            */
+/* 05/08/2017 CL Fenton Added TAPDAUDT to resource L0UPDTE, in       */
+/*            ZCA10020, STS-016961.                                  */
+/* 07/17/2017 CL Fenton Added BMCMVZ resources for MVCICS, in        */
+/*            ZMVZ0020, STS-017936.  Also removed displaying         */
+/*            entries for SDSF.                                      */
+/* 10/17/2017 CL Fenton Added CICS resources for System              */
+/*            Programming Commands (SPI) for ZCIC0021, STS-018628.   */
+/* 11/29/2017 CL Fenton Added new and missing resources for SDSF     */
+/*            resource class, STS-018712.                            */
+/* 12/12/2017 CL Fenton Corrected issue with CONSOLxx member         */
+/*            containing a console named CONSOLE, STS-019001.        */
+/* 04/23/2018 CL Fenton Added evaluation for BPX.CAHFS for only      */
+/*            ACF2 and TSS, STS-019384.                              */
+/* 08/03/2018 CL Fenton Changed evaluation of $$SECxxx resource to   */
+/*            utilize IOASECUR to obtain resource class entries      */
+/*            for PDI member that will be merged with Zxxx0020,      */
+/*            STS-019703.                                            */
+/* 08/10/2018 CL Fenton Added AUDTAUDT to the VSR$.VSR resource      */
+/*            class, STS-020315.                                     */
+/* 10/26/2018 CL Fenton Chgd access UPDATE to CONTROL for            */
+/*            SYSDUMPCODE in ZCIC0021, STS-020896.                   */
+/* 10/26/2018 CL Fenton Added DPCSAUDT access to $$REFNET for        */
+/*            ZCTM0020, STS-021045.                                  */
+/* 02/27/2019 CL Fenton Chgd ISF.CONNECT.sysname to allow READ       */
+/*            access for all users, STS-021773.                      */
+/* 04/08/2019 CL Fenton Deleted evaluation of resoureces for CICS,   */
+/*            process moved to CACM000E, STS-021044.                 */
+/* 02/19/2020 CL Fenton Added COPYCAT resource for CA1, STS-023766.  */
+/* 02/19/2020 CL Fenton Chgd FORNORES access requirements for CA1,   */
+/*            STS-023880.                                            */
+/* 05/15/2020 CL Fenton Added $$IOAVD and $$IOAVP for ZIOA0020,      */
+/*            STS-024011.                                            */
+/* 05/15/2020 CL Fenton Verified that $$SECxxx specifies * READ,     */
+/*            STS-024012.                                            */
+/* 05/15/2020 CL Fenton Chgd all ALTER to READ for all INCONTROL     */
+/*            products, STS-024013.                                  */
+/* 02/08/2021 CL Fenton Chgs made to obtain information from the     */
+/*            use of CACC1000 DD request, STS-025549.                */
+/* 11/24/2021 CL Fenton Chgs made for Backstop deny-by-default for   */
+/*            ZCA10020-21, STS-027595.                               */
+/* 10/31/2022 CL Fenton Chgs made to add SECAAUDT access for         */
+/*            resources in ZISF0020, STS-028830.                     */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+PGMNAME = 'CACM000B 10/31/22'
+Numeric digits 10                           /* dflt of 9 not enough  */
+sysname = MVSVAR('SYSNAME')
+sysplex = MVSVAR('SYSPLEX')
+jesnode = SYSVAR('SYSNODE')
+Address ISREDIT "MACRO"
+Address ISPEXEC
+"CONTROL NONDISPL ENTER"
+"CONTROL ERRORS RETURN"
+"VGET (CONSLIST COMLIST SYMLIST TERMMSGS TRACE)"
+If CONSLIST = ON | COMLIST = ON | SYMLIST = ON | TRACE = ON ,
+  then Trace r
+cnt = 0
+"VGET (ACPNAME TYPERUN)"
+select
+  when ACPNAME = "ACF2" then sens_vul = left("ACF0870",8)
+  when ACPNAME = "RACF" then sens_vul = left("RACF0770",8)
+  when ACPNAME = "TSS" then sens_vul = left("TSS1040",8)
+  otherwise sens_vul =
+  end /* select */
+Address ISREDIT
+"(MEMBER) = MEMBER"
+signal on syntax name error
+TYPRUN=left(strip(TYPERUN,"T"),8,"9")
+interpret call TYPRUN
+continue:
+Address ISREDIT
+"RESET"
+"END"
+/*********************************************************************/
+/* Done looking at all control blocks                                */
+/*********************************************************************/
+Exit 0                                       /* End CACC1001 - RC 0  */
+/*********************************************************************/
+/*  Start of sub-routines                                            */
+/*********************************************************************/
+FULL9999:
+say
+macid =
+if ACPNAME = "TSS" then do
+  Call TSS0246
+  Call ACP00282
+/*Call TSS0780*/
+/* The above is removed until such time that an alternate method of  */
+/* doing TSS WHOH MODE(xxxx) without using MISC9(MODE) is available. */
+  Call ZJES0041
+  "CHANGE ALL 'SUPERUSER.FILESYS ' 'SUPERUSER.FILESYS.FILE '"
+  end /* if ACPNAME = "TSS" */
+if ACPNAME = "RACF" then do
+  "CHANGE ALL 'MVS.CONTROL. ' 'MVS.CONTROL.% '"
+  cnt = 0
+  "FIND LAST 'ZUSS0023 ' 1"
+  if rc = 0 then do
+    line = 'ZUSS0023 3 *        NONE'
+    "LINE_AFTER .ZCSR = DATALINE (LINE)"
+    line = 'ZUSS0023 2          SHARED.IDS'
+    "LINE_AFTER .ZCSR = DATALINE (LINE)"
+    cnt = cnt + 2
+    end /* if rc = 0 */
+  say pgmname right(cnt,4) 'records written to' MEMBER 'for ZUSS0023.'
+  recs = "2 READ     MVS.MODIFY.STC.AXR.#",
+    "3 AUDTAUDT UPDATE#",
+    "3 SECAAUDT UPDATE#"
+  x = 0
+  do until recs = ""
+    x = x + 1
+    parse var recs info.x "#" recs
+    info.x = strip(info.x)
+    end /* do until recs = "" */
+ 
+  info.0 = x
+  rc = 0
+  cnt = 0
+  "FIND FIRST 'MVS.MODIFY.STC. ' 21"
+  if rc = 0 then do
+    "(A,B) = CURSOR"
+    A = A + 1
+    "(data) = LINE .ZCSR"
+    parse var data pdi 9 .
+    "FIND NEXT ' 2 ' 9"
+    if rc = 0 then do
+      "(A1,B) = CURSOR"
+      A1 = A1 - 1
+      do A = A to A1
+        "(data) = LINE" A
+        x = x + 1
+        parse var data . 10 info.x
+        info.x = strip(info.x)
+        end /* do A = A to A1 */
+      info.0 = x
+      do x = 1 to info.0
+        line = left(pdi,8) info.x
+        "LINE_BEFORE .ZCSR = DATALINE (LINE)"
+        end /* do x = info.0 */
+      end /* if rc = 0 */
+    end /* if rc = 0 */
+  end /* if ACPNAME = "RACF" */
+Else do
+  "FIND FIRST 'BPX.DAEMON ' 21"
+  if rc = 0 then do
+    "(data) = LINE .ZCSR"
+    parse var data pdi 9 .
+    line = pdi '2          BPX.CAHFS.'
+    "LINE_BEFORE .ZCSR = DATALINE (LINE)"
+    line = pdi '3 *        ALTER'
+    "LINE_BEFORE .ZCSR = DATALINE (LINE)"
+    end /* if rc = 0 */
+  end
+Call SENSITVE_UTIL
+Call OBTAIN_CONSOLE
+Call ACP00293                             /* Initialization info.  */
+Call ACP00270                             /* Initialization info.  */
+ 
+return
+ 
+OBTAIN_CONSOLE:
+address tso "execio * diskr CONSRPT (finis stem out."
+x = 0
+consdata =
+do a = 1 to out.0
+  out.a = strip(out.a)
+  if pos('ACTIVE PARMLIB MEMBERS:',out.a) > 0 then do
+    parse var out.a . ':' mbr ',' .
+    mbr = strip(mbr)
+    leave
+    end /* if pos(... */
+  end /* do a = 1 to out.0 */
+address ispexec
+'select cmd(%cacc1000 find parm' mbr ')'
+'vget (found)'
+parmdsn = found'('mbr')'
+address tso "alloc fi(parmrpt) da('"parmdsn"') shr reuse"
+address tso "execio * diskr PARMRPT (finis stem prm."
+do y = 1 to prm.0
+  parse var prm.y prm.y "/*"
+  symtext = prm.y
+  call symfix
+  prm.y = symtext
+  if pos('CONSOLE ',prm.y) > 0 then do
+    if pos('CONSOLE ',consdata) > 0 then do
+      parse var consdata . "NAME(" console ")" .
+      if pos('DEVNUM(SUBSYSTEM)',consdata) = 0 & ,
+         pos('DEVNUM(PRT)',consdata) = 0 then do
+        x = x + 1
+        console.x = console
+        end /* if pos('DEVNUM... */
+      end /* if pos('CONSOLE',consdata... */
+    consdata = strip(prm.y)
+    iterate y
+    end /* if pos('CONSOLE',prm.y... */
+  if consdata <> '' then consdata = consdata strip(prm.y)
+  end /* if y = 1 */
+if pos('CONSOLE',consdata) > 0 then do
+  parse var consdata . "NAME(" console ")" .
+  if pos('DEVNUM(SUBSYSTEM)',consdata) = 0 & ,
+     pos('DEVNUM(PRT)',consdata) = 0 then do
+    x = x + 1
+    console.x = console
+    end /* if pos('DEVNUM... */
+  end /* if pos('CONSOLE... */
+console.0 = x
+return
+ 
+ 
+SENSITVE_UTIL:
+Address TSO "newstack"
+if sens_vul = "" then return
+queue sens_vul '1 PROGRAM  PROGRAM  PROGRAM '
+queue sens_vul '2 READ     AHLGTF        '
+queue sens_vul '3 STCGAUDT ALTER'
+queue sens_vul '2 READ     HHLGTF        '
+queue sens_vul '3 STCGAUDT ALTER'
+queue sens_vul '2 READ     IHLGTF        '
+queue sens_vul '3 STCGAUDT ALTER'
+queue sens_vul '2 READ     ICPIOCP       '
+queue sens_vul '3 SYSPAUDT ALTER'
+queue sens_vul '2 READ     IOPIOCP       '
+queue sens_vul '3 SYSPAUDT ALTER'
+queue sens_vul '2 READ     IXPIOCP       '
+queue sens_vul '3 SYSPAUDT ALTER'
+queue sens_vul '2 READ     IYPIOCP       '
+queue sens_vul '3 SYSPAUDT ALTER'
+queue sens_vul '2 READ     IZPIOCP       '
+queue sens_vul '3 SYSPAUDT ALTER'
+queue sens_vul '2 READ     BLSROPTR      '
+queue sens_vul '3 DASBAUDT ALTER'
+queue sens_vul '3 DASDAUDT ALTER'
+queue sens_vul '3 SYSPAUDT ALTER'
+queue sens_vul '2 READ     DEBE          '
+queue sens_vul '3 DASDAUDT ALTER'
+queue sens_vul '3 TAPEAUDT ALTER'
+queue sens_vul '2 READ     DITTO         '
+queue sens_vul '3 DASDAUDT ALTER'
+queue sens_vul '3 TAPEAUDT ALTER'
+queue sens_vul '2 READ     GIMSMP        '
+queue sens_vul '3 AUDTAUDT ALTER'
+queue sens_vul '3 DABAAUDT ALTER'
+queue sens_vul '3 SYSPAUDT ALTER'
+queue sens_vul '2 READ     ICKDSF        '
+queue sens_vul '3 DASDAUDT ALTER'
+queue sens_vul '3 DEVMAN   ALTER'
+queue sens_vul '3 SYSPAUDT ALTER'
+queue sens_vul '2 READ     IDCSC01       '
+queue sens_vul '3 SYSPAUDT ALTER'
+queue sens_vul '2 READ     IEHINITT      '
+queue sens_vul '3 TAPEAUDT ALTER'
+queue sens_vul '2 READ     IFASMFDP      '
+queue sens_vul '3 AUDTAUDT ALTER'
+queue sens_vul '3 MICSADM  ALTER'
+queue sens_vul '3 PCSPAUDT ALTER'
+queue sens_vul '3 SECAAUDT ALTER'
+queue sens_vul '3 SMFBAUDT ALTER'
+queue sens_vul '3 SYSPAUDT ALTER'
+queue sens_vul '2 READ     WHOIS         '
+queue sens_vul '3 DASDAUDT ALTER'
+queue sens_vul '3 OPERAUDT ALTER'
+queue sens_vul '3 SYSPAUDT ALTER'
+queue sens_vul '3 TAPEAUDT ALTER'
+ 
+say pgmname right(queued(),4) 'records written to' MEMBER 'for' ,
+  strip(sens_vul)'.'
+Call Write_queued
+return
+ 
+ 
+symfix:
+null = ""
+fixstart = 1
+srchdone = "N"
+do until srchdone = "Y"
+  symtext = symtext
+  p1 = pos("&",symtext,fixstart)
+  if p1 > 0 then do
+    parse var symtext 1 junk =(fixstart) left"&"fixsymb
+    if junk = symtext then,
+      junk = null
+    junk = junk
+    left = left
+    fixsymb = fixsymb
+    if left(fixsymb,1) = "&" then,
+      p1 = p1 + 1        /* ignore "&&" */
+    else do
+      right = null
+      symdone = "N"
+      do r=1 to length(fixsymb) until symdone = "Y"
+        if datatype(substr(fixsymb,r,1),"ALPHA") = 0 then do
+          right = substr(fixsymb,r)
+          if left(right,1) = "." then,
+            right = substr(right,2)
+          fixsymb = substr(fixsymb,1,r-1)
+          symdone = "Y"
+          end /* if datatype(... */
+        end /* do r=1 */
+      if length(fixsymb) > 0 then do
+        syssym = null
+        if syssym = null then,
+          syssym = mvsvar("symdef",fixsymb)
+        if syssym <> null then do
+          if left(syssym,1) = "'" then,
+            parse value syssym with "'" syssym "'"
+          symtext = junk""left""syssym""right
+          end /* if left(syssym,1) = "'" */
+        end /* if syssym <> null */
+      end
+    fixstart = p1 + 1
+    if fixstart > length(symtext) then,
+      srchdone = "Y"
+    end
+  else
+    srchdone = "Y"
+  end
+return
+ 
+ 
+ACP00282:
+x = OUTTRAP("LINE.")
+address TSO "TSS LIST(ACIDS)DATA(BASIC)"
+x = outtrap(off)
+do a = 1 to LINE.0
+  if word(line.a,1) = "ACCESSORID" then,
+    macid = word(line.a,3)
+  if word(line.a,1) = "TYPE" then do
+    leave
+    end /* if word(line.a,1) */
+  end /* do a = 1 */
+resource = "MVS.MODIFY.STC.#",
+           "MVS.REPLY#",
+           "MVS.UNKNOWN"
+cnt = 0
+do until resource = ""
+  parse var resource res "#" resource
+  res = strip(res)
+  rc = 0
+  "FIND FIRST '"res" ' 21"
+  if rc = 0 then do
+    "(data) = LINE .ZCSR"
+    parse var data pdi 9 .
+    line = pdi '3' left(macid,8) 'ALTER'
+    line = left(line,30)res
+    "FIND FIRST '"line"' 1"
+    if rc <> 0 then do
+      "LINE_AFTER .ZCSR = DATALINE (LINE)"
+      cnt = cnt + 1
+      end
+    end /* if rc = 0 */
+  end /* do a = 1 */
+ 
+say pgmname right(cnt,4) 'records written to' MEMBER 'for' pdi'.'
+Return
+ 
+ACP00270:
+Address ISPEXEC "VGET (USRRES) ASIS"
+cnt = 0
+do until usrres = ""
+  parse var usrres info "#" usrres
+  if right(info,1) = "A" then,
+    resource = "CSVDYLPA.ADD.#"
+  else ,
+    if right(info,1) = "D" then,
+      resource = "CSVDYLPA.DELETE.#"
+    else ,
+      resource = "CSVDYLPA.ADD.#CSVDYLPA.DELETE.#"
+  do until resource = ""
+    parse var resource res "#" resource
+    res = strip(res)
+    rc = 0
+    "FIND FIRST '"res" ' 21"
+    if rc = 0 then do
+      "(data) = LINE .ZCSR"
+      parse var data pdi 9 .
+      line = left(pdi,8) '3' left(info,8) 'UPDATE'
+      line = left(line,30)res
+      "FIND FIRST '"line"' 1"
+      if rc <> 0 then do
+        "LINE_AFTER .ZCSR = DATALINE (LINE)"
+        cnt = cnt + 1
+        end
+      end /* if rc = 0 */
+    end /* do until resource */
+  end /* do until dsns = "" */
+ 
+say pgmname right(cnt,4) 'records written to' MEMBER 'for' pdi'.'
+Return
+ 
+ACP00293:
+Address TSO "newstack"
+queue 'ACP00293 1 CONSOLE  CONSOLE  SYSCONS '
+do a = 1 to console.0
+  queue 'ACP00293 2          'console.a
+  queue 'ACP00293 3' left(console.a,8) 'READ '
+  if macid <> '' then,
+    queue 'ACP00293 3' left(macid,8) 'READ '
+  queue 'ACP00293 3 CONSOLES READ '
+  queue 'ACP00293 3 AUTOAUDT READ '
+  queue 'ACP00293 3 OPERAUDT READ '
+  queue 'ACP00293 3 SYSPAUDT READ '
+  end /* do a = 1 */
+ 
+say pgmname right(queued(),4) 'records written to' MEMBER 'for ACP00293.'
+Call Write_queued
+Return
+ 
+TSS0246:
+Address TSO "newstack"
+queue 'TSS0246  1                   OPERCMDS'
+queue 'TSS0246  2          MVS      '
+queue 'TSS0246  3 *        ALTER    '
+ 
+say pgmname right(queued(),4) 'records written to' MEMBER 'for TSS0248.'
+Call Write_queued
+Return
+ 
+TSS0780:
+Address TSO "newstack"
+queue 'TSS0780  1                   MODE '
+queue 'TSS0780  2          DORMANT'
+queue 'TSS0780  2          IMPL'
+queue 'TSS0780  2          WARN'
+ 
+say pgmname right(queued(),4) 'records written to' MEMBER 'for TSS0780.'
+Call Write_queued
+Return
+ 
+ZJES0041:
+node =
+Address TSO "newstack"
+x = OUTTRAP("out.")
+test = cacc1010('$D NODE,NAME,OWNNODE=YES')
+if TERMMSGS = ON then,
+  say PGMNAME "output from CACC1010 routine:"
+do a = 1 to out.0
+  say out.a
+  if pos('$HASP826',out.a) <> 0 then,
+    parse var out.a . "NAME=" node
+  end
+queue 'ZJES0041 1                   JESSPOOL'
+if node <> "" then,
+  queue 'ZJES0041 2          'node
+else do
+  queue 'ZJES0041 2          'SYSVAR("sysnode")
+  say PGMNAME 'Using sysnode variable with a value of' SYSVAR("sysnode")'.'
+  end
+queue 'ZJES0041 3 *        ALTER'
+ 
+say pgmname right(queued(),4) 'records written to' MEMBER 'for ZJES0041.'
+Call Write_queued
+/*Address ISPEXEC "VGET (ZISPFRC) SHARED"
+if ZISPFRC > 0 then,
+  ZISPFRC = 4
+Address ISPEXEC "VPUT (ZISPFRC) SHARED"*/
+Return
+ 
+ 
+ABNDAID9:
+Address TSO "newstack"
+Address ISPEXEC "VGET (RESCLASS PREFIX SVRNAME) ASIS"
+if RC <> 0 then return
+ 
+queue 'ZAID0020 1' left(resclass,8) left(resclass,8) left(resclass,8)
+queue 'ZAID0020 2          'prefix'.SERVER.LOGON.FD.'SVRNAME
+queue 'ZAID0020 3 APPDAUDT ALTER   '
+queue 'ZAID0020 3 APPSAUDT ALTER   '
+queue 'ZAID0020 3 OPERAUDT ALTER   '
+queue 'ZAID0020 3 SYSPAUDT ALTER   '
+queue 'ZAID0020 2          'prefix'.SERVER.LOGON.IC.'SVRNAME
+queue 'ZAID0020 3 SYSPAUDT ALTER   '
+queue 'ZAID0020 2          'prefix'.SERVER.LOGON.TC.'SVRNAME
+queue 'ZAID0020 3 OPERAUDT ALTER   '
+queue 'ZAID0020 3 SYSPAUDT ALTER   '
+queue 'ZAID0020 2          'prefix'.DDIRB*.'SVRNAME'.'
+queue 'ZAID0020 3 APPDAUDT ALTER   '
+queue 'ZAID0020 3 APPSAUDT ALTER   '
+queue 'ZAID0020 3 SYSPAUDT ALTER   '
+queue 'ZAID0020 2          'prefix'.DDIRS*.'SVRNAME'.'
+queue 'ZAID0020 3 APPDAUDT ALTER   '
+queue 'ZAID0020 3 APPSAUDT ALTER   '
+queue 'ZAID0020 3 SYSPAUDT ALTER   '
+queue 'ZAID0020 2          'prefix'.DDIRT*.'SVRNAME'.'
+queue 'ZAID0020 3 APPDAUDT ALTER   '
+queue 'ZAID0020 3 APPSAUDT ALTER   '
+queue 'ZAID0020 3 SYSPAUDT ALTER   '
+queue 'ZAID0020 2          'prefix'.SERVER.CONTROL.'SVRNAME
+queue 'ZAID0020 3 OPERAUDT ALTER   '
+queue 'ZAID0020 3 SYSPAUDT ALTER   '
+queue 'ZAID0020 2          'prefix'.SERVER.IMPORT.'SVRNAME
+queue 'ZAID0020 3 APPDAUDT ALTER   '
+queue 'ZAID0020 3 APPSAUDT ALTER   '
+queue 'ZAID0020 3 SYSPAUDT ALTER   '
+queue 'ZAID0020 2          'prefix'.SERVER.IPCSCMD.'SVRNAME
+queue 'ZAID0020 3 APPDAUDT ALTER   '
+queue 'ZAID0020 3 APPSAUDT ALTER   '
+queue 'ZAID0020 3 SYSPAUDT ALTER   '
+queue 'ZAID0020 2          'prefix'.SERVER.REXXAPI.'SVRNAME
+queue 'ZAID0020 3 APPDAUDT ALTER   '
+queue 'ZAID0020 3 APPSAUDT ALTER   '
+queue 'ZAID0020 3 SYSPAUDT ALTER   '
+ 
+say pgmname right(queued(),4) 'records written to' MEMBER 'for' TYPERUN'.'
+Call Write_queued
+return
+ 
+ 
+BMCCTD99:
+Address ISPEXEC "VGET (PRESCL RESCLASS QNAME) ASIS"
+if rc <> 0 | RESCLASS = "" | PRESCL = "" then return
+RESCLASS = left(RESCLASS,8)
+PRESCL = left(PRESCL,8)
+trecs = ""
+rectype = "1"
+table = 'BMCIOA BMCCTD BMCCTM BMCCTO BMCCTR'
+do CNT = 1 to words(table)
+  Call COLLECT_REC word(table,CNT)
+  trecs = trecs""recs
+  end
+Address TSO "newstack"
+queue 'ZCTD002A 1' PRESCL PRESCL PRESCL
+queue 'ZCTD002A 2          $$SECCTD.'QNAME
+queue 'ZCTD002A 3 *        READ        '
+recs = trecs
+do until recs = ''
+  parse var recs . 72 userid 81 recs
+  queue 'ZCTD002A 3 'userid'READ   '
+  end /* do until recs */
+queue 'ZCTD0020 1' RESCLASS RESCLASS RESCLASS
+queue 'ZCTD0020 2          $$ADDNOT.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$ADNASR.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$BKPORD.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+recs = trecs
+do until recs = ''
+  parse var recs . 72 userid 81 recs
+  queue 'ZCTD0020 3 'userid'READ   '
+  end /* do until recs */
+queue 'ZCTD0020 2          $$CDDSEL.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$CHKRCL.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$CTDACT.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$CTDASR.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$CTDCDD.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$CTDEDM.   '
+queue 'ZCTD0020 3 *        READ        '
+queue 'ZCTD0020 2 READ     $$CTDJOB.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$CTDOBJ.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$CTDPNLA.  '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$CTDPNLF.  '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$CTDPREFIX.'
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$CTDPRF.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$CTDRRST.  '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$DELNOT.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$DLNASR.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$DPC1VIE.  '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$DPC2FRE.  '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$DPC2HLD.  '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$DPC3DEL.  '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$DPC3PRN.  '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$DPC4TRN.  '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$EDITNO.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$EDNASR.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$EXTENT.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$GIPASR.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$GIVETO.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$IPRASR.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$MIS1ZOO.  '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$MIS1LOG.  '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$MIS2FRE.  '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$MIS2HLD.  '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$MIS2RRN.  '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$MIS3CHA.  '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$MIS3DEL.  '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$MIS3PPL.  '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$MIS3UPD.  '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$PAGI.     '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$PAGII.    '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$PAGIII.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$PGASRI.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$PGASRII.  '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$PGASRIII. '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$PRTORD.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$RCPASR.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$RDLASR.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$RECALL.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$RECDEL.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$RECHEX.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$RECINS.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$RECIPR.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$RECRPR.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$RECRST.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$RECUPD.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$REPLST.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$REPORD.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$RMVASR.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$RPRASR.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$RSTASR.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$RSTORD.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+recs = trecs
+do until recs = ''
+  parse var recs . 72 userid 81 recs
+  queue 'ZCTD0020 3 'userid'READ   '
+  end /* do until recs */
+queue 'ZCTD0020 2          $$RULONF.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$RULSAV.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$SHNASR.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$TREE.     '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$UNRSTR.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$UPDASR.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$UPDNOT.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$UPNASR.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2 READ     $$UPRASR.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$VEWUPD.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$VIEASR.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$VIEWCO.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$VIEWNO.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+queue 'ZCTD0020 2          $$VWNASR.   '
+queue 'ZCTD0020 3 APPSAUDT READ        '
+queue 'ZCTD0020 3 OPERAUDT READ        '
+queue 'ZCTD0020 3 PCSPAUDT READ        '
+queue 'ZCTD0020 3 SYSPAUDT READ        '
+ 
+say pgmname right(queued(),4) 'records written to' MEMBER 'for ZCTD0020.'
+Call Write_queued
+return
+ 
+ 
+BMCCTM99:
+Address ISPEXEC "VGET (PRESCL RESCLASS QNAME) ASIS"
+if rc <> 0 | RESCLASS = "" then return
+RESCLASS = left(RESCLASS,8)
+trecs = ""
+rectype = "1"
+table = 'BMCIOA BMCCTD BMCCTM BMCCTO BMCCTR'
+do CNT = 1 to words(table)
+  Call COLLECT_REC word(table,CNT)
+  trecs = trecs""recs
+  end
+Address TSO "newstack"
+queue 'ZCTM002A 1' PRESCL PRESCL PRESCL
+queue 'ZCTM002A 2          $$SECCTM.'QNAME
+queue 'ZCTM002A 3 *        READ        '
+recs = trecs
+do until recs = ''
+  parse var recs . 72 userid 81 recs
+  queue 'ZCTM002A 3 'userid'READ   '
+  end /* do until recs */
+queue 'ZCTM0020 1' RESCLASS RESCLASS RESCLASS
+queue 'ZCTM0020 2 READ     $$CTMEDM.   '
+queue 'ZCTM0020 3 *        READ        '
+queue 'ZCTM0020 2          $$CTMPNL3.  '
+recs = trecs
+do until recs = ''
+  parse var recs . 72 userid 81 recs
+  queue 'ZCTM0020 3 'userid'READ   '
+  end /* do until recs */
+queue 'ZCTM0020 3 OPERAUDT READ        '
+queue 'ZCTM0020 3 PCSPAUDT READ        '
+queue 'ZCTM0020 3 SYSPAUDT READ        '
+queue 'ZCTM0020 2 READ     $$CTMSTC.   '
+recs = trecs
+do until recs = ''
+  parse var recs . 72 userid 81 recs
+  queue 'ZCTM0020 3 'userid'READ   '
+  end /* do until recs */
+queue 'ZCTM0020 3 PCSPAUDT READ        '
+queue 'ZCTM0020 3 SYSPAUDT READ        '
+queue 'ZCTM0020 2          $$JOB1ACT.  '
+queue 'ZCTM0020 3 OPERAUDT READ        '
+queue 'ZCTM0020 3 PCSPAUDT READ        '
+queue 'ZCTM0020 3 PRODAUDT READ        '
+queue 'ZCTM0020 3 SYSPAUDT READ        '
+queue 'ZCTM0020 2          $$JOB1AES.  '
+queue 'ZCTM0020 3 OPERAUDT READ        '
+queue 'ZCTM0020 3 PCSPAUDT READ        '
+queue 'ZCTM0020 3 PRODAUDT READ        '
+queue 'ZCTM0020 3 SYSPAUDT READ        '
+queue 'ZCTM0020 2          $$JOB1LOG.  '
+queue 'ZCTM0020 3 OPERAUDT READ        '
+queue 'ZCTM0020 3 PCSPAUDT READ        '
+queue 'ZCTM0020 3 PRODAUDT READ        '
+queue 'ZCTM0020 3 SYSPAUDT READ        '
+queue 'ZCTM0020 2          $$JOB1STA.  '
+queue 'ZCTM0020 3 OPERAUDT READ        '
+queue 'ZCTM0020 3 PCSPAUDT READ        '
+queue 'ZCTM0020 3 PRODAUDT READ        '
+queue 'ZCTM0020 3 SYSPAUDT READ        '
+queue 'ZCTM0020 2          $$JOB1SYS.  '
+queue 'ZCTM0020 3 OPERAUDT READ        '
+queue 'ZCTM0020 3 PCSPAUDT READ        '
+queue 'ZCTM0020 3 PRODAUDT READ        '
+queue 'ZCTM0020 3 SYSPAUDT READ        '
+queue 'ZCTM0020 2          $$JOB1ZOO.  '
+queue 'ZCTM0020 3 OPERAUDT READ        '
+queue 'ZCTM0020 3 PCSPAUDT READ        '
+queue 'ZCTM0020 3 PRODAUDT READ        '
+queue 'ZCTM0020 3 SYSPAUDT READ        '
+queue 'ZCTM0020 2          $$JOB2CHA.  '
+queue 'ZCTM0020 3 OPERAUDT READ        '
+queue 'ZCTM0020 3 PCSPAUDT READ        '
+queue 'ZCTM0020 3 PRODAUDT READ        '
+queue 'ZCTM0020 3 SYSPAUDT READ        '
+queue 'ZCTM0020 2          $$JOB2CNF.  '
+queue 'ZCTM0020 3 OPERAUDT READ        '
+queue 'ZCTM0020 3 PCSPAUDT READ        '
+queue 'ZCTM0020 3 PRODAUDT READ        '
+queue 'ZCTM0020 3 SYSPAUDT READ        '
+queue 'ZCTM0020 2          $$JOB2FOK.  '
+queue 'ZCTM0020 3 OPERAUDT READ        '
+queue 'ZCTM0020 3 PCSPAUDT READ        '
+queue 'ZCTM0020 3 PRODAUDT READ        '
+queue 'ZCTM0020 3 SYSPAUDT READ        '
+queue 'ZCTM0020 2          $$JOB2FRE.  '
+queue 'ZCTM0020 3 OPERAUDT READ        '
+queue 'ZCTM0020 3 PCSPAUDT READ        '
+queue 'ZCTM0020 3 PRODAUDT READ        '
+queue 'ZCTM0020 3 SYSPAUDT READ        '
+queue 'ZCTM0020 2          $$JOB2HLD.  '
+queue 'ZCTM0020 3 OPERAUDT READ        '
+queue 'ZCTM0020 3 PCSPAUDT READ        '
+queue 'ZCTM0020 3 PRODAUDT READ        '
+queue 'ZCTM0020 3 SYSPAUDT READ        '
+queue 'ZCTM0020 2          $$JOB2RRN.  '
+queue 'ZCTM0020 3 OPERAUDT READ        '
+queue 'ZCTM0020 3 PCSPAUDT READ        '
+queue 'ZCTM0020 3 PRODAUDT READ        '
+queue 'ZCTM0020 3 SYSPAUDT READ        '
+queue 'ZCTM0020 2          $$JOB3CHA.  '
+queue 'ZCTM0020 3 OPERAUDT READ        '
+queue 'ZCTM0020 3 PCSPAUDT READ        '
+queue 'ZCTM0020 3 PRODAUDT READ        '
+queue 'ZCTM0020 3 SYSPAUDT READ        '
+queue 'ZCTM0020 2          $$JOB3DEL.  '
+queue 'ZCTM0020 3 OPERAUDT READ        '
+queue 'ZCTM0020 3 PCSPAUDT READ        '
+queue 'ZCTM0020 3 PRODAUDT READ        '
+queue 'ZCTM0020 3 SYSPAUDT READ        '
+queue 'ZCTM0020 2          $$JOB3EDI.  '
+queue 'ZCTM0020 3 OPERAUDT READ        '
+queue 'ZCTM0020 3 PCSPAUDT READ        '
+queue 'ZCTM0020 3 PRODAUDT READ        '
+queue 'ZCTM0020 3 SYSPAUDT READ        '
+queue 'ZCTM0020 2          $$JOB3KIL.  '
+queue 'ZCTM0020 3 OPERAUDT READ        '
+queue 'ZCTM0020 3 PCSPAUDT READ        '
+queue 'ZCTM0020 3 PRODAUDT READ        '
+queue 'ZCTM0020 3 SYSPAUDT READ        '
+queue 'ZCTM0020 2          $$JOB3PRI.  '
+queue 'ZCTM0020 3 OPERAUDT READ        '
+queue 'ZCTM0020 3 PCSPAUDT READ        '
+queue 'ZCTM0020 3 PRODAUDT READ        '
+queue 'ZCTM0020 3 SYSPAUDT READ        '
+queue 'ZCTM0020 2          $$JOBORD.   '
+queue 'ZCTM0020 3 APPBAUDT READ        '
+queue 'ZCTM0020 3 OPERAUDT READ        '
+queue 'ZCTM0020 3 PCSPAUDT READ        '
+queue 'ZCTM0020 3 PRODAUDT READ        '
+queue 'ZCTM0020 3 SYSPAUDT READ        '
+queue 'ZCTM0020 2          $$REFALL.   '
+queue 'ZCTM0020 3 OPERAUDT READ        '
+queue 'ZCTM0020 3 PCSPAUDT READ        '
+queue 'ZCTM0020 3 PRODAUDT READ        '
+queue 'ZCTM0020 3 SYSPAUDT READ        '
+queue 'ZCTM0020 2          $$REFDEAD.  '
+queue 'ZCTM0020 3 OPERAUDT READ        '
+queue 'ZCTM0020 3 PCSPAUDT READ        '
+queue 'ZCTM0020 3 PRODAUDT READ        '
+queue 'ZCTM0020 3 SYSPAUDT READ        '
+queue 'ZCTM0020 2          $$REFNET.   '
+queue 'ZCTM0020 3 OPERAUDT READ        '
+queue 'ZCTM0020 3 DPCSAUDT READ        '
+queue 'ZCTM0020 3 PCSPAUDT READ        '
+queue 'ZCTM0020 3 PRODAUDT READ        '
+queue 'ZCTM0020 3 SYSPAUDT READ        '
+queue 'ZCTM0020 2          $$REFPROP.  '
+queue 'ZCTM0020 3 OPERAUDT READ        '
+queue 'ZCTM0020 3 PCSPAUDT READ        '
+queue 'ZCTM0020 3 PRODAUDT READ        '
+queue 'ZCTM0020 3 SYSPAUDT READ        '
+queue 'ZCTM0020 2          $$REGSTR.   '
+queue 'ZCTM0020 3 OPERAUDT READ        '
+queue 'ZCTM0020 3 PCSPAUDT READ        '
+queue 'ZCTM0020 3 PRODAUDT READ        '
+queue 'ZCTM0020 3 SYSPAUDT READ        '
+queue 'ZCTM0020 2          $$STCORD.   '
+queue 'ZCTM0020 3 OPERAUDT READ        '
+queue 'ZCTM0020 3 PCSPAUDT READ        '
+queue 'ZCTM0020 3 PRODAUDT READ        '
+queue 'ZCTM0020 3 SYSPAUDT READ        '
+queue 'ZCTM0020 2          $$STRSTC.   '
+queue 'ZCTM0020 3 OPERAUDT READ        '
+queue 'ZCTM0020 3 PCSPAUDT READ        '
+queue 'ZCTM0020 3 PRODAUDT READ        '
+queue 'ZCTM0020 3 SYSPAUDT READ        '
+ 
+say pgmname right(queued(),4) 'records written to' MEMBER 'for ZCTM0020.'
+Call Write_queued
+return
+ 
+ 
+BMCCTO99:
+Address ISPEXEC "VGET (PRESCL RESCLASS QNAME) ASIS"
+if rc <> 0 | RESCLASS = "" then return
+RESCLASS = left(RESCLASS,8)
+trecs = ""
+rectype = "1"
+table = 'BMCIOA BMCCTD BMCCTM BMCCTO BMCCTR'
+do CNT = 1 to words(table)
+  Call COLLECT_REC word(table,CNT)
+  trecs = trecs""recs
+  end
+Address TSO "newstack"
+queue 'ZCTO002A 1' PRESCL PRESCL PRESCL
+queue 'ZCTO002A 2          $$SECCTO.'QNAME
+queue 'ZCTO002A 3 *        READ        '
+recs = trecs
+do until recs = ''
+  parse var recs . 72 userid 81 recs
+  queue 'ZCTO002A 3 'userid'READ   '
+  end /* do until recs */
+queue 'ZCTO0020 1' RESCLASS RESCLASS RESCLASS
+queue 'ZCTO0020 2 READ     $$CTOAOP.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$CTOASK.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2 READ     $$CTOCMD.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$CTOCMO.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$CTODOM.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$CTODRL.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$CTODSN.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$CTODSP.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$CTOEDM.   '
+queue 'ZCTO0020 3 *        READ        '
+queue 'ZCTO0020 2          $$CTOENV.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$CTOJAR.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$CTOJED.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$CTOJSO.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$CTOJST.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$CTOKSL.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$CTOMSG.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$CTOOMG.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$CTOONC.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$CTOONM.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$CTOONP.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2 READ     $$CTOORD.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$CTOORL.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$CTOPCM.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$CTOPKS.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$CTOPNLOS. '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2 READ     $$CTOPRC.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2 READ     $$CTOPTS.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$CTORES.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2 READ     $$CTORTS.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$CTORUL.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$CTOSET.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$CTOSRL.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$CTOSRQ.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$CTOSTP.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$CTOSUP.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2 READ     $$CTOTSO.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2 READ     $$CTOXAM.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2 READ     $$CTOXAM.'QNAME'.TYPE1INI'
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2 READ     $$CTOXAM.'QNAME'.TYPE1RSL'
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2 READ     $$CTOXAM.'QNAME'.TYPE1TRM'
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2 READ     $$CTOXAM.'QNAME'.TYPE2LOC'
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2 READ     $$CTOXAM.'QNAME'.TYPE3GLB'
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2 READ     $$CTOXAM.'QNAME'.TYPE3RUL'
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2 READ     $$CTOXAMF.  '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$IOARES.   '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$RUL1LOG.  '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$RUL1ZOO.  '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$RUL2FRE.  '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$RUL2HLD.  '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$RUL2MOD.  '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2          $$RUL2RES.  '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2 READ     $$RUL3CAN.  '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+queue 'ZCTO0020 2 READ     $$RUL3DEL.  '
+queue 'ZCTO0020 3 OPERAUDT READ        '
+queue 'ZCTO0020 3 PCSPAUDT READ        '
+queue 'ZCTO0020 3 PRODAUDT READ        '
+queue 'ZCTO0020 3 SYSPAUDT READ        '
+ 
+say pgmname right(queued(),4) 'records written to' MEMBER 'for ZCTO0020.'
+Call Write_queued
+ 
+trecs =
+table = 'BMCCTO'
+do CNT = 1 to words(table)
+  Call COLLECT_REC word(table,CNT)
+  trecs = trecs""recs
+  end
+"EXCLUDE ALL 'ACP00270' 1"
+resource = "CSVLLA.#"
+cnt = 0
+do until resource = ""
+  parse var resource res "#" resource
+  res = strip(res)
+  rc = 0
+  "FIND FIRST '"res" ' 21 X"
+  if rc = 0 then do
+    "(data) = LINE .ZCSR"
+    parse var data pdi 9 .
+    recs = trecs
+    do until recs = ''
+      parse var recs . 72 userid 81 recs
+      line = left(pdi,8) '3' left(userid,8) 'UPDATE'
+      line = left(line,30)res
+      "FIND FIRST '"line"' 1"
+      if rc <> 0 then do
+        "LINE_AFTER .ZCSR = DATALINE (LINE)"
+        cnt = cnt + 1
+        end
+      end /* do until recs */
+    end /* if rc = 0 */
+  end /* do a = 1 */
+ 
+say pgmname right(cnt,4) 'records written to' MEMBER 'for' pdi'.'
+return
+ 
+ 
+BMCCTR99:
+return
+ 
+ 
+BMCMVZ99:
+Address ISPEXEC "VGET (RESCLASS SSID) ASIS"
+if rc <> 0 | RESCLASS = "" then return
+RESCLASS = left(RESCLASS,8)
+Address TSO "newstack"
+resource = "CSVDYLPA.ADD.#"
+rectype = "1"
+Call COLLECT_REC
+trecs = recs
+cnt = 0
+do until resource = ""
+  parse var resource res "#" resource
+  res = strip(res)
+  rc = 0
+  "FIND FIRST '"res" ' 21"
+  if rc = 0 then do
+    "(data) = LINE .ZCSR"
+    parse var data pdi 9 .
+    recs = trecs
+    do until recs = ''
+      parse var recs . 72 userid 81 recs
+      line = left(pdi,8) '3' left(userid,8) 'UPDATE'
+      line = left(line,30)res
+      "FIND FIRST '"line"' 1"
+      if rc <> 0 then do
+        "LINE_AFTER .ZCSR = DATALINE (LINE)"
+        cnt = cnt + 1
+        end /* if rc <> 0 */
+      end /* do until recs */
+    end /* if rc = 0 */
+  end /* do until resource */
+say pgmname right(cnt,4) 'records written to' MEMBER 'for' pdi'.'
+queue 'ZMVZ0020 1' RESCLASS RESCLASS RESCLASS
+queue 'ZMVZ0020 2          BBM.COMMON.ASU.PA'
+queue 'ZMVZ0020 3 *        NONE        '
+queue 'ZMVZ0020 2          BBM.'SSID'.CN'
+queue 'ZMVZ0020 3 AUTOAUDT ALTER       '
+queue 'ZMVZ0020 3 DASDAUDT ALTER       '
+queue 'ZMVZ0020 3 MQSAAUDT ALTER       '
+queue 'ZMVZ0020 3 MVREAD   ALTER       '
+queue 'ZMVZ0020 3 MVUPDT   ALTER       '
+queue 'ZMVZ0020 3 PCSPAUDT ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+recs = trecs
+do until recs = ''
+  parse var recs . 72 userid 81 recs
+  queue 'ZMVZ0020 3 'userid'ALTER  '
+  end /* do until recs */
+/* MVALARM Resources - Done */
+queue 'ZMVZ0020 2          BBM.'sysname'.MVALARM.'sysname'.TC'
+recs = trecs
+do until recs = ''
+  parse var recs . 72 userid 81 recs
+  queue 'ZMVZ0020 3 'userid'ALTER  '
+  end /* do until recs */
+/* MVALERT Resources - Done */
+queue 'ZMVZ0020 2          BBM.'sysname'.MVALERT.'sysname'.TC'
+recs = trecs
+do until recs = ''
+  parse var recs . 72 userid 81 recs
+  queue 'ZMVZ0020 3 'userid'ALTER  '
+  end /* do until recs */
+/* MVAO Resources - Done */
+queue 'ZMVZ0020 2          BBM.'sysname'.MVAO.'sysname'.TC'
+recs = trecs
+do until recs = ''
+  parse var recs . 72 userid 81 recs
+  queue 'ZMVZ0020 3 'userid'ALTER  '
+  end /* do until recs */
+/* MVCSMON Resources - Done */
+queue 'ZMVZ0020 2          BBM.'sysname'.MVCSMON.'sysname'.TA'
+queue 'ZMVZ0020 3 MVUPDT   ALTER       '
+queue 'ZMVZ0020 3 DASDAUDT ALTER       '
+queue 'ZMVZ0020 3 AUTOAUDT ALTER       '
+queue 'ZMVZ0020 3 PCSPAUDT ALTER       '
+queue 'ZMVZ0020 3 MQSAAUDT ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.'sysname'.MVCSMON.'sysname'.TC'
+recs = trecs
+do until recs = ''
+  parse var recs . 72 userid 81 recs
+  queue 'ZMVZ0020 3 'userid'ALTER  '
+  end /* do until recs */
+queue 'ZMVZ0020 2          BBM.MVCSMON.'sysname'.AA'
+queue 'ZMVZ0020 3 MVUPDT   ALTER       '
+queue 'ZMVZ0020 3 DASDAUDT ALTER       '
+queue 'ZMVZ0020 3 AUTOAUDT ALTER       '
+queue 'ZMVZ0020 3 PCSPAUDT ALTER       '
+queue 'ZMVZ0020 3 MQSAAUDT ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVCSMON.'sysname'.CSMON.PA'
+queue 'ZMVZ0020 3 MVUPDT   ALTER       '
+queue 'ZMVZ0020 3 DASDAUDT ALTER       '
+queue 'ZMVZ0020 3 AUTOAUDT ALTER       '
+queue 'ZMVZ0020 3 PCSPAUDT ALTER       '
+queue 'ZMVZ0020 3 MQSAAUDT ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVCSMON.'sysname'.MYA30.OD'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVCSMON.'sysname'.MYA20.'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVCSMON.'sysname'.COMMON.AA'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+/* MVMVS Resources */
+queue 'ZMVZ0020 2          BBM.'sysname'.MVMVS.'sysname'.TA'
+queue 'ZMVZ0020 3 MVUPDT   ALTER       '
+queue 'ZMVZ0020 3 DASDAUDT ALTER       '
+queue 'ZMVZ0020 3 AUTOAUDT ALTER       '
+queue 'ZMVZ0020 3 PCSPAUDT ALTER       '
+queue 'ZMVZ0020 3 MQSAAUDT ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+recs = trecs
+do until recs = ''
+  parse var recs . 72 userid 81 recs
+  queue 'ZMVZ0020 3 'userid'ALTER  '
+  end /* do until recs */
+queue 'ZMVZ0020 2          BBM.'sysname'.MVMVS.'sysname'.TC'
+recs = trecs
+do until recs = ''
+  parse var recs . 72 userid 81 recs
+  queue 'ZMVZ0020 3 'userid'ALTER  '
+  end /* do until recs */
+queue 'ZMVZ0020 2          BBM.MVMVS.'sysname'.AA'
+queue 'ZMVZ0020 3 MVUPDT   ALTER       '
+queue 'ZMVZ0020 3 DASDAUDT ALTER       '
+queue 'ZMVZ0020 3 AUTOAUDT ALTER       '
+queue 'ZMVZ0020 3 PCSPAUDT ALTER       '
+queue 'ZMVZ0020 3 MQSAAUDT ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVMVS.'sysname'.D*.OD'
+queue 'ZMVZ0020 3 MVUPDT   ALTER       '
+queue 'ZMVZ0020 3 DASDAUDT ALTER       '
+queue 'ZMVZ0020 3 AUTOAUDT ALTER       '
+queue 'ZMVZ0020 3 PCSPAUDT ALTER       '
+queue 'ZMVZ0020 3 MQSAAUDT ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+recs = trecs
+do until recs = ''
+  parse var recs . 72 userid 81 recs
+  queue 'ZMVZ0020 3 'userid'ALTER  '
+  end /* do until recs */
+queue 'ZMVZ0020 2          BBM.MVMVS.'sysname'.DC101.CLCMD.OA'
+queue 'ZMVZ0020 3 MVUPDT   ALTER       '
+queue 'ZMVZ0020 3 DASDAUDT ALTER       '
+queue 'ZMVZ0020 3 AUTOAUDT ALTER       '
+queue 'ZMVZ0020 3 PCSPAUDT ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVMVS.'sysname'.MVSCOPE.PA'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVMVS.'sysname'.MYA30.OD'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVMVS.'sysname'.MYA20.'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVMVS.'sysname'.COMMON.AA'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+/* SYSPROG Resources */
+queue 'ZMVZ0020 2          BBM.MVSPS.'sysname'.AA'
+queue 'ZMVZ0020 3 MVREAD   ALTER       '
+queue 'ZMVZ0020 3 MVUPDT   ALTER       '
+queue 'ZMVZ0020 3 DASDAUDT ALTER       '
+queue 'ZMVZ0020 3 AUTOAUDT ALTER       '
+queue 'ZMVZ0020 3 PCSPAUDT ALTER       '
+queue 'ZMVZ0020 3 MQSAAUDT ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVSPS.'sysname'.*.OD'
+queue 'ZMVZ0020 3 MVREAD   ALTER       '
+queue 'ZMVZ0020 3 MVUPDT   ALTER       '
+queue 'ZMVZ0020 3 DASDAUDT ALTER       '
+queue 'ZMVZ0020 3 AUTOAUDT ALTER       '
+queue 'ZMVZ0020 3 PCSPAUDT ALTER       '
+queue 'ZMVZ0020 3 MQSAAUDT ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVSPS.'sysname'.SYSPROG.PA'
+queue 'ZMVZ0020 3 MVREAD   ALTER       '
+queue 'ZMVZ0020 3 MVUPDT   ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.'sysname'.MVSPS.'sysname'.TC'
+recs = trecs
+do until recs = ''
+  parse var recs . 72 userid 81 recs
+  queue 'ZMVZ0020 3 'userid'ALTER  '
+  end /* do until recs */
+queue 'ZMVZ0020 2          BBM.'sysname'.MVSPS.'sysname'.TA'
+queue 'ZMVZ0020 3 MVREAD   ALTER       '
+queue 'ZMVZ0020 3 MVUPDT   ALTER       '
+queue 'ZMVZ0020 3 DASDAUDT ALTER       '
+queue 'ZMVZ0020 3 AUTOAUDT ALTER       '
+queue 'ZMVZ0020 3 PCSPAUDT ALTER       '
+queue 'ZMVZ0020 3 MQSAAUDT ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVSPS.'sysname'.MYA30.OD'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVSPS.'sysname'.MYA20.'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVSPS.'sysname'.COMMON.AA'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+/* MVSRM Resources - Done */
+queue 'ZMVZ0020 2          BBM.'sysname'.MVSRM.'sysname'.TC'
+recs = trecs
+do until recs = ''
+  parse var recs . 72 userid 81 recs
+  queue 'ZMVZ0020 3 'userid'ALTER  '
+  end /* do until recs */
+/* MVUSS Resources */
+queue 'ZMVZ0020 2          BBM.'sysname'.MVUSS.'sysname'.TC'
+recs = trecs
+do until recs = ''
+  parse var recs . 72 userid 81 recs
+  queue 'ZMVZ0020 3 'userid'ALTER  '
+  end /* do until recs */
+queue 'ZMVZ0020 2          BBM.'sysname'.MVUSS.'sysname'.TA'
+queue 'ZMVZ0020 3 MVUPDT   ALTER       '
+queue 'ZMVZ0020 3 DASDAUDT ALTER       '
+queue 'ZMVZ0020 3 AUTOAUDT ALTER       '
+queue 'ZMVZ0020 3 PCSPAUDT ALTER       '
+queue 'ZMVZ0020 3 MQSAAUDT ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+recs = trecs
+do until recs = ''
+  parse var recs . 72 userid 81 recs
+  queue 'ZMVZ0020 3 'userid'ALTER  '
+  end /* do until recs */
+queue 'ZMVZ0020 2          BBM.MVUSS.'sysname'.AA'
+queue 'ZMVZ0020 3 MVUPDT   ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVUSS.'sysname'.UCEC4.OD'
+queue 'ZMVZ0020 3 MVREAD   ALTER       '
+queue 'ZMVZ0020 3 MVUPDT   ALTER       '
+queue 'ZMVZ0020 3 AUTOAUDT ALTER       '
+queue 'ZMVZ0020 3 PCSPAUDT ALTER       '
+queue 'ZMVZ0020 3 MQSAAUDT ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVUSS.'sysname'.UEC3A.AO'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVUSS.'sysname'.UEC3A.BPXLIMIT.OA'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVUSS.'sysname'.UEC3A.OD'
+queue 'ZMVZ0020 3 MVREAD   ALTER       '
+queue 'ZMVZ0020 3 MVUPDT   ALTER       '
+queue 'ZMVZ0020 3 AUTOAUDT ALTER       '
+queue 'ZMVZ0020 3 PCSPAUDT ALTER       '
+queue 'ZMVZ0020 3 MQSAAUDT ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVUSS.'sysname'.UCEC0.OD'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVUSS.'sysname'.UCECC.OD'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVUSS.'sysname'.UCECE.OD'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVUSS.'sysname'.UCE48.OD'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVUSS.'sysname'.UCEC3.OD'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVUSS.'sysname'.UUSSD.AO'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVUSS.'sysname'.UUSSD.ACTIVATE.OA'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVUSS.'sysname'.UUSSD.DEACT.OA'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVUSS.'sysname'.UUSSD.OD'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVUSS.'sysname'.UCEC2.OD'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVUSS.'sysname'.UCED0.OD'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVUSS.'sysname'.UCED1.OD'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVUSS.'sysname'.UCED6.OD'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+recs = trecs
+do until recs = ''
+  parse var recs . 72 userid 81 recs
+  queue 'ZMVZ0020 3 'userid'ALTER  '
+  end /* do until recs */
+queue 'ZMVZ0020 2          BBM.MVUSS.'sysname'.*.OD'
+queue 'ZMVZ0020 3 MVUPDT   ALTER       '
+queue 'ZMVZ0020 3 DASDAUDT ALTER       '
+queue 'ZMVZ0020 3 MQSAAUDT ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+recs = trecs
+do until recs = ''
+  parse var recs . 72 userid 81 recs
+  queue 'ZMVZ0020 3 'userid'ALTER  '
+  end /* do until recs */
+queue 'ZMVZ0020 2          BBM.MVUSS.'sysname'.MYA30.OD'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVUSS.'sysname'.MYA20.'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVUSS.'sysname'.COMMON.AA'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+/* PLEXMGR Resources */
+queue 'ZMVZ0020 2          BBM.'sysname'.PLEXMGR.'sysname'.TA'
+queue 'ZMVZ0020 3 MVREAD   ALTER       '
+queue 'ZMVZ0020 3 MVUPDT   ALTER       '
+queue 'ZMVZ0020 3 DASDAUDT ALTER       '
+queue 'ZMVZ0020 3 AUTOAUDT ALTER       '
+queue 'ZMVZ0020 3 PCSPAUDT ALTER       '
+queue 'ZMVZ0020 3 MQSAAUDT ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+recs = trecs
+do until recs = ''
+  parse var recs . 72 userid 81 recs
+  queue 'ZMVZ0020 3 'userid'ALTER  '
+  end /* do until recs */
+queue 'ZMVZ0020 2          BBM.PLEXMGR.'sysname'.CCE92.OD'
+queue 'ZMVZ0020 3 MVREAD   ALTER       '
+queue 'ZMVZ0020 3 MVUPDT   ALTER       '
+queue 'ZMVZ0020 3 DASDAUDT ALTER       '
+queue 'ZMVZ0020 3 AUTOAUDT ALTER       '
+queue 'ZMVZ0020 3 PCSPAUDT ALTER       '
+queue 'ZMVZ0020 3 MQSAAUDT ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.PLEXMGR.'sysname'.'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.PLEXMGR.'sysname'.AA'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.PLEXMGR.'sysname'.CYA70.OD'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.PLEXMGR.'sysname'.CYAB0.'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.PLEXMGR.'sysname'.CYAD0.OD'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.PLEXMGR.'sysname'.CYA60.OD'
+queue 'ZMVZ0020 3 MVREAD   ALTER       '
+queue 'ZMVZ0020 3 MVUPDT   ALTER       '
+queue 'ZMVZ0020 3 DASDAUDT ALTER       '
+queue 'ZMVZ0020 3 AUTOAUDT ALTER       '
+queue 'ZMVZ0020 3 PCSPAUDT ALTER       '
+queue 'ZMVZ0020 3 MQSAAUDT ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.PLEXMGR.'sysname'.CYA50.OD'
+queue 'ZMVZ0020 3 MVREAD   ALTER       '
+queue 'ZMVZ0020 3 MVUPDT   ALTER       '
+queue 'ZMVZ0020 3 DASDAUDT ALTER       '
+queue 'ZMVZ0020 3 AUTOAUDT ALTER       '
+queue 'ZMVZ0020 3 PCSPAUDT ALTER       '
+queue 'ZMVZ0020 3 MQSAAUDT ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.PLEXMGR.'sysname'.CYA50.'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.PLEXMGR.'sysname'.CYAC0.OD'
+queue 'ZMVZ0020 3 MVREAD   ALTER       '
+queue 'ZMVZ0020 3 MVUPDT   ALTER       '
+queue 'ZMVZ0020 3 DASDAUDT ALTER       '
+queue 'ZMVZ0020 3 AUTOAUDT ALTER       '
+queue 'ZMVZ0020 3 PCSPAUDT ALTER       '
+queue 'ZMVZ0020 3 MQSAAUDT ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.PLEXMGR.'sysname'.CYA10.OD'
+queue 'ZMVZ0020 3 MVREAD   ALTER       '
+queue 'ZMVZ0020 3 MVUPDT   ALTER       '
+queue 'ZMVZ0020 3 DASDAUDT ALTER       '
+queue 'ZMVZ0020 3 AUTOAUDT ALTER       '
+queue 'ZMVZ0020 3 PCSPAUDT ALTER       '
+queue 'ZMVZ0020 3 MQSAAUDT ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.PLEXMGR.'sysname'.CYA10.'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.PLEXMGR.'sysname'.CYAA0.OD'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.PLEXMGR.'sysname'.CYA90.'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.PLEXMGR.'sysname'.CYAE0.OD'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.PLEXMGR.'sysname'.CYA80.'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.PLEXMGR.'sysname'.MYA30.OD'
+queue 'ZMVZ0020 3 MVUPDT   ALTER       '
+queue 'ZMVZ0020 3 DASDAUDT ALTER       '
+queue 'ZMVZ0020 3 AUTOAUDT ALTER       '
+queue 'ZMVZ0020 3 PCSPAUDT ALTER       '
+queue 'ZMVZ0020 3 MQSAAUDT ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.PLEXMGR.'sysname'.MYA20.OD'
+queue 'ZMVZ0020 3 MVUPDT   ALTER       '
+queue 'ZMVZ0020 3 DASDAUDT ALTER       '
+queue 'ZMVZ0020 3 AUTOAUDT ALTER       '
+queue 'ZMVZ0020 3 PCSPAUDT ALTER       '
+queue 'ZMVZ0020 3 MQSAAUDT ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.PLEXMGR.'sysname'.MYA20.'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.PLEXMGR.'sysname'.COMMON.AA'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.PLEXMGR.'sysname'.CZZ01.OD'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.PLEXMGR.'sysname'.CZZ02.OD'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.PLEXMGR.'sysname'.MYA40.'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.PLEXMGR.'sysname'.MYB30.OD'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+recs = trecs
+do until recs = ''
+  parse var recs . 72 userid 81 recs
+  queue 'ZMVZ0020 3 'userid'READ   '
+  end /* do until recs */
+queue 'ZMVZ0020 2          BBM.PLEXMGR.'sysname'.MYD00.OD'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+recs = trecs
+do until recs = ''
+  parse var recs . 72 userid 81 recs
+  queue 'ZMVZ0020 3 'userid'READ   '
+  end /* do until recs */
+targetid = "*"
+queue 'ZMVZ0020 2          BBM.MVDB2.'targetid'.AA'
+queue 'ZMVZ0020 3 AUTOAUDT ALTER       '
+queue 'ZMVZ0020 3 DABAAUDT ALTER       '
+queue 'ZMVZ0020 3 DASDAUDT ALTER       '
+queue 'ZMVZ0020 3 MVREAD   ALTER       '
+queue 'ZMVZ0020 3 PCSPAUDT ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+recs = trecs
+do until recs = ''
+  parse var recs . 72 userid 81 recs
+  queue 'ZMVZ0020 3 'userid'ALTER  '
+  end /* do until recs */
+queue 'ZMVZ0020 2          BBM.MVDB2.'targetid'.*.AO'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVDB2.'targetid'.*.OD'
+queue 'ZMVZ0020 3 AUTOAUDT ALTER       '
+queue 'ZMVZ0020 3 DABAAUDT ALTER       '
+queue 'ZMVZ0020 3 DASDAUDT ALTER       '
+queue 'ZMVZ0020 3 MVREAD   ALTER       '
+queue 'ZMVZ0020 3 PCSPAUDT ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+recs = trecs
+do until recs = ''
+  parse var recs . 72 userid 81 recs
+  queue 'ZMVZ0020 3 'userid'ALTER  '
+  end /* do until recs */
+queue 'ZMVZ0020 2          BBM.MVDB2.'targetid'.*.*.OA'
+queue 'ZMVZ0020 3 AUTOAUDT ALTER       '
+queue 'ZMVZ0020 3 DABAAUDT ALTER       '
+queue 'ZMVZ0020 3 DASDAUDT ALTER       '
+queue 'ZMVZ0020 3 MVREAD   ALTER       '
+queue 'ZMVZ0020 3 PCSPAUDT ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+recs = trecs
+do until recs = ''
+  parse var recs . 72 userid 81 recs
+  queue 'ZMVZ0020 3 'userid'ALTER  '
+  end /* do until recs */
+targetid = "*"
+queue 'ZMVZ0020 2          BBM.MVCICS.'targetid'.AA'
+queue 'ZMVZ0020 3 AUTOAUDT ALTER       '
+queue 'ZMVZ0020 3 DASDAUDT ALTER       '
+queue 'ZMVZ0020 3 MQSAAUDT ALTER       '
+queue 'ZMVZ0020 3 CICDAUDT ALTER       '
+queue 'ZMVZ0020 3 PCSPAUDT ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVCICS.'targetid'.QQ210.'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVCICS.'targetid'.SET*.'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVCICS.'targetid'.AO'
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+queue 'ZMVZ0020 2          BBM.MVCICS.'targetid'.OD'
+queue 'ZMVZ0020 3 AUTOAUDT ALTER       '
+queue 'ZMVZ0020 3 DASDAUDT ALTER       '
+queue 'ZMVZ0020 3 DABAAUDT ALTER       '
+queue 'ZMVZ0020 3 CICDAUDT ALTER       '
+queue 'ZMVZ0020 3 PCSPAUDT ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+recs = trecs
+do until recs = ''
+  parse var recs . 72 userid 81 recs
+  queue 'ZMVZ0020 3 'userid'ALTER  '
+  end /* do until recs */
+queue 'ZMVZ0020 2          BBM.MVCICS.'targetid'*.*.OA'
+queue 'ZMVZ0020 3 AUTOAUDT ALTER       '
+queue 'ZMVZ0020 3 DASDAUDT ALTER       '
+queue 'ZMVZ0020 3 DABAAUDT ALTER       '
+queue 'ZMVZ0020 3 CICDAUDT ALTER       '
+queue 'ZMVZ0020 3 PCSPAUDT ALTER       '
+queue 'ZMVZ0020 3 SYSPAUDT ALTER       '
+ 
+say pgmname right(queued(),4) 'records written to' MEMBER 'for ZMVZ0020.'
+Call Write_queued
+return
+ 
+ 
+BMCIOA99:
+Address ISPEXEC "VGET (PRESCL RESCLASS QNAME) ASIS"
+if rc <> 0 | RESCLASS = "" then return
+RESCLASS = left(RESCLASS,8)
+trecs = ""
+rectype = "1"
+table = 'BMCIOA BMCCTD BMCCTM BMCCTO BMCCTR'
+do CNT = 1 to words(table)
+  Call COLLECT_REC word(table,CNT)
+  trecs = trecs""recs
+  end
+Address TSO "newstack"
+queue 'ZIOA002A 1' PRESCL PRESCL PRESCL
+queue 'ZIOA002A 2          $$SECIOA.'QNAME
+queue 'ZIOA002A 3 *        READ        '
+recs = trecs
+do until recs = ''
+  parse var recs . 72 userid 81 recs
+  queue 'ZIOA002A 3 'userid'READ   '
+  end /* do until recs */
+queue 'ZIOA0020 1' RESCLASS RESCLASS RESCLASS
+queue 'ZIOA0020 2          $$ADDCND.   '
+queue 'ZIOA0020 3 AUTOAUDT READ        '
+queue 'ZIOA0020 3 OPERAUDT READ        '
+queue 'ZIOA0020 3 PCSPAUDT READ        '
+queue 'ZIOA0020 3 PRODAUDT READ        '
+queue 'ZIOA0020 3 SYSPAUDT READ        '
+queue 'ZIOA0020 2 READ     $$ADDCTL.   '
+queue 'ZIOA0020 3 OPERAUDT READ        '
+queue 'ZIOA0020 3 PCSPAUDT READ        '
+queue 'ZIOA0020 3 PRODAUDT READ        '
+queue 'ZIOA0020 3 SYSPAUDT READ        '
+queue 'ZIOA0020 2 READ     $$ADDRES.   '
+queue 'ZIOA0020 3 OPERAUDT READ        '
+queue 'ZIOA0020 3 PCSPAUDT READ        '
+queue 'ZIOA0020 3 PRODAUDT READ        '
+queue 'ZIOA0020 3 SYSPAUDT READ        '
+queue 'ZIOA0020 2 READ     $$CHARES.   '
+queue 'ZIOA0020 3 OPERAUDT READ        '
+queue 'ZIOA0020 3 PCSPAUDT READ        '
+queue 'ZIOA0020 3 PRODAUDT READ        '
+queue 'ZIOA0020 3 SYSPAUDT READ        '
+queue 'ZIOA0020 2          $$CHKCND.   '
+queue 'ZIOA0020 3 OPERAUDT READ        '
+queue 'ZIOA0020 3 PCSPAUDT READ        '
+queue 'ZIOA0020 3 SYSPAUDT READ        '
+queue 'ZIOA0020 2          $$CHKCTL.   '
+queue 'ZIOA0020 3 OPERAUDT READ        '
+queue 'ZIOA0020 3 PCSPAUDT READ        '
+queue 'ZIOA0020 3 PRODAUDT READ        '
+queue 'ZIOA0020 3 SYSPAUDT READ        '
+queue 'ZIOA0020 2          $$CHKRES.   '
+queue 'ZIOA0020 3 OPERAUDT READ        '
+queue 'ZIOA0020 3 PCSPAUDT READ        '
+queue 'ZIOA0020 3 SYSPAUDT READ        '
+queue 'ZIOA0020 2          $$DELCND.   '
+queue 'ZIOA0020 3 AUTOAUDT READ        '
+queue 'ZIOA0020 3 OPERAUDT READ        '
+queue 'ZIOA0020 3 PCSPAUDT READ        '
+queue 'ZIOA0020 3 PRODAUDT READ        '
+queue 'ZIOA0020 3 SYSPAUDT READ        '
+queue 'ZIOA0020 2 READ     $$DELCTL.   '
+queue 'ZIOA0020 3 OPERAUDT READ        '
+queue 'ZIOA0020 3 PCSPAUDT READ        '
+queue 'ZIOA0020 3 SYSPAUDT READ        '
+queue 'ZIOA0020 2 READ     $$DELRES.   '
+queue 'ZIOA0020 3 OPERAUDT READ        '
+queue 'ZIOA0020 3 PCSPAUDT READ        '
+queue 'ZIOA0020 3 SYSPAUDT READ        '
+queue 'ZIOA0020 2 READ     $$ERACND.   '
+queue 'ZIOA0020 3 OPERAUDT READ        '
+queue 'ZIOA0020 3 PCSPAUDT READ        '
+queue 'ZIOA0020 3 SYSPAUDT READ        '
+queue 'ZIOA0020 2 READ     $$IOAAS.    '
+queue 'ZIOA0020 3 OPERAUDT READ        '
+queue 'ZIOA0020 3 PCSPAUDT READ        '
+queue 'ZIOA0020 3 SYSPAUDT READ        '
+queue 'ZIOA0020 2 READ     $$IOACMD.   '
+queue 'ZIOA0020 3 AUTOAUDT READ        '
+queue 'ZIOA0020 3 OPERAUDT READ        '
+queue 'ZIOA0020 3 PCSPAUDT READ        '
+queue 'ZIOA0020 3 SYSPAUDT READ        '
+queue 'ZIOA0020 2          $$IOADEL.   '
+queue 'ZIOA0020 3 DPCSAUDT READ        '
+queue 'ZIOA0020 3 OPERAUDT READ        '
+queue 'ZIOA0020 3 PCSPAUDT READ        '
+queue 'ZIOA0020 3 SYSPAUDT READ        '
+queue 'ZIOA0020 2          $$IOADIR.   '
+queue 'ZIOA0020 3 *        READ        '
+queue 'ZIOA0020 2          $$IOAEDM.   '
+queue 'ZIOA0020 3 *        READ        '
+queue 'ZIOA0020 2          $$IOAEDT.   '
+queue 'ZIOA0020 3 DPCSAUDT READ        '
+queue 'ZIOA0020 3 OPERAUDT READ        '
+queue 'ZIOA0020 3 PCSPAUDT READ        '
+queue 'ZIOA0020 3 SYSPAUDT READ        '
+queue 'ZIOA0020 2 READ     $$IOAGL.    '
+queue 'ZIOA0020 3 OPERAUDT READ        '
+queue 'ZIOA0020 3 PCSPAUDT READ        '
+queue 'ZIOA0020 3 SYSPAUDT READ        '
+queue 'ZIOA0020 2          $$IOAONLINE.'
+queue 'ZIOA0020 3 BMCADMIN READ        '
+queue 'ZIOA0020 3 BMCUSER  READ        '
+queue 'ZIOA0020 3 OPERAUDT READ        '
+queue 'ZIOA0020 3 PCSPAUDT READ        '
+queue 'ZIOA0020 3 SYSPAUDT READ        '
+queue 'ZIOA0020 2 READ     $$IOARES.   '
+queue 'ZIOA0020 3 OPERAUDT READ        '
+queue 'ZIOA0020 3 PCSPAUDT READ        '
+queue 'ZIOA0020 3 SYSPAUDT READ        '
+queue 'ZIOA0020 2          $$IOASAV.   '
+queue 'ZIOA0020 3 DPCSAUDT READ        '
+queue 'ZIOA0020 3 OPERAUDT READ        '
+queue 'ZIOA0020 3 PCSPAUDT READ        '
+queue 'ZIOA0020 3 SYSPAUDT READ        '
+queue 'ZIOA0020 2 READ     $$IOAUTL.   '
+queue 'ZIOA0020 3 AUTOAUDT READ        '
+queue 'ZIOA0020 3 OPERAUDT READ        '
+queue 'ZIOA0020 3 PCSPAUDT READ        '
+queue 'ZIOA0020 3 SYSPAUDT READ        '
+queue 'ZIOA0020 2 READ     $$IOAVD.    '
+queue 'ZIOA0020 3 OPERAUDT READ        '
+queue 'ZIOA0020 3 PCSPAUDT READ        '
+queue 'ZIOA0020 3 SYSPAUDT READ        '
+queue 'ZIOA0020 2          $$IOAVIW.   '
+queue 'ZIOA0020 3 DPCSAUDT READ        '
+queue 'ZIOA0020 3 IOABAUDT READ        '
+queue 'ZIOA0020 3 OPERAUDT READ        '
+queue 'ZIOA0020 3 PCSPAUDT READ        '
+queue 'ZIOA0020 3 SYSPAUDT READ        '
+queue 'ZIOA0020 2 READ     $$IOAVP.    '
+queue 'ZIOA0020 3 OPERAUDT READ        '
+queue 'ZIOA0020 3 PCSPAUDT READ        '
+queue 'ZIOA0020 3 SYSPAUDT READ        '
+queue 'ZIOA0020 2          $$NEWCND.   '
+queue 'ZIOA0020 3 OPERAUDT READ        '
+queue 'ZIOA0020 3 PCSPAUDT READ        '
+queue 'ZIOA0020 3 SYSPAUDT READ        '
+ 
+say pgmname right(queued(),4) 'records written to' MEMBER 'for ZIOA0020.'
+Call Write_queued
+return
+ 
+ 
+CAAUDTR9:
+Address TSO "newstack"
+queue 'ZADT0020 1 PROGRAM  PROGRAM  PROGRAM '
+queue 'ZADT0020 2          LTDMMAIN'
+queue 'ZADT0020 3 *        NONE'
+queue 'ZADT0020 3 AUDTAUDT ALTER'
+queue 'ZADT0020 3 SECAAUDT ALTER'
+queue 'ZADT0020 3 SECBAUDT ALTER'
+queue 'ZADT0020 3 SYSPAUDT ALTER'
+ 
+say pgmname right(queued(),4) 'records written to' MEMBER 'for ZADT0020.'
+Call Write_queued
+return
+ 
+ 
+CAMIM999:
+Address TSO "newstack"
+Address ISPEXEC "VGET (PREFIX) ASIS"
+if RC <> 0 then return
+ 
+queue 'ZMIM0020 1 OPERCMDS OPERCMDS OPERCMDS'
+queue 'ZMIM0020 2          'prefix'.ACTIVATE'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.ADDQNAME'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.ALLOCATE'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.ALTER'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.AUTHCHK'
+queue 'ZMIM0020 3 OPERAUDT UPDATE'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.COLLECT'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.CP'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.CTC'
+queue 'ZMIM0020 3 DASDAUDT UPDATE'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.DEALLOCATE'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.DEFALIAS'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.DELQNAME'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.DEQJOB'
+queue 'ZMIM0020 3 PCSPAUDT UPDATE'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.DIAGNOSE'
+queue 'ZMIM0020 3 OPERAUDT UPDATE'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.DISPLAY'
+queue 'ZMIM0020 3 *        READ'
+queue 'ZMIM0020 2          'prefix'.DOM'
+queue 'ZMIM0020 3 OPERAUDT UPDATE'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.DROPSYS'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.DUMP'
+queue 'ZMIM0020 3 *        NONE'
+queue 'ZMIM0020 2          'prefix'.EDITEST'
+queue 'ZMIM0020 3 OPERAUDT UPDATE'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.EXEMPT'
+queue 'ZMIM0020 3 OPERAUDT UPDATE'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.FREE'
+queue 'ZMIM0020 3 AUTOAUDT UPDATE'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.FREECONS'
+queue 'ZMIM0020 3 OPERAUDT UPDATE'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.GLOBALVALUE'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.ICMF'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.IDEFSYS'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.LINK'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.MIGRATE'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.MSGTABLE'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.QUIESCE'
+queue 'ZMIM0020 3 OPERAUDT UPDATE'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.REMOVE'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.RESTART'
+queue 'ZMIM0020 3 OPERAUDT UPDATE'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.RESYNCH'
+queue 'ZMIM0020 3 DASDAUDT UPDATE'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.SETOPTION'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.SHUTDOWN'
+queue 'ZMIM0020 3 AUTOAUDT UPDATE'
+queue 'ZMIM0020 3 OPERAUDT UPDATE'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.SYSDUMP'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.USERDATA'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.VARY'
+queue 'ZMIM0020 3 DASDAUDT UPDATE'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+queue 'ZMIM0020 2          'prefix'.VCF'
+queue 'ZMIM0020 3 SYSPAUDT UPDATE'
+ 
+say pgmname right(queued(),4) 'records written to' MEMBER 'for ZMIM0020.'
+Call Write_queued
+return
+ 
+ 
+CATSOL99:
+Address ISPEXEC "VGET (PREFIX) ASIS"
+if RC <> 0 then return
+parse var prefix hlpref "." .
+ 
+Address TSO "newstack"
+queue 'ZCSL0020 1 FACILITY FACILITY IBMFAC  '
+queue 'ZCSL0020 2          'hlpref
+queue 'ZCSL0020 3 *        NONE'
+queue 'ZCSL0020 2 READ     'prefix'.GLOBAL.DATASET'
+queue 'ZCSL0020 3 *        NONE'
+queue 'ZCSL0020 3 DASDAUDT ALTER'
+queue 'ZCSL0020 3 DASBAUDT ALTER'
+queue 'ZCSL0020 3 SYSPAUDT ALTER'
+queue 'ZCSL0020 2          'prefix'.READ.CATLIST'
+queue 'ZCSL0020 3 *        ALTER'
+queue 'ZCSL0020 2          'prefix'.READ.LIST'
+queue 'ZCSL0020 3 *        ALTER'
+queue 'ZCSL0020 2          'prefix'.READ.SCAN'
+queue 'ZCSL0020 3 *        ALTER'
+queue 'ZCSL0020 2          'prefix'.READ.PRINT'
+queue 'ZCSL0020 3 *        ALTER'
+queue 'ZCSL0020 2          'prefix'.READ.ALIASCHK'
+queue 'ZCSL0020 3 *        ALTER'
+queue 'ZCSL0020 2          'prefix'.READ.DIAGNOSE'
+queue 'ZCSL0020 3 *        ALTER'
+queue 'ZCSL0020 2          'prefix'.READ.'
+queue 'ZCSL0020 3 DASDAUDT ALTER'
+queue 'ZCSL0020 3 DASBAUDT ALTER'
+queue 'ZCSL0020 3 SYSPAUDT ALTER'
+queue 'ZCSL0020 2          'prefix'.UPDATE.'
+queue 'ZCSL0020 3 DASDAUDT ALTER'
+queue 'ZCSL0020 3 DASBAUDT ALTER'
+queue 'ZCSL0020 3 SYSPAUDT ALTER'
+ 
+say pgmname right(queued(),4) 'records written to' MEMBER 'for ZCSL0020.'
+Call Write_queued
+return
+ 
+ 
+CA199999:
+Address ISPEXEC "VGET (CA1PASS) ASIS"
+if RC > 0 then do
+  Address TSO "newstack"
+  queue 'ZCA10020 1 CACMD    CA@MD    CACMD '
+  If acpname = "RACF" then do
+    queue 'ZCA10020 2          **       '
+    queue 'ZCA10020 3 *        NONE'
+    end
+  queue 'ZCA10020 2          L0ADD    '
+  queue 'ZCA10020 3 TAPEAUDT ALTER'
+  queue 'ZCA10020 2          L0CHECKI '
+  queue 'ZCA10020 3 TAPEAUDT ALTER'
+  queue 'ZCA10020 2          L0CHECKO '
+  queue 'ZCA10020 3 TAPEAUDT ALTER'
+  queue 'ZCA10020 2          L0CLEAN  '
+  queue 'ZCA10020 3 TAPEAUDT ALTER'
+  queue 'ZCA10020 2          L0DELETE '
+  queue 'ZCA10020 3 TAPEAUDT ALTER'
+  queue 'ZCA10020 2          L0ERASE  '
+  queue 'ZCA10020 3 TAPEAUDT ALTER'
+  queue 'ZCA10020 2          L0EXPIRE '
+  queue 'ZCA10020 3 TAPEAUDT ALTER'
+  queue 'ZCA10020 2          L0EXTEND '
+  queue 'ZCA10020 3 *        ALTER'
+  queue 'ZCA10020 3 TAPEAUDT ALTER'
+  queue 'ZCA10020 2          L0PTRS   '
+  queue 'ZCA10020 3 SYSPAUDT ALTER'
+  queue 'ZCA10020 3 TAPEAUDT ALTER'
+  queue 'ZCA10020 2          L0RETAIN '
+  queue 'ZCA10020 3 *        ALTER'
+  queue 'ZCA10020 3 TAPEAUDT ALTER'
+  queue 'ZCA10020 2          L0SCRATC '
+  queue 'ZCA10020 3 TAPEAUDT ALTER'
+  queue 'ZCA10020 2          L0UPDTE '
+  queue 'ZCA10020 3 SYSPAUDT ALTER'
+  queue 'ZCA10020 3 TAPDAUDT ALTER'
+  queue 'ZCA10020 3 TAPEAUDT ALTER'
+ 
+  say pgmname right(queued(),4) 'records written to' MEMBER 'for ZCA10020.'
+  Call Write_queued
+  resource = "CSVDYLPA.ADD.#CSVDYLPA.DELETE.#"
+  rectype = "1"
+  Call COLLECT_REC
+  trecs = recs
+  cnt = 0
+  do until resource = ""
+    parse var resource res "#" resource
+    res = strip(res)
+    rc = 0
+    "FIND FIRST '"res" ' 21"
+    if rc = 0 then do
+      "(data) = LINE .ZCSR"
+      parse var data pdi 9 .
+      recs = trecs
+      do until recs = ''
+        parse var recs . 72 userid 81 recs
+        line = left(pdi,8) '3' left(userid,8) 'UPDATE'
+        line = left(line,30)res
+        "FIND FIRST '"line"' 1"
+        if rc <> 0 then do
+          "LINE_AFTER .ZCSR = DATALINE (LINE)"
+          cnt = cnt + 1
+          end
+        end /* do until recs */
+      end /* if rc = 0 */
+    end /* do until resource */
+  say pgmname right(cnt,4) 'records written to' MEMBER 'for' pdi'.'
+  end
+else do
+  Address TSO "newstack"
+  queue 'ZCA10021 1 CATAPE   CA@APE   CATAPE'
+  If acpname = "RACF" then do
+    queue 'ZCA10021 2          **       '
+    queue 'ZCA10021 3 *        NONE'
+    end
+  queue 'ZCA10021 2          BATCH    '
+  queue 'ZCA10021 3 OPERAUDT READ'
+  queue 'ZCA10021 3 SYSPAUDT ALTER'
+  queue 'ZCA10021 3 TAPEAUDT READ'
+  queue 'ZCA10021 2 READ     BLPNORES '
+  queue 'ZCA10021 3 OPERAUDT ALTER'
+  queue 'ZCA10021 3 SYSPAUDT ALTER'
+  queue 'ZCA10021 3 TAPEAUDT ALTER'
+  queue 'ZCA10021 2 READ     BLPRES   '
+  queue 'ZCA10021 3 SYSPAUDT ALTER'
+  queue 'ZCA10021 3 TAPEAUDT ALTER'
+  queue 'ZCA10021 2          COPYCAT  '
+  queue 'ZCA10021 3 OPERAUDT READ'
+  queue 'ZCA10021 3 SYSPAUDT READ'
+  queue 'ZCA10021 3 TAPEAUDT READ'
+  queue 'ZCA10021 2          DEACT    '
+  queue 'ZCA10021 3 OPERAUDT READ'
+  queue 'ZCA10021 3 SYSPAUDT ALTER'
+  queue 'ZCA10021 3 TAPEAUDT READ'
+  queue 'ZCA10021 2 READ     FORNORES '
+  queue 'ZCA10021 3 SYSPAUDT UPDATE'
+  queue 'ZCA10021 3 TAPEAUDT UPDATE'
+  queue 'ZCA10021 2 READ     FORRES   '
+  queue 'ZCA10021 3 TAPEAUDT ALTER'
+  queue 'ZCA10021 2 READ     NLNORES  '
+  queue 'ZCA10021 3 OPERAUDT ALTER'
+  queue 'ZCA10021 3 SYSPAUDT ALTER'
+  queue 'ZCA10021 3 TAPEAUDT ALTER'
+  queue 'ZCA10021 2          NLRES    '
+  queue 'ZCA10021 3 OPERAUDT ALTER'
+  queue 'ZCA10021 3 SYSPAUDT ALTER'
+  queue 'ZCA10021 3 TAPEAUDT ALTER'
+  queue 'ZCA10021 2 READ     NSLNORES '
+  queue 'ZCA10021 3 OPERAUDT ALTER'
+  queue 'ZCA10021 3 SYSPAUDT ALTER'
+  queue 'ZCA10021 3 TAPEAUDT ALTER'
+  queue 'ZCA10021 2          NSLRES   '
+  queue 'ZCA10021 3 OPERAUDT ALTER'
+  queue 'ZCA10021 3 SYSPAUDT ALTER'
+  queue 'ZCA10021 3 TAPEAUDT ALTER'
+  queue 'ZCA10021 2          REINIT   '
+  queue 'ZCA10021 3 OPERAUDT ALTER'
+  queue 'ZCA10021 3 SYSPAUDT ALTER'
+  queue 'ZCA10021 3 TAPEAUDT ALTER'
+  queue 'ZCA10021 2          YSVCCOND '
+  queue 'ZCA10021 3 *        ALTER'
+  queue 'ZCA10021 2          YSVCUNCD '
+  queue 'ZCA10021 3 SYSPAUDT READ '
+  queue 'ZCA10021 3 TAPEAUDT ALTER'
+  do x = 1 to length(ca1pass) by 10
+    ca1pw = substr(ca1pass,x,8)
+    char  = substr(ca1pass,x+8,2)
+    queue 'ZCA10021 2          'ca1pw
+    if c2x(bitxor(char,'300'x))='0000' | ,
+       c2x(bitxor(char,'000'x))='0000' then do
+      queue 'ZCA10021 3 *        READ '
+      end
+    else do
+/*  if c2x(bitxor(char,'FFFF'x))='0000' then do*/
+      queue 'ZCA10021 3 OPERAUDT ALTER'
+      queue 'ZCA10021 3 SYSPAUDT ALTER'
+      queue 'ZCA10021 3 TAPEAUDT ALTER'
+      end
+/*  say "CA1PW" ca1pw c2x(char) "1" c2x(bitor(char,'300'x)) ,
+     "2" c2x(bitxor(char,'300'x)) "3" c2x(bitor('300'x,char)) ,
+     "4" c2x(bitxor(char,'FFFF'x)) */
+  end
+  say pgmname right(queued(),4) 'records written to' MEMBER 'for ZCA10021.'
+  Call Write_queued
+  end
+return
+ 
+ 
+CCS99999:
+resource = "CSVDYLPA.ADD.#CSVDYLPA.DELETE.#"
+rectype = "1"
+Call COLLECT_REC
+trecs = recs
+cnt = 0
+do until resource = ""
+  parse var resource res "#" resource
+  res = strip(res)
+  rc = 0
+  "FIND FIRST '"res" ' 21"
+  if rc = 0 then do
+    "(data) = LINE .ZCSR"
+    parse var data pdi 9 .
+    recs = trecs
+    do until recs = ''
+      parse var recs . 72 userid 81 recs
+      line = left(pdi,8) '3' left(userid,8) 'UPDATE'
+      line = left(line,30)res
+      "FIND FIRST '"line"' 1"
+      if rc <> 0 then do
+        "LINE_AFTER .ZCSR = DATALINE (LINE)"
+        cnt = cnt + 1
+        end
+      end /* do until recs */
+    end /* if rc = 0 */
+  end /* do until resource */
+say pgmname right(cnt,4) 'records written to' MEMBER 'for' pdi'.'
+return
+ 
+ 
+CICS9999:
+return
+ 
+ 
+CLSUPER9:
+return
+ 
+ 
+CSFTP999:
+return
+ 
+ 
+CSTCP999:
+return
+ 
+ 
+CSTNT999:
+return
+ 
+ 
+CSSMTP99:
+trecs = ""
+rectype = "1"
+Call COLLECT_REC
+trecs = recs
+otermmsgs = TERMMSGS
+TERMMSGS = "OFF"
+Address ISPEXEC "vput (termmsgs)"
+recs = trecs
+do until recs = ''
+/*parse var recs . 72 userid 81 recs*/
+  parse var recs . .  mbr dsn usr 81 recs
+  usr = strip(usr)
+  if length(usr) > 8 then do
+    mbr = dsn
+    parse var usr dsn usr
+    end
+  end /* do until recs */
+if sysdsn("'"dsn"("mbr")'") = "OK" then do
+  Address ISPEXEC "VGET (PROC)"
+  oproc = PROC
+  stcproc = dsn
+  proc = dsn
+  procvol = ""
+  Address ISPEXEC "VPUT (STCPROC PROC PROCVOL)"
+  Address ISPEXEC "SELECT CMD(CACC1000 DD JESPROC" mbr")"
+  TERMMSGS = otermmsgs
+  PROC = oproc
+  Address ISPEXEC "vput (termmsgs proc)"
+  Address ISPEXEC "vget (dddsns) asis"
+  parse var dddsns . '//CONFIG' dsns '//'
+  dsns = strip(dsns)
+  Address TSO "alloc fi(file) da('"dsns"') shr reuse"
+  address Tso "execio * diskr file (finis stem out."
+  wtr =
+  do x = 1 to out.0
+    parse var out.x out.x '#' .
+    parse var out.x k v .
+    if v <> '' then do
+      if k = "ExtWrtName" then wtr = v
+      end
+    end
+  end
+recs = ""
+reca = trecs
+recs = "2          EZB.CSSMTP#3 *        NONE#"
+/*do until reca = ''
+  parse var reca . 72 userid 81 reca
+  recs = recs"3" userid"NONE#"
+  end*/
+recs = recs"2          EZB.CSSMTP."sysname"."wtr"."jesnode"#"
+reca = trecs
+do until reca = ''
+  parse var reca . 72 userid 81 reca
+  recs = recs"3" userid"READ#"
+  end
+recs = recs"3 *        READ#"
+x = 0
+do until recs = ""
+  x = x + 1
+  parse var recs info.x "#" recs
+  info.x = strip(info.x)
+  end /* do until recs */
+ 
+info.0 = x
+rc = 0
+cnt = 0
+"FIND FIRST 'EZB.CSSMTP. ' 22"
+if rc = 0 then do
+  "(A,B) = CURSOR"
+  A = A + 1
+  "FIND NEXT ' 2 ' 9"
+  if rc = 0 then do
+    "(data) = LINE .ZCSR"
+    parse var data pdi 9 .
+    "(A1,B) = CURSOR"
+    A1 = A1 - 1
+/*  do A = A to A1
+      "(data) = LINE" A
+      x = x + 1
+      parse var data . 10 info.x
+      info.x = strip(info.x)
+      end
+    info.0 = x*/
+/*  "CURSOR = "A" 1"*/
+/*  "(data) = LINE .ZCSR"*/
+/*  cnt = cnt + 1*/
+/*  do x = info.0 to 1 by -1*/
+    do x = 1 to info.0
+      line = left(pdi,8) info.x
+/*    "LINE_AFTER .ZCSR = DATALINE (LINE)"*/
+      "LINE_BEFORE .ZCSR = DATALINE (LINE)"
+      end /* do x = info.0 */
+    end /* if rc = 0 */
+  end /* if rc = 0 */
+return
+ 
+ 
+DFSMS999:
+return
+ 
+ 
+FEP99999:
+return
+ 
+ 
+FDR99999:
+cnt = 0
+"FIND LAST '"sens_vul"' 1"
+if rc = 0 then do
+  line = sens_vul '3 SYSPAUDT ALTER    '
+  "LINE_AFTER .ZCSR = DATALINE (LINE)"
+  line = sens_vul '2 READ     FDRZAPOP  '
+  "LINE_AFTER .ZCSR = DATALINE (LINE)"
+  cnt = cnt + 2
+  end /* if rc = 0 */
+say pgmname right(cnt,4) 'records written to' MEMBER 'for' sens_vul'.'
+return
+ 
+ 
+HCD99999:
+Address TSO "newstack"
+queue 'ZHCD0020 1 FACILITY FACILITY IBMFAC  '
+queue 'ZHCD0020 2          CBD'
+queue 'ZHCD0020 3 *        NONE'
+queue 'ZHCD0020 2 READ     CBD.CPC.IOCDS'
+queue 'ZHCD0020 3 *        NONE'
+queue 'ZHCD0020 3 AUTOAUDT ALTER'
+queue 'ZHCD0020 3 OPERAUDT ALTER'
+queue 'ZHCD0020 3 SYSPAUDT ALTER'
+queue 'ZHCD0020 3 TSTCAUDT ALTER'
+queue 'ZHCD0020 2 READ     CBD.CPC.IPLPARM'
+queue 'ZHCD0020 3 *        NONE'
+queue 'ZHCD0020 3 AUTOAUDT ALTER'
+queue 'ZHCD0020 3 OPERAUDT ALTER'
+queue 'ZHCD0020 3 SYSPAUDT ALTER'
+queue 'ZHCD0020 3 TSTCAUDT ALTER'
+ 
+say pgmname right(queued(),4) 'records written to' MEMBER 'for ZHCD0020.'
+Call Write_queued
+return
+ 
+ 
+HLTHCK99:
+return
+ 
+ 
+ICSF9999:
+return
+ 
+ 
+IOA99999:
+return
+ 
+ 
+MQS99999:
+Address ISPEXEC "VGET (SSN) ASIS"
+if RC <> 0 then return
+queue 'ZWMQ0060 1 MQADMIN  MQADMIN  MQADMIN '
+do a = 1 to words(ssn)
+  queue 'ZWMQ0060 2          'word(ssn,a)'.RESLEVEL'
+  queue 'ZWMQ0060 3 *        NONE    '
+end
+say pgmname right(queued(),4) 'records written to' MEMBER 'for ZWMQ0060.'
+Call Write_queued
+cnt = 0
+"FIND LAST '"sens_vul"' 1"
+if rc = 0 then do
+  pgms = "CSQJU003 CSQJU004 CSQUCVX CSQ1LOGP"
+  do until pgms = ""
+    parse var pgms pgm pgms
+    line = sens_vul '3 MQSAAUDT ALTER    '
+    "LINE_AFTER .ZCSR = DATALINE (LINE)"
+    line = sens_vul '2 READ    ' pgm
+    "LINE_AFTER .ZCSR = DATALINE (LINE)"
+    cnt = cnt + 2
+  end /* do until */
+  line = sens_vul '3 MQSAAUDT ALTER    '
+  "LINE_AFTER .ZCSR = DATALINE (LINE)"
+  line = sens_vul '3 AUDTAUDT ALTER    '
+  "LINE_AFTER .ZCSR = DATALINE (LINE)"
+  line = sens_vul '2 READ     CSQUTIL   '
+  "LINE_AFTER .ZCSR = DATALINE (LINE)"
+  cnt = cnt + 3
+  say pgmname right(cnt,4) 'records written to' MEMBER 'for' sens_vul'.'
+  end /* if rc = 0 */
+return
+ 
+ 
+NCPASS99:
+return
+ 
+ 
+NETVIEW9:
+Address ISPEXEC "VGET (PREFIX) ASIS"
+if RC <> 0 then return
+parse var prefix hlpref "." .
+ 
+Address TSO "newstack"
+queue 'ZNET0020 1 NETCMDS  NETCMDS  NETCMDS '
+queue 'ZNET0020 2          'hlpref
+queue 'ZNET0020 3 *        NONE'
+queue 'ZNET0020 2          'prefix'.ADDCMD'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.AFTER'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.ALLOCATE.CATALOG'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.ALLOCATE.DELETE'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.ALLOCATE.NEW'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.ALLOCATE.UNCATALO'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.AT'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.ATTACH'
+queue 'ZNET0020 3 *        READ'
+queue 'ZNET0020 2          'prefix'.ATTACH.DUMP'
+queue 'ZNET0020 3 *        READ'
+queue 'ZNET0020 2          'prefix'.AUTOTASK'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.AUTOTBL'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.AUTOTBL.STATUS'
+queue 'ZNET0020 3 *        READ'
+queue 'ZNET0020 2          'prefix'.AUTOTEST'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CHNGFP'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CHRON'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CLOSE'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CLRSTATS'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME0001'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME0002'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME0006'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME0013'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME0015'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME0017'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME0018'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME0019'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME0025'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME0030'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME0032'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME1016'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME1055'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME1057'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME1089'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME1098'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME2002'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME2007'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME2008'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME3006'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME7009'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME7201'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME7204.LISTCONN'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME7204.LISTOPID'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME7204.START'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME7204.STOP'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME8004'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME8200'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME8205'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME8206'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME8206.LISTINFO'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME8206.LSTSRVRS'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME8206.START'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME8206.STOP'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME8221'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME8225'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME8250.START'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME8250.STOP'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME8260'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME9001'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNME9002'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNMEAUTB'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNMEMCXX'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNMEMCXY'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNMESNMP'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNMEXCON'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNMEXPRC'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNMSBWLK'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNMSGET'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNMSGETB'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNMSGETN'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNMSSET'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNMSTRAP'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.CNMSWALK'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.DEFAULTS'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.DELCMD'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.DSIMCAP'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.DSIPIINS.COMMON'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.DSIPITSO.TSOSERV'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.DSIPITSO.TSOSERV.CNMPROC/CNMSJTSO'
+queue 'ZNET0020 3 *        READ'
+queue 'ZNET0020 2          'prefix'.DSIPITSO.VERB'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.DSIPITSO.VERB.HOMETEST'
+queue 'ZNET0020 3 *        READ'
+queue 'ZNET0020 2          'prefix'.DSIPITSO.VERB.NETSTAT'
+queue 'ZNET0020 3 *        READ'
+queue 'ZNET0020 2          'prefix'.DSIPITSO.VERB.NSLOOKUP'
+queue 'ZNET0020 3 *        READ'
+queue 'ZNET0020 2          'prefix'.DSIPIXCF'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.DSIPIXTB'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.DSISAUTH'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.DSISRVR'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.DSIUSNDM'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.DSIZKNYJ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.EKGVREXX'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.EVERY'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.EXCMD'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.EZLE600A'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.EZLE840A'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.EZLEAMAN'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.EZLEF002'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.EZLEPOLY'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.FOCALPT'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.FREE.DELETE'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.FREE.UNCATALO'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.IDCAMS'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.MODIFY'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.MONIT'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.MVS'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.MVS.$D'
+queue 'ZNET0020 3 *        READ'
+queue 'ZNET0020 2          'prefix'.MVS.D'
+queue 'ZNET0020 3 *        READ'
+queue 'ZNET0020 2          'prefix'.MVS.D.MPF'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.MVS.D.NET'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.MVS.D.VTAM'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.MVS.DISPLAY'
+queue 'ZNET0020 3 *        READ'
+queue 'ZNET0020 2          'prefix'.MVS.DISPLAY.MPF'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.MVS.DISPLAY.NET'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.MVS.DISPLAY.VTAM'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.NLDM.DISABLE'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.NLDM.PURGE'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.NLDM.TRACE'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.NPDA.PURGE'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.OVERRIDE.DSIARPT'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.OVERRIDE.DSIASRC'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.OVERRIDE.DSICLD'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.OVERRIDE.DSILIST'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.OVERRIDE.DSIMSG'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.OVERRIDE.DSIOPEN'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.OVERRIDE.DSIPARM'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.OVERRIDE.DSIPRF'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.OVERRIDE.DSIVTAM'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.OVERRIDE.SLOGCMDR'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.PLEXCTL'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.PURGE.TIMER'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.REACC'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.READSEC'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.REFRESH'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.REFRESH.AUTHCHK'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.REFRESH.CMDAUTH'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.REFRESH.OPERS'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.REFRESH.OPERSEC'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.REFRESH.RMTSEC'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.RELCONID'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.RESETDB'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.RESTORE'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.RESTYLE'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.REVISE'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.REVISMSG'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.REVISRPT'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.RID'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.SETBQL'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.START.MOD'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.START.TASK'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.START.TASK.CNMTAMEL'
+queue 'ZNET0020 3 *        READ'
+queue 'ZNET0020 2          'prefix'.START.TSOSERV'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.START.UNIXSERV'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.START.XCFGROUP'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.SUBMIT'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.SUBMIT.BATCHTSO'
+queue 'ZNET0020 3 *        READ'
+queue 'ZNET0020 2          'prefix'.SUBMIT.SMTPJCL'
+queue 'ZNET0020 3 *        READ'
+queue 'ZNET0020 2          'prefix'.SWITCH'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.TE'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.TRACE'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.TS'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.VARY'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+queue 'ZNET0020 2          'prefix'.WRITESEC'
+queue 'ZNET0020 3 AUTOAUDT READ'
+queue 'ZNET0020 3 SYSPAUDT READ'
+ 
+say pgmname right(queued(),4) 'records written to' MEMBER 'for ZNET0020.'
+Call Write_queued
+return
+ 
+ 
+ROSCOE99:
+Address TSO "newstack"
+Address ISPEXEC "VGET (ROSIDS) ASIS"
+if RC <> 0 then return
+queue 'ZROS0020 1 ROSRES   RO@RES   ROSRES  '
+do forever
+parse var rosids rosid 10 rosids
+rosid = strip(rosid)
+if rosid <> '' then,
+  rosid = rosid"."
+queue 'ZROS0020 2          'rosid'ROSCMD  '
+queue 'ZROS0020 3 *        NONE    '
+queue 'ZROS0020 3 SYSPAUDT ALTER   '
+queue 'ZROS0020 2          'rosid'ROSCMD.ETSO '
+queue 'ZROS0020 3 *        READ    '
+queue 'ZROS0020 2          'rosid'ROSCMD.MONITOR '
+queue 'ZROS0020 3 SYSPAUDT ALTER   '
+queue 'ZROS0020 2          'rosid'ROSCMD.MONITOR.'
+queue 'ZROS0020 3 *        READ    '
+queue 'ZROS0020 3 SYSPAUDT ALTER   '
+queue 'ZROS0020 2          'rosid'ROSCMD.MONITOR.AMS '
+queue 'ZROS0020 3 *        READ    '
+queue 'ZROS0020 3 SYSPAUDT ALTER   '
+queue 'ZROS0020 2          'rosid'ROSCMD.MONITOR.AWS '
+queue 'ZROS0020 3 *        READ    '
+queue 'ZROS0020 3 SYSPAUDT ALTER   '
+queue 'ZROS0020 2          'rosid'ROSCMD.MONITOR.CA1 '
+queue 'ZROS0020 3 *        READ    '
+queue 'ZROS0020 3 SYSPAUDT ALTER   '
+queue 'ZROS0020 2          'rosid'ROSCMD.MONITOR.COB '
+queue 'ZROS0020 3 *        READ    '
+queue 'ZROS0020 3 SYSPAUDT ALTER   '
+queue 'ZROS0020 2          'rosid'ROSCMD.MONITOR.CON '
+queue 'ZROS0020 3 OPERAUDT UPDATE  '
+queue 'ZROS0020 3 SYSPAUDT UPDATE  '
+queue 'ZROS0020 2          'rosid'ROSCMD.MONITOR.DIS '
+queue 'ZROS0020 3 *        READ    '
+queue 'ZROS0020 3 SYSPAUDT ALTER   '
+queue 'ZROS0020 2          'rosid'ROSCMD.MONITOR.DMS '
+queue 'ZROS0020 3 *        READ    '
+queue 'ZROS0020 3 SYSPAUDT ALTER   '
+queue 'ZROS0020 2          'rosid'ROSCMD.MONITOR.DOC '
+queue 'ZROS0020 3 *        READ    '
+queue 'ZROS0020 3 SYSPAUDT ALTER   '
+queue 'ZROS0020 2          'rosid'ROSCMD.MONITOR.EXP '
+queue 'ZROS0020 3 *        READ    '
+queue 'ZROS0020 3 SYSPAUDT ALTER   '
+queue 'ZROS0020 2          'rosid'ROSCMD.MONITOR.IMP '
+queue 'ZROS0020 3 *        READ    '
+queue 'ZROS0020 3 SYSPAUDT ALTER   '
+queue 'ZROS0020 2          'rosid'ROSCMD.MONITOR.JCK '
+queue 'ZROS0020 3 *        READ    '
+queue 'ZROS0020 3 SYSPAUDT ALTER   '
+queue 'ZROS0020 2          'rosid'ROSCMD.MONITOR.MON '
+queue 'ZROS0020 3 SYSPAUDT ALTER   '
+queue 'ZROS0020 2          'rosid'ROSCMD.MONITOR.PLI '
+queue 'ZROS0020 3 *        READ    '
+queue 'ZROS0020 3 SYSPAUDT ALTER   '
+queue 'ZROS0020 2 READ     'rosid'ROSCMD.MONITOR.PUR '
+/* If PTF to restrict what is purged is available the following: */
+queue 'ZROS0020 3 *        READ    '
+queue 'ZROS0020 3 SYSPAUDT ALTER   '
+queue 'ZROS0020 2          'rosid'ROSCMD.MONITOR.ROS '
+queue 'ZROS0020 3 *        READ    '
+queue 'ZROS0020 3 SYSPAUDT ALTER   '
+queue 'ZROS0020 2          'rosid'ROSCMD.MONITOR.RTF '
+queue 'ZROS0020 3 SYSPAUDT READ    '
+queue 'ZROS0020 2          'rosid'ROSCMD.MONITOR.SOR '
+queue 'ZROS0020 3 *        READ    '
+queue 'ZROS0020 3 SYSPAUDT ALTER   '
+queue 'ZROS0020 2          'rosid'ROSCMD.MONITOR.TIQ '
+queue 'ZROS0020 3 *        READ    '
+queue 'ZROS0020 3 SYSPAUDT ALTER   '
+queue 'ZROS0020 2 READ     'rosid'ROSCMD.MONITOR.ZAP '
+queue 'ZROS0020 3 SYSPAUDT ALTER   '
+if ACPNAME = "TSS" then do
+  queue 'ZROS0020 2          'rosid'ROSCMD.MONITOR.SIM '
+  queue 'ZROS0020 3 AUDTAUDT READ    '
+  queue 'ZROS0020 3 SECAAUDT READ    '
+  queue 'ZROS0020 3 SECDAUDT READ    '
+  queue 'ZROS0020 2          'rosid'ROSCMD.MONITOR.TSS '
+  /* The following queue line is for all other administrators */
+  queue 'ZROS0020 3 *        READ    '
+  queue 'ZROS0020 3 AUDTAUDT READ    '
+  queue 'ZROS0020 3 SECAAUDT READ    '
+  queue 'ZROS0020 3 SECDAUDT READ    '
+  end
+queue 'ZROS0020 2 READ     'rosid'ROSCMD.PRIV. '
+queue 'ZROS0020 3 SYSPAUDT ALTER   '
+queue 'ZROS0020 2 READ     'rosid'ROSCMD.PRIV.ROSLIB '
+queue 'ZROS0020 3 ROSCAUTH UPDATE  '
+queue 'ZROS0020 3 SECDAUDT UPDATE  '
+queue 'ZROS0020 3 SECAAUDT UPDATE  '
+queue 'ZROS0020 3 SYSPAUDT ALTER   '
+queue 'ZROS0020 2 READ     'rosid'ROSCMD.PRIV.ROSUPS '
+queue 'ZROS0020 3 ROSCAUTH UPDATE  '
+queue 'ZROS0020 3 SECDAUDT UPDATE  '
+queue 'ZROS0020 3 SECAAUDT UPDATE  '
+queue 'ZROS0020 3 SYSPAUDT ALTER   '
+queue 'ZROS0020 2          'rosid'ROSCMD.RPF. '
+queue 'ZROS0020 3 *        READ    '
+if rosids = "" then leave
+end /* do forever */
+say pgmname right(queued(),4) 'records written to' MEMBER 'for ZROS0020.'
+Call Write_queued
+return
+ 
+ 
+SDSF9999:
+Address TSO "newstack"
+Address ISPEXEC "VGET (DSNS SSN GRP) ASIS"
+if RC <> 0 then return
+ 
+recs = "2 READ     MVS.MODIFY.STC.SDSF.#",
+  "3 AUDTAUDT UPDATE#",
+  "3 AUTOAUDT ALTER#",
+  "3 OPERAUDT ALTER#",
+  "3 SYSPAUDT ALTER#",
+  "3 TSTCAUDT ALTER#",
+  "2 READ     MVS.START.STC.SDSFAUX.#",
+  "3 SDSF     UPDATE#",
+  "3 AUTOAUDT ALTER#",
+  "3 OPERAUDT ALTER#",
+  "3 SYSPAUDT ALTER#",
+  "3 TSTCAUDT ALTER#",
+  "2 READ     MVS.STOP.STC.SDSFAUX.#",
+  "3 SDSF     UPDATE#",
+  "3 AUTOAUDT ALTER#",
+  "3 OPERAUDT ALTER#",
+  "3 SYSPAUDT ALTER#",
+  "3 TSTCAUDT ALTER#"
+x = 0
+do until recs = ""
+  x = x + 1
+  parse var recs info.x "#" recs
+  info.x = strip(info.x)
+  end /* do until recs */
+ 
+info.0 = x
+rc = 0
+cnt = 0
+"FIND FIRST 'MVS.MODIFY.STC. ' 21"
+if rc = 0 then do
+  "(A,B) = CURSOR"
+  A = A + 1
+  "(data) = LINE .ZCSR"
+  parse var data pdi 9 .
+  "FIND NEXT ' 2 ' 9"
+  if rc = 0 then do
+    "(A1,B) = CURSOR"
+    A1 = A1 - 1
+/*  do A = A to A1
+      "(data) = LINE" A
+      x = x + 1
+      parse var data . 10 info.x
+      info.x = strip(info.x)
+      end*/
+    info.0 = x
+    do x = 1 to info.0
+/*    say x info.x*/
+      line = left(pdi,8) info.x
+      "LINE_BEFORE .ZCSR = DATALINE (LINE)"
+      end /* do x = info.0 */
+    end /* if rc = 0 */
+  end /* if rc = 0 */
+ 
+queue 'ZISF0020 1 SDSF     SDSF     SDSF    '
+do a = 1 to words(ssn)
+  queue 'ZISF0020 2          GROUP.'word(ssn,a)'.'
+/*if wordpos(word(ssn,a),grp) > 0 then do
+    queue 'ZISF0020 3 OPERAUDT ALTER   '
+    queue 'ZISF0020 3 SYSPAUDT ALTER   '
+    end
+  else,
+    queue 'ZISF0020 3 *        NONE    '*/
+  queue 'ZISF0020 3 *        NONE    '
+end
+queue 'ZISF0020 2          ISF.CONNECT.'sysname
+queue 'ZISF0020 3 *        READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFAPF.              '
+queue 'ZISF0020 3 OPERAUDT UPDATE  '
+queue 'ZISF0020 3 SYSPAUDT UPDATE  '
+queue 'ZISF0020 2          ISFAPPL.             '
+queue 'ZISF0020 3 *        READ    '
+queue 'ZISF0020 3 OPERAUDT CONTROL '
+queue 'ZISF0020 3 SYSPAUDT CONTROL '
+queue 'ZISF0020 2          ISFATTR              '
+queue 'ZISF0020 3 *        NONE    '
+queue 'ZISF0020 2          ISFATTR.CHECK.       '
+queue 'ZISF0020 3 AUDTAUDT UPDATE  '
+queue 'ZISF0020 3 OPERAUDT UPDATE  '
+queue 'ZISF0020 3 SYSPAUDT UPDATE  '
+queue 'ZISF0020 2          ISFATTR.ENCLAVE.     '
+queue 'ZISF0020 3 AUDTAUDT UPDATE  '
+queue 'ZISF0020 3 OPERAUDT UPDATE  '
+queue 'ZISF0020 3 SYSPAUDT UPDATE  '
+queue 'ZISF0020 2          ISFATTR.JOB.         '
+queue 'ZISF0020 3 APPDAUDT UPDATE  '
+queue 'ZISF0020 3 APPSAUDT UPDATE  '
+queue 'ZISF0020 3 OPERAUDT UPDATE  '
+queue 'ZISF0020 3 SYSPAUDT UPDATE  '
+queue 'ZISF0020 2          ISFATTR.JOB.PRTDEST  '
+queue 'ZISF0020 3 *        UPDATE  '
+queue 'ZISF0020 2          ISFATTR.JOBCL.       '
+queue 'ZISF0020 3 OPERAUDT UPDATE  '
+queue 'ZISF0020 3 SYSPAUDT UPDATE  '
+queue 'ZISF0020 2          ISFATTR.LINE.        '
+queue 'ZISF0020 3 OPERAUDT UPDATE  '
+queue 'ZISF0020 3 SYSPAUDT UPDATE  '
+queue 'ZISF0020 2          ISFATTR.MEMBER.      '
+queue 'ZISF0020 3 OPERAUDT UPDATE  '
+queue 'ZISF0020 3 SYSPAUDT UPDATE  '
+queue 'ZISF0020 2          ISFATTR.MODIFY.      '
+queue 'ZISF0020 3 OPERAUDT UPDATE  '
+queue 'ZISF0020 3 SYSPAUDT UPDATE  '
+queue 'ZISF0020 2          ISFATTR.NODE.        '
+queue 'ZISF0020 3 OPERAUDT UPDATE  '
+queue 'ZISF0020 3 SYSPAUDT UPDATE  '
+queue 'ZISF0020 2          ISFATTR.OFFLOAD.     '
+queue 'ZISF0020 3 OPERAUDT UPDATE  '
+queue 'ZISF0020 3 SYSPAUDT UPDATE  '
+queue 'ZISF0020 2          ISFATTR.OUTDESC.     '
+queue 'ZISF0020 3 *        UPDATE  '
+queue 'ZISF0020 2          ISFATTR.OUTPUT.      '
+queue 'ZISF0020 3 AUDTAUDT UPDATE  '
+queue 'ZISF0020 3 APPDAUDT UPDATE  '
+queue 'ZISF0020 3 APPSAUDT UPDATE  '
+queue 'ZISF0020 3 OPERAUDT UPDATE  '
+queue 'ZISF0020 3 SYSPAUDT UPDATE  '
+queue 'ZISF0020 2          ISFATTR.OUTPUT.BURST '
+queue 'ZISF0020 3 *        UPDATE  '
+queue 'ZISF0020 2          ISFATTR.OUTPUT.CLASS '
+queue 'ZISF0020 3 *        UPDATE  '
+queue 'ZISF0020 2          ISFATTR.OUTPUT.DEST  '
+queue 'ZISF0020 3 *        UPDATE  '
+queue 'ZISF0020 2          ISFATTR.OUTPUT.FCB   '
+queue 'ZISF0020 3 *        UPDATE  '
+queue 'ZISF0020 2          ISFATTR.OUTPUT.FLASH '
+queue 'ZISF0020 3 *        UPDATE  '
+queue 'ZISF0020 2          ISFATTR.OUTPUT.FORMS '
+queue 'ZISF0020 3 *        UPDATE  '
+queue 'ZISF0020 2          ISFATTR.OUTPUT.PRMODE'
+queue 'ZISF0020 3 *        UPDATE  '
+queue 'ZISF0020 2          ISFATTR.OUTPUT.UCS   '
+queue 'ZISF0020 3 *        UPDATE  '
+queue 'ZISF0020 2          ISFATTR.OUTPUT.WRITER'
+queue 'ZISF0020 3 *        UPDATE  '
+queue 'ZISF0020 2          ISFATTR.PROPTS.      '
+queue 'ZISF0020 3 OPERAUDT UPDATE  '
+queue 'ZISF0020 3 SYSPAUDT UPDATE  '
+queue 'ZISF0020 2          ISFATTR.RDR.         '
+queue 'ZISF0020 3 OPERAUDT UPDATE  '
+queue 'ZISF0020 3 SYSPAUDT UPDATE  '
+queue 'ZISF0020 2          ISFATTR.RESMON.      '
+queue 'ZISF0020 3 OPERAUDT UPDATE  '
+queue 'ZISF0020 3 SYSPAUDT UPDATE  '
+queue 'ZISF0020 2          ISFATTR.RESOURCE.    '
+queue 'ZISF0020 3 OPERAUDT UPDATE  '
+queue 'ZISF0020 3 SYSPAUDT UPDATE  '
+queue 'ZISF0020 2          ISFATTR.SELECT.      '
+queue 'ZISF0020 3 OPERAUDT UPDATE  '
+queue 'ZISF0020 3 SYSPAUDT UPDATE  '
+queue 'ZISF0020 2          ISFATTR.SPOOL.       '
+queue 'ZISF0020 3 OPERAUDT UPDATE  '
+queue 'ZISF0020 3 SYSPAUDT UPDATE  '
+queue 'ZISF0020 2          ISFAUTH              '
+queue 'ZISF0020 3 *        NONE    '
+queue 'ZISF0020 2          ISFAUTH.DEST.        '
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT ALTER   '
+queue 'ZISF0020 3 SYSPAUDT ALTER   '
+queue 'ZISF0020 2          ISFCFC.              '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCFS.              '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD               '
+queue 'ZISF0020 3 *        NONE    '
+queue 'ZISF0020 2          ISFCMD.DSP.ACTIVE.   '
+queue 'ZISF0020 3 *        READ    '
+queue 'ZISF0020 2          ISFCMD.DSP.HELD.     '
+queue 'ZISF0020 3 *        READ    '
+queue 'ZISF0020 2          ISFCMD.DSP.INPUT.    '
+queue 'ZISF0020 3 *        READ    '
+queue 'ZISF0020 2          ISFCMD.DSP.JGROUP.   '
+queue 'ZISF0020 3 *        READ    '
+queue 'ZISF0020 2          ISFCMD.DSP.OUTPUT.   '
+queue 'ZISF0020 3 *        READ    '
+queue 'ZISF0020 2          ISFCMD.DSP.SCHENV.   '
+queue 'ZISF0020 3 *        READ    '
+queue 'ZISF0020 2          ISFCMD.DSP.STATUS.   '
+queue 'ZISF0020 3 *        READ    '
+queue 'ZISF0020 2          ISFCMD.DSP.SYMBOL.'sysname
+QUEUE 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SECAAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.FILTER.ACTION '
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+QUEUE 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.FILTER.DEST   '
+queue 'ZISF0020 3 *        READ    '
+queue 'ZISF0020 2          ISFCMD.FILTER.FINDLIM'
+queue 'ZISF0020 3 *        READ    '
+queue 'ZISF0020 2          ISFCMD.FILTER.INPUT  '
+queue 'ZISF0020 3 *        READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.FILTER.OWNER  '
+queue 'ZISF0020 3 *        READ    '
+queue 'ZISF0020 2          ISFCMD.FILTER.PREFIX '
+queue 'ZISF0020 3 *        READ    '
+queue 'ZISF0020 2          ISFCMD.FILTER.RSYS   '
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SECAAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.FILTER.SYSID  '
+queue 'ZISF0020 3 *        READ    '
+queue 'ZISF0020 2          ISFCMD.FILTER.SYSNAME'
+queue 'ZISF0020 3 *        READ    '
+queue 'ZISF0020 2          ISFCMD.MAINT.ABEND   '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.MAINT.TRACE   '
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.APF.'sysname
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.AS.'sysname
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.CFSTRUCT.'sysname
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.COUPLE.'sysname
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.CSR.'sysname
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.DEVACT.'sysname
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.DYNX.'sysname
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.ENCLAVE.'sysname
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.ENQUEUE.'sysname
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.FILESYS.'sysname
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.HCHECKER.'sysname
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SECAAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.INITIATOR.  '
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.JOB0.       '
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.JOBCLASS.   '
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.LINE.       '
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.LNK.'sysname
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.LPA.'sysname
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.MAS.        '
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.NC.         '
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.NETACT.'sysname
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.NODE.       '
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SECAAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.NS.         '
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.PAGE.'sysname
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.PARMLIB.'sysname
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.PRINTER.    '
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.PROCESS.    '
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.PROCLIB.    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.PUNCH.      '
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.READER.     '
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.RESMON.     '
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.RESOURCE.   '
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.SO.         '
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.SPOOL.      '
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.SMSVOL.'sysname
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.SR.         '
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SECAAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.STORGRP.'sysname
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.SUBSYS.'sysname
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.SYSLOG.     '
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 AUDTAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SECAAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.SYSTEM.'sysname
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.TRACKER.'sysname
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.ULOG.       '
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 AUDTAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SECAAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.ODSP.VIRTSTOR.'sysname
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFCMD.OPT.SERVER '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFDEV.              '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFDISP.             '
+queue 'ZISF0020 3 *        READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFDYNEX.            '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT ALTER   '
+queue 'ZISF0020 2          ISFENC. '
+queue 'ZISF0020 3 OPERAUDT ALTER   '
+queue 'ZISF0020 3 SYSPAUDT ALTER   '
+queue 'ZISF0020 2          ISFENQ. '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFFS.  '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFGT.  '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFINIT.'
+queue 'ZISF0020 3 *        READ    '
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT CONTROL '
+queue 'ZISF0020 3 SYSPAUDT CONTROL '
+queue 'ZISF0020 2          ISFJDD. '
+queue 'ZISF0020 3 *        READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFJOBCL.'
+queue 'ZISF0020 3 *        READ    '
+queue 'ZISF0020 3 OPERAUDT CONTROL '
+queue 'ZISF0020 3 SYSPAUDT CONTROL '
+queue 'ZISF0020 2          ISFLINE.'
+queue 'ZISF0020 3 *        READ    '
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT ALTER   '
+queue 'ZISF0020 3 SYSPAUDT ALTER   '
+queue 'ZISF0020 2          ISFLNK. '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFLPA. '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFMEMB.'
+queue 'ZISF0020 3 *        READ    '
+queue 'ZISF0020 3 OPERAUDT ALTER   '
+queue 'ZISF0020 3 SYSPAUDT ALTER   '
+queue 'ZISF0020 2          ISFNETACT.'
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFNODE.'
+queue 'ZISF0020 3 *        READ    '
+queue 'ZISF0020 3 OPERAUDT CONTROL '
+queue 'ZISF0020 3 SYSPAUDT CONTROL '
+queue 'ZISF0020 2          ISFOPER '
+queue 'ZISF0020 3 *        NONE    '
+queue 'ZISF0020 2          ISFOPER.ANYDEST.     '
+queue 'ZISF0020 3 *        READ    '
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFOPER.DEST.        '
+queue 'ZISF0020 3 APPDAUDT UPDATE  '
+queue 'ZISF0020 3 APPSAUDT UPDATE  '
+queue 'ZISF0020 3 OPERAUDT UPDATE  '
+queue 'ZISF0020 3 SYSPAUDT UPDATE  '
+queue 'ZISF0020 2          ISFOPER.SYSTEM       '
+queue 'ZISF0020 3 AUDTAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SECAAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFPAG.              '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFPARM.             '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFPLIB.             '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFPROC.'
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT ALTER   '
+queue 'ZISF0020 3 SYSPAUDT ALTER   '
+queue 'ZISF0020 2          ISFRES.  '
+queue 'ZISF0020 3 *        READ    '
+queue 'ZISF0020 3 OPERAUDT ALTER   '
+queue 'ZISF0020 3 SYSPAUDT ALTER   '
+queue 'ZISF0020 2          ISFRM.   '
+queue 'ZISF0020 3 OPERAUDT CONTROL '
+queue 'ZISF0020 3 SYSPAUDT CONTROL '
+queue 'ZISF0020 2          ISFSE.  '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFSMSVOL.'
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFSOCK.'
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFSO.  '
+queue 'ZISF0020 3 *        READ    '
+queue 'ZISF0020 3 OPERAUDT ALTER   '
+queue 'ZISF0020 3 SYSPAUDT ALTER   '
+queue 'ZISF0020 2          ISFSP.  '
+queue 'ZISF0020 3 APPDAUDT READ    '
+queue 'ZISF0020 3 APPSAUDT READ    '
+queue 'ZISF0020 3 OPERAUDT CONTROL '
+queue 'ZISF0020 3 SYSPAUDT CONTROL '
+queue 'ZISF0020 2          ISFSR   '
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFSR.ACTION.'
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFSR.REPLY.'
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFSTORGRP.'
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFSUBSYS.'
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFSYM.'
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2          ISFSYS.'
+queue 'ZISF0020 3 OPERAUDT READ    '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+queue 'ZISF0020 2 READ     SERVER.NOPARM '
+queue 'ZISF0020 3 SYSPAUDT READ    '
+ 
+queue 'ZISF0021 1 OPERCMDS OPERCMDS OPERCMDS'
+queue 'ZISF0021 2          SDSF.MODIFY.DISPLAY'
+queue 'ZISF0021 3 AUDTAUDT READ    '
+queue 'ZISF0021 3 OPERAUDT READ    '
+queue 'ZISF0021 3 SYSPAUDT CONTROL '
+queue 'ZISF0021 2 UPDATE   SDSF.MODIFY   '
+queue 'ZISF0021 3 SYSPAUDT CONTROL '
+ 
+say pgmname right(queued(),4) 'records written to' MEMBER 'for' TYPERUN'.'
+Call Write_queued
+return
+ 
+ 
+SRRAUDT9:
+return
+ 
+ 
+TDMF9999:
+return
+ 
+ 
+TADZ9999:
+return
+ 
+ 
+VSS99999:
+if ACPNAME = "RACF" then do
+  Address TSO "newstack"
+  queue 'ZVSS0020 1          FACILITY         '
+  queue 'ZVSS0020 2          IRR.PASSWORD.RESET                        '
+  queue 'ZVSS0020 3 *        NONE                                      '
+  queue 'ZVSS0020 2          VIP$.NOEDIT.COMMANDS                      '
+  queue 'ZVSS0020 3 *        NONE                                      '
+  queue 'ZVSS0020 2          VRA$                                      '
+  queue 'ZVSS0020 3 *        NONE                                      '
+  queue 'ZVSS0020 2 READ     VRA$.ACSTASK                              '
+  queue 'ZVSS0020 3 AUDTAUDT READ                                      '
+  queue 'ZVSS0020 3 SECAAUDT READ                                      '
+  queue 'ZVSS0020 2          VRA$.DIGTCERT.EDIT.COMMAND                '
+  queue 'ZVSS0020 3 AUDTAUDT READ                                      '
+  queue 'ZVSS0020 3 SECAAUDT READ                                      '
+  queue 'ZVSS0020 2          VRA$.LIVE.USER                            '
+  queue 'ZVSS0020 3 AUDTAUDT READ                                      '
+  queue 'ZVSS0020 3 SECAAUDT READ                                      '
+  queue 'ZVSS0020 3 SYSPAUDT READ                                      '
+  queue 'ZVSS0020 2 READ     VRA$.PASSWORD                             '
+  queue 'ZVSS0020 3 AUDTAUDT READ                                      '
+  queue 'ZVSS0020 3 SECAAUDT READ                                      '
+  queue 'ZVSS0020 3 SECDAUDT READ                                      '
+  queue 'ZVSS0020 2          VRA$.REFRESH                              '
+  queue 'ZVSS0020 3 AUDTAUDT READ                                      '
+  queue 'ZVSS0020 3 SECAAUDT READ                                      '
+  queue 'ZVSS0020 3 SECDAUDT READ                                      '
+  queue 'ZVSS0020 2          VRA$.SCOPE                                '
+  queue 'ZVSS0020 3 *        NONE                                      '
+  queue 'ZVSS0020 3 AUDTAUDT READ                                      '
+  queue 'ZVSS0020 3 SECAAUDT READ                                      '
+  queue 'ZVSS0020 3 SECDAUDT READ                                      '
+  queue 'ZVSS0020 3 SYSPAUDT READ                                      '
+  queue 'ZVSS0020 2 READ     VRA$.VRAACCA                              '
+  queue 'ZVSS0020 3 AUDTAUDT READ                                      '
+  queue 'ZVSS0020 3 SECAAUDT READ                                      '
+  queue 'ZVSS0020 3 SECDAUDT READ                                      '
+  queue 'ZVSS0020 3 SYSPAUDT READ                                      '
+  queue 'ZVSS0020 2 READ     VRA$.VRAADUPA                             '
+  queue 'ZVSS0020 3 AUDTAUDT READ                                      '
+  queue 'ZVSS0020 3 SECAAUDT READ                                      '
+  queue 'ZVSS0020 3 SECDAUDT READ                                      '
+  queue 'ZVSS0020 2 READ     VRA$.VRABRPT                              '
+  queue 'ZVSS0020 3 AUDTAUDT READ                                      '
+  queue 'ZVSS0020 3 SECAAUDT READ                                      '
+  queue 'ZVSS0020 3 SECDAUDT READ                                      '
+  queue 'ZVSS0020 3 SYSPAUDT READ                                      '
+  queue 'ZVSS0020 2 READ     VRA$.VRACMND                              '
+  queue 'ZVSS0020 3 AUDTAUDT READ                                      '
+  queue 'ZVSS0020 3 SECAAUDT READ                                      '
+  queue 'ZVSS0020 3 SECDAUDT READ                                      '
+  queue 'ZVSS0020 2 READ     VRA$.VRADSNA                              '
+  queue 'ZVSS0020 3 AUDTAUDT READ                                      '
+  queue 'ZVSS0020 3 SECAAUDT READ                                      '
+  queue 'ZVSS0020 3 SECDAUDT READ                                      '
+  queue 'ZVSS0020 3 SYSPAUDT READ                                      '
+  queue 'ZVSS0020 2 READ     VRA$.VRAEXTR                              '
+  queue 'ZVSS0020 3 AUDTAUDT READ                                      '
+  queue 'ZVSS0020 3 SECAAUDT READ                                      '
+  queue 'ZVSS0020 3 SECDAUDT READ                                      '
+  queue 'ZVSS0020 3 SYSPAUDT READ                                      '
+  queue 'ZVSS0020 2 READ     VRA$.VRAGRPT                              '
+  queue 'ZVSS0020 3 AUDTAUDT READ                                      '
+  queue 'ZVSS0020 3 SECAAUDT READ                                      '
+  queue 'ZVSS0020 3 SECDAUDT READ                                      '
+  queue 'ZVSS0020 3 SYSPAUDT READ                                      '
+  queue 'ZVSS0020 2          VRA$.VRAOCMD                              '
+  queue 'ZVSS0020 3 AUDTAUDT READ                                      '
+  queue 'ZVSS0020 3 SECAAUDT READ                                      '
+  queue 'ZVSS0020 3 SECDAUDT READ                                      '
+  queue 'ZVSS0020 2 READ     VRA$.VRAORPT                              '
+  queue 'ZVSS0020 3 AUDTAUDT READ                                      '
+  queue 'ZVSS0020 3 SECAAUDT READ                                      '
+  queue 'ZVSS0020 3 SECDAUDT READ                                      '
+  queue 'ZVSS0020 3 SYSPAUDT READ                                      '
+  queue 'ZVSS0020 2 READ     VRA$.VRASRPT                              '
+  queue 'ZVSS0020 3 AUDTAUDT READ                                      '
+  queue 'ZVSS0020 3 SECAAUDT READ                                      '
+  queue 'ZVSS0020 3 SECDAUDT READ                                      '
+  queue 'ZVSS0020 2 READ     VRA$.VRAVTOC                              '
+  queue 'ZVSS0020 3 AUDTAUDT READ                                      '
+  queue 'ZVSS0020 3 SECAAUDT READ                                      '
+  queue 'ZVSS0020 3 SECDAUDT READ                                      '
+  queue 'ZVSS0020 3 SYSPAUDT READ                                      '
+  queue 'ZVSS0020 2 READ     VRA$.VRTRAA                               '
+  queue 'ZVSS0020 3 AUDTAUDT READ                                      '
+  queue 'ZVSS0020 3 SECAAUDT READ                                      '
+  queue 'ZVSS0020 3 SECDAUDT READ                                      '
+  queue 'ZVSS0020 3 SYSPAUDT READ                                      '
+  queue 'ZVSS0020 2 READ     VRAADM$.VARIABLES                         '
+  queue 'ZVSS0020 3 SECAAUDT READ                                      '
+  queue 'ZVSS0020 3 SECDAUDT READ                                      '
+  queue 'ZVSS0020 2 READ     VRAIDM$                                   '
+  queue 'ZVSS0020 3 SECAAUDT UPDATE                                    '
+  queue 'ZVSS0020 2 READ     VRAIDM$.                                  '
+  queue 'ZVSS0020 3 SECAAUDT UPDATE                                    '
+  queue 'ZVSS0020 3 SECDAUDT UPDATE                                    '
+  queue 'ZVSS0020 2 READ     VRAPW$                                    '
+  queue 'ZVSS0020 3 *        NONE                                      '
+  queue 'ZVSS0020 3 SECAAUDT READ                                      '
+  queue 'ZVSS0020 3 SECDAUDT READ                                      '
+  queue 'ZVSS0020 2 READ     VRAPW$.ALL                                '
+  queue 'ZVSS0020 3 SECAAUDT READ                                      '
+  queue 'ZVSS0020 2 READ     VRAPW$.ALLOW.HREVOKE                      '
+  queue 'ZVSS0020 3 SECAAUDT READ                                      '
+  queue 'ZVSS0020 3 SECDAUDT READ                                      '
+  queue 'ZVSS0020 2 READ     VRAPW$.NOHISTCHK                          '
+  queue 'ZVSS0020 3 *        NONE                                      '
+  queue 'ZVSS0020 2 READ     VRAPW$.NONE                               '
+  queue 'ZVSS0020 3 *        NONE                                      '
+  queue 'ZVSS0020 2 READ     VRAPW$.NONE.AUDITOR                       '
+  queue 'ZVSS0020 3 SECDAUDT READ                                      '
+  queue 'ZVSS0020 2 READ     VRAPW$.NONE.OPERATIONS                    '
+  queue 'ZVSS0020 3 SECDAUDT READ                                      '
+  queue 'ZVSS0020 2 READ     VRAPW$.NONE.SPECIAL                       '
+  queue 'ZVSS0020 3 SECDAUDT READ                                      '
+  queue 'ZVSS0020 2 READ     VRAPWHR$                                  '
+  queue 'ZVSS0020 3 SECAAUDT READ                                      '
+  queue 'ZVSS0020 3 SECDAUDT READ                                      '
+  queue 'ZVSS0020 2 READ     VRAUD$                                    '
+  queue 'ZVSS0020 3 SECAAUDT READ                                      '
+  queue 'ZVSS0020 3 SECDAUDT READ                                      '
+  queue 'ZVSS0020 2 READ     VSA$.VSA                                  '
+  queue 'ZVSS0020 3 SECAAUDT READ                                      '
+  queue 'ZVSS0020 3 SECDAUDT READ                                      '
+  queue 'ZVSS0020 2 READ     VSR$.SCOPE                                '
+  queue 'ZVSS0020 3 SECAAUDT READ                                      '
+  queue 'ZVSS0020 3 SECDAUDT READ                                      '
+  queue 'ZVSS0020 2 READ     VSR$.VSR                                  '
+  queue 'ZVSS0020 3 AUDTAUDT READ                                      '
+  queue 'ZVSS0020 3 SECAAUDT READ                                      '
+  queue 'ZVSS0020 3 SECDAUDT READ                                      '
+  say pgmname right(queued(),4) 'records written to' MEMBER 'for ZVSS0020.'
+  Call Write_queued
+  end
+return
+ 
+ 
+VTAM9999:
+return
+ 
+ 
+VTAPE999:
+Address ISPEXEC "VGET (SSN) ASIS"
+if RC <> 0 then return
+ 
+x = OUTTRAP("out.")
+test = cacc1010(SSN 'D PARMLIB,S')
+x = outtrap(off)
+resource = "MVS.CANCEL.STC.#",
+           "MVS.FORCE.STC.#",
+           "MVS.FORCEARM.STC.#",
+           "MVS.MODIFY.STC.#",
+           "MVS.SETIOS.#",
+           "MVS.START.STC.#",
+           "MVS.STOP.STC.#",
+           "MVS.VARY.DEV#",
+           "STGADMIN.IDC.DCOLLECT#"
+if TERMMSGS = ON then,
+  say PGMNAME "output from CACC1010 routine:"
+do a = 1 to out.0
+  parse upper var out.a name ". " data
+  name = strip(strip(name,,'.'))
+  if name = "TASKLIB" & data = "AUTOMATIC" then,
+    resource = resource"CSVAPF.#"
+  if name = "TAPEMANAGEMENTSYSTEM" then,
+    if data = "AUTOMATIC" | data = "CA1" then,
+      resource = resource"YSVCUNCD#"
+  if name = "MOUNTREJECTTHRESHOLD" then,
+     if index(data,"CANCEL") = 1 then,
+      resource = resource"MVS.CANCEL.JOB.#"
+  end
+rectype = "1"
+Call COLLECT_REC
+trecs = recs
+cnt = 0
+do until resource = ""
+  parse var resource res "#" resource
+  res = strip(res)
+  rc = 0
+  "FIND FIRST '"res" ' 21"
+  if rc = 0 then do
+    "(data) = LINE .ZCSR"
+    parse var data pdi 9 .
+    recs = trecs
+    do until recs = ''
+      parse var recs . 72 userid 81 recs
+      line = left(pdi,8) '3' left(userid,8) 'ALTER'
+      line = left(line,30)res
+      "FIND FIRST '"line"' 1"
+      if rc <> 0 then do
+        "LINE_AFTER .ZCSR = DATALINE (LINE)"
+        cnt = cnt + 1
+        end
+      end /* do until recs */
+    end /* if rc = 0 */
+  end /* do a = 1 */
+ 
+say pgmname right(cnt,4) 'records written to' MEMBER'.'
+Call Write_queued
+return
+ 
+ 
+WAS99999:
+return
+ 
+ 
+Write_queued:
+Address ISREDIT
+do queued()
+  Parse pull line                            /* pull queued lines    */
+  "LINE_AFTER .ZLAST = DATALINE (LINE)"
+  end /* do a = 1 */
+Return
+ 
+ 
+COLLECT_REC:
+arg test
+Address ISPEXEC
+"lminit dataid(dialog) ddname(dialog)"
+lminit_dialog = RC
+"lmopen dataid("dialog")"
+lmopen_dialog = RC
+"lmmfind dataid("dialog") member(products)"
+lmmfind_dialog = RC
+if test = '' then,
+  TRUN = left(TYPERUN,8)
+else,
+  TRUN = left(test,8)
+RC = 0
+recs =
+do until RC>0
+  "lmget dataid("dialog") mode(invar) dataloc(data) datalen(lrecl)",
+  "maxlen(80)"
+  if RC = 0 & ,
+     pos(TRUN' 'rectype,data) = 1 then do
+    recs = recs""data
+    end /* if RC = 0 & */
+end /* until RC>0 */
+"lmclose dataid("dialog")"
+lmclose_dialog = RC
+"lmfree dataid("dialog")"
+lmfree_dialog = RC
+return
+ 
+ 
+OBTAIN_ASSET_INFO:
+DESC   = ""
+CLASS  = ""
+MAC    = ""
+CONF   = ""
+STATUS = ""
+USE    = ""
+BLDG   = ""
+ROOM   = ""
+SERNR  = ""
+BARCD  = ""
+MAKE   = ""
+MODEL  = ""
+MANUF  = ""
+asset. = ""
+cnt = 0
+Address ISPEXEC
+"lminit dataid(dialog) ddname(dialog)"
+lminit_dialog = RC
+"lmopen dataid("dialog")"
+lmopen_dialog = RC
+"lmmfind dataid("dialog") member(asset)"
+lmmfind_dialog = RC
+RC = 0
+do until RC>0
+  "lmget dataid("dialog") mode(invar) dataloc(data) datalen(lrecl)",
+  "maxlen(80)"
+  cnt = cnt + 1
+  asset.cnt = data
+end /* until RC>0 */
+"lmclose dataid("dialog")"
+lmclose_dialog = RC
+"lmfree dataid("dialog")"
+lmfree_dialog = RC
+asset.0 = cnt
+do cnt = 1 to asset.0
+  ac = strip(asset.cnt,"T")
+  parse var ac ass_key 11 ass_data
+  interpret ass_key "= '"ass_data"'"
+  end
+return
+ 
+error:
+say
+say pgmname TYPERUN "ERRORTEXT"(rc) 'for processing' MEMBER'.'
+signal continue

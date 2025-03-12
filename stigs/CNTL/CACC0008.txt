@@ -1,0 +1,147 @@
+/* REXX */
+/*                                       */
+/* AUTHOR: Charles Fenton                */
+/*                                       */
+/*********************************************************************/
+/* This script collect OMVS information on users and groups.         */
+/*********************************************************************/
+/* Change summary:                                                   */
+/* 11/03/2008 CL Fenton Initial creation of script generate and      */
+/*            obtain OMVS information from ACPs and generate         */
+/*            finding details.                                       */
+/* 02/26/2010 CL Fenton Chgd format of output mgs stats.             */
+/* 03/11/2011 CL Fenton Update in obtain addition information.       */
+/*            And changed data set from po to ps.                    */
+/* 08/16/2013 CL Fenton Chg to put PROFILE VARSTORAGE(HIGH)          */
+/*            within script, STS-003055.                             */
+/* 09/24/2019 CL Fenton Chg commands issued and process for ACF2,    */
+/*            STS-023242.                                            */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+PGMNAME = 'CACC0008 09/24/19'
+/*SYSFLUSH = 'ON'*/
+TERMMSGS = 'OFF'
+COMLIST  = 'OFF'
+CONSLIST = 'OFF'
+SYMLIST  = 'OFF'
+TERMPRO  = 'OFF'
+MEMBER   = 'ZUSS0046'
+"profile varstorage(high)"
+Numeric digits 10                           /* dflt of 9 not enough  */
+Arg OPTION
+OPTION = translate(OPTION,'=;','()')
+interpret OPTION
+if TRACE = 'ON' then do
+  TERMMSGS = ON
+  COMLIST  = ON
+  CONSLIST = ON
+  SYMLIST  = ON
+  TERMPRO  = ON
+  end
+Address ISPEXEC
+/*ZISPFRC = 0
+"VPUT (ZISPFRC) SHARED"*/
+"CONTROL NONDISPL ENTER"
+"CONTROL ERRORS RETURN"
+"VPUT (CONSLIST COMLIST SYMLIST TERMPRO TERMMSGS)"
+If CONSLIST = ON | COMLIST = ON | SYMLIST = ON | TRACE = ON ,
+  then Trace rs
+"ISPEXEC SELECT CMD(CACC1000 ACP)"
+"VGET (ACPNAME ACPVERS)"
+"lminit dataid(pdidd) ddname(pdidd)"
+lminit_pdidd = RC
+"lminit dataid(dialog) ddname(dialog)"
+lminit_dialog = RC
+"lminit dataid(ussdd) ddname(ussrpt)"
+lminit_ussdd = RC
+"lmopen dataid("pdidd") option(output)"
+lmopen_pdidd = RC
+"lmopen dataid("dialog")"
+lmopen_dialog = RC
+"VPUT (PDIDD DIALOG)"
+"lmopen dataid("ussdd") option(output)"
+lmopen_ussdd = RC
+/*********************************************************************/
+/* Generate security commands for OMVS users.                        */
+/*********************************************************************/
+x = outtrap("out.")
+if ACPNAME = 'RACF' then do
+  address TSO "LU * OMVS"
+  address TSO "LG * NORACF OMVS"
+  MACRO = CARM0100
+  end
+if ACPNAME = 'TSS' then do
+  address TSO "TSS LIST(ACIDS)DATA(BASIC)SEGMENT(OMVS)"
+  MACRO = CATM0100
+  end
+if ACPNAME = 'ACF2' then do
+/*queue "SET PROFILE(USER) DIVISION(OMVS)"
+  queue "LIST LIKE(-)"
+  queue "SET PROFILE(GROUP) DIVISION(OMVS)"
+  queue "LIST LIKE(-)"
+  queue "QUIT"*/
+  queue "LIST LIKE(-) SECTION(RESTRICTIONS) PROFILE(OMVS)"
+  queue "SET PROFILE(GROUP) DIVISION(OMVS)"
+  queue "LIST LIKE(-)"
+  queue "QUIT"
+  queue ""
+  address TSO "ACF"
+/*address tso 'alloc fi(sysin) space(1 1) tracks recfm(f b)',
+    'lrecl(80) new delete unit(sysda)'
+  queue "INPUT(ACF2)"
+  queue "REPORT(SHORT)"
+  queue "DTCFIELDS(NO)"
+  queue "SFLDS(GROUP)"
+  Address TSO "EXECIO" Queued() "DISKW sysin (FINIS"
+  address ISPEXEC "SELECT PGM(ACFRPTSL)"*/
+  MACRO = CAAM0100
+  end
+x = outtrap(off)
+acprc = RC
+address TSO "DELSTACK"
+address TSO "DELSTACK"
+say pgmname "Record count is" out.0"."
+do x = 1 to out.0
+  ac = " "out.x
+  "LMPUT DATAID("ussdd") MODE(INVAR) DATALOC(ac)",
+    "DATALEN("length(ac)")"
+  end
+"lmclose dataid("ussdd")"
+lmclose_ussdd = RC
+say PGMNAME 'Processing data for script' MACRO'.'
+"EDIT DATAID("ussdd") MACRO("MACRO")"
+edit_ussrpt1 = RC
+SAY PGMNAME 'Processing data for script CACM0100.'
+"EDIT DATAID("ussdd") MACRO(CACM0100)"
+edit_ussrpt2 = RC
+"lmclose dataid("pdidd")"
+lmclose_pdidd = RC
+"lmclose dataid("dialog")"
+lmclose_dialog = RC
+"lmfree dataid("pdidd")"
+lmfree_pdidd = RC
+"lmfree dataid("dialog")"
+lmfree_dialog = RC
+"lmfree dataid("ussdd")"
+lmfree_ussdd = RC
+If TERMMSGS = ON then do
+  say '==============================================================='
+  say PGMNAME 'LMINIT_PDIDD                  ' lminit_pdidd
+  say PGMNAME 'LMINIT_DIALOG                 ' lminit_dialog
+  say PGMNAME 'LMINIT_USSDD                  ' lminit_ussdd
+  say PGMNAME 'LMOPEN_PDIDD                  ' lmopen_pdidd
+  say PGMNAME 'LMOPEN_DIALOG                 ' lmopen_dialog
+  say PGMNAME 'LMOPEN_USSDD                  ' lmopen_ussdd
+  say PGMNAME 'ACP_RC                        ' acprc
+  say PGMNAME 'EDIT_USSRPT 'MACRO'          ' edit_ussrpt1
+  say PGMNAME 'EDIT_USSRPT CACM0100          ' edit_ussrpt2
+  say PGMNAME 'LMCLOSE_PDIDD                 ' lmclose_pdidd
+  say PGMNAME 'LMCLOSE_DIALOG                ' lmclose_dialog
+  say PGMNAME 'LMCLOSE_USSDD                 ' lmclose_ussdd
+  say PGMNAME 'LMFREE_PDIDD                  ' lmfree_pdidd
+  say PGMNAME 'LMFREE_DIALOG                 ' lmfree_dialog
+  say PGMNAME 'LMFREE_USSDD                  ' lmfree_ussdd
+  say '==============================================================='
+  end
+Exit 0

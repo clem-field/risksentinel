@@ -1,0 +1,51 @@
+start:
+        binmode = on
+        streammode = off
+bin:
+        trail = /audit/trail
+        bin1 = /audit/bin1
+        bin2 = /audit/bin2
+        binsize = 25000
+        cmds = /etc/security/audit/bincmds
+        freespace = 65536
+        backuppath = /audit
+        backupsize = 0
+        bincompact = off
+
+stream:
+        cmds = /etc/security/audit/streamcmds
+
+classes:
+        general = USER_SU,PASSWORD_Change,FILE_Unlink,FILE_Link,FILE_Rename,FS_Chdir,FS_Chroot,PORT_Locked,PORT_Change,FS_Mkdir,FS_Rmdir
+        objects = S_ENVIRON_WRITE,S_GROUP_WRITE,S_LIMITS_WRITE,S_LOGIN_WRITE,S_PASSWD_READ,S_PASSWD_WRITE,S_USER_WRITE,AUD_CONFIG_WR
+        SRC = SRC_Start,SRC_Stop,SRC_Addssys,SRC_Chssys,SRC_Delssys,SRC_Addserver,SRC_Chserver,SRC_Delserver
+        kernel = PROC_Create,PROC_Delete,PROC_Execute,PROC_RealUID,PROC_AuditID,PROC_RealGID,PROC_Environ,PROC_Limits,PROC_SetPri,PROC_Setpri,PROC_Privilege,PROC_Settim
+er
+        files = FILE_Open,FILE_Read,FILE_Write,FILE_Close,FILE_Link,FILE_Unlink,FILE_Rename,FILE_Owner,FILE_Mode,FILE_Acl,FILE_Privilege,DEV_Create,File_copy
+        svipc = MSG_Create,MSG_Read,MSG_Write,MSG_Delete,MSG_Owner,MSG_Mode,SEM_Create,SEM_Op,SEM_Delete,SEM_Owner,SEM_Mode,SHM_Create,SHM_Open,SHM_Close,SHM_Owner,SHM_
+Mode
+        mail = SENDMAIL_Config,SENDMAIL_ToFile
+        cron = AT_JobAdd,AT_JobRemove,CRON_JobAdd,CRON_JobRemove,CRON_Start,CRON_Finish
+        tcpip = TCPIP_config,TCPIP_host_id,TCPIP_route,TCPIP_connect,TCPIP_data_out,TCPIP_data_in,TCPIP_access,TCPIP_set_time,TCPIP_kconfig,TCPIP_kroute,TCPIP_kconnect,
+TCPIP_kdata_out,TCPIP_kdata_in,TCPIP_kcreate
+        lvm = LVM_AddLV,LVM_KDeleteLV,LVM_ExtendLV,LVM_ReduceLV,LVM_KChangeLV,LVM_AvoidLV,LVM_MissingPV,LVM_AddPV,LVM_AddMissPV,LVM_DeletePV,LVM_RemovePV,LVM_AddVGSA,LV
+M_DeleteVGSA,LVM_SetupVG,LVM_DefineVG,LVM_KDeleteVG,LVM_ChgQuorum,LVM_Chg1016,LVM_UnlockDisk,LVM_LockDisk,LVM_ChangeLV,LVM_ChangeVG,LVM_CreateLV,LVM_CreateVG,LVM_Delete
+VG,LVM_DeleteLV,LVM_VaryoffVG,LVM_VaryonVG
+        ldapserver = LDAP_Bind,LDAP_Unbind,LDAP_Add,LDAP_Delete,LDAP_Modify,LDAP_Modifydn,LDAP_Search,LDAP_Compare
+        aacct=AACCT_On,AACCT_Off,AACCT_AddFile,AACCT_ResetFile,AACCT_RmFile,AACCT_SwtchFile,AACCT_TridOn,AACCT_TridOff,AACCT_SysIntOff,AACCT_SysIntSet,AACCT_PrIntOff,AA
+CCT_PrIntSet,AACCT_SwtchProj,AACCT_AddProj,AACCT_RmProj,AACCT_PolLoad,AACCT_PolUnload,AACCT_NotChange,AACCT_NotifyOff
+        wparmgtclass = WM_CreateWPAR,WM_RemoveWPAR,WM_StartWPAR,WM_StopWPAR,WM_RebootWPAR,WM_SyncWPAR,WM_CheckptWPAR,WM_ResumeWPAR,WM_RestartWPAR,WM_ModifyWPAR,WM_SetIn
+itConf,WM_SetMonIntv,WM_SetTierMnDsc,WM_ResetConfig,WM_ModifyConfig
+        stig_aud_class = ACCT_Disable,ACCT_Enable,AT_JobAdd,AT_JobRemov,AUD_CONFIG_WR,AUTH_Change,BACKUP_Export,CMD_Change,CRON_Finish,CRON_JobAdd,CRON_JobRemove,CRON_S
+tart,CRON_Stop,DEV_Change,DEV_Configure,DEV_Create,DEV_Remove,DEV_Start, DEV_Stop,DEV_Unconfigure,Domain_Change,FILE_Acl,FILE_Chpriv,FILE_Fchpriv, FILE_Fmode,FILE_Fowne
+r,FILE_Link,FILE_Mknod,FILE_Mode,FILE_Open,FILE_Owner,FILE_Pipe,FILE_Privilege,FILE_Rename,FILE_Unlink,FS_Chroot,FS_Mkdir,FS_Mount,FS_Rmdir,FS_Unmout,GROUP_Adms,GROUP_C
+hange,GROUP_Change,GROUP_User,INIT_End,INIT_Start,KST_Change,LPA_Change,PASSWORD_Change,PASSWORD_Check,PASSWORD_Flags,PFILE_Change,PFILE_Remove,PORT_Change,PROC_Adjtime
+,PROC_Execute, PROC_Kill,PROC_Privilege,PROC_RealGID,PROC_RealUID,PROC_SetUserIDs,PROC_Setpgid,PROC_Settimer,PROC_Sysconfig,RESTORE_import,ROLE_Change,SEM_Create,SEM_De
+lete, SHM_Create,SHM_Open,S_ENVIRON_WRITE,S_GROUP_WRITE,S_LIMITS_WRITE,S_LOGIN_WRITE,S_PASSWD_READ,S_PASSWD_WRITE,S_USER_WRITE,TCB_Exec,TCB_Leak, TCB_Mod,TCPIP_connect,
+TCPIP_data_out,TCPIP_data_in,TCP_kaccept,TCP_kbind,TCP_kconnect,TCP_ksocket,USER_Change,USER_Chpass,USER_Create,USER_Exit,USER_Locked,USER_Login,USER_Logout,USER_Reboot
+,USER_Remove,USER_SU,USER_SetEnv,USER_SetGroups,USER_Unlocked
+        ACCT_class0 = USER_Create
+users:
+        root = general
+        default = stig_aud_class
+role:

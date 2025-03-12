@@ -1,0 +1,129 @@
+//*--------------------------------------------------------------------
+//*-------------------------->> RACFCMD2 <<----------------------------
+//*--------------------------------------------------------------------
+//*  IMPORTANT:  Copy member JOBCARD to the beginning of this job.
+//*
+//*                      PLUS RACF DSMON REPORTS
+//*
+//*  THIS JOB PRODUCES MULTIPLE RACF DSMON REPORTS AND SAVES THEM IN
+//*  INDIVIDUAL PDS MEMBERS.
+//*
+//*--------------------------------------------------------------------
+//*             DELETE PREVIOUS RUN DATASETS
+//*--------------------------------------------------------------------
+//STEP1    EXEC PGM=IEFBR14
+//DSMONDSN DD DSN=&SRRHLQ..DSMON.RPT,
+//            DISP=(MOD,DELETE,DELETE),
+//            SPACE=(TRK,0),UNIT=SYSDA
+//*--------------------------------------------------------------------
+//*             RACF DSMON REPORTS
+//*--------------------------------------------------------------------
+//STEP3    EXEC  PGM=IEFBR14
+//DSMONDSN DD DSN=&SRRHLQ..DSMON.RPT,
+//            DISP=(,CATLG,DELETE),
+//            DCB=(DSORG=PO,RECFM=FBA,LRECL=133,BLKSIZE=27930),
+//            SPACE=(TRK,(10,10,8)),
+//            UNIT=(SYSDA,1)
+//*
+//*--------------------------------------------------------------------
+//*             RACF DSMON REPORT (INSTREAM PROCEDURE)
+//*--------------------------------------------------------------------
+//*
+//DSMONRPT PROC
+//DSMON    EXEC  PGM=ICHDSM00
+//SYSPRINT DD SYSOUT=*
+// PEND
+//*
+//STEP41   EXEC DSMONRPT
+//SYSUT2   DD DSN=&SRRHLQ..DSMON.RPT(RACUSR),
+//            DISP=SHR
+//SYSIN    DD *
+ LINECOUNT 0
+ FUNCTION RACUSR
+/*
+//STEP42   EXEC DSMONRPT
+//SYSUT2   DD DSN=&SRRHLQ..DSMON.RPT(RACDST),
+//            DISP=SHR
+//SYSIN    DD *
+ LINECOUNT 0
+ FUNCTION RACDST
+/*
+//STEP43   EXEC DSMONRPT
+//SYSUT2   DD DSN=&SRRHLQ..DSMON.RPT(SYSLNK),
+//            DISP=SHR
+//SYSIN    DD *
+ LINECOUNT 0
+ FUNCTION SYSLNK
+/*
+//STEP44   EXEC DSMONRPT
+//SYSUT2   DD DSN=&SRRHLQ..DSMON.RPT(SYSAPF),
+//            DISP=SHR
+//SYSIN    DD *
+ LINECOUNT 0
+ FUNCTION SYSAPF
+/*
+//STEP45   EXEC DSMONRPT
+//SYSUT2   DD DSN=&SRRHLQ..DSMON.RPT(SYSCAT),
+//            DISP=SHR
+//SYSIN    DD *
+ LINECOUNT 0
+ FUNCTION SYSCAT
+/*
+//STEP46   EXEC DSMONRPT
+//SYSUT2   DD DSN=&SRRHLQ..DSMON.RPT(RACSPT),
+//            DISP=SHR
+//SYSIN    DD *
+ LINECOUNT 0
+ FUNCTION RACSPT
+/*
+//STEP47   EXEC DSMONRPT
+//SYSUT2   DD DSN=&SRRHLQ..DSMON.RPT(RACEXT),
+//            DISP=SHR
+//SYSIN    DD *
+ LINECOUNT 0
+ FUNCTION RACEXT
+/*
+//STEP48   EXEC DSMONRPT
+//SYSUT2   DD DSN=&SRRHLQ..DSMON.RPT(RACGRP),
+//            DISP=SHR
+//SYSIN    DD *
+ LINECOUNT 0
+ FUNCTION RACGRP
+/*
+//STEP49   EXEC DSMONRPT
+//SYSUT2   DD DSN=&SRRHLQ..DSMON.RPT(SYSPPT),
+//            DISP=SHR
+//SYSIN    DD *
+ LINECOUNT 0
+ FUNCTION SYSPPT
+/*
+//STEP410  EXEC DSMONRPT
+//SYSUT2   DD DSN=&SRRHLQ..DSMON.RPT(RACAUT),
+//            DISP=SHR
+//SYSIN    DD *
+ LINECOUNT 0
+ FUNCTION RACAUT
+/*
+//STEP411  EXEC DSMONRPT
+//SYSUT2   DD DSN=&SRRHLQ..DSMON.RPT(RACCDT),
+//            DISP=SHR
+//SYSIN    DD *
+ LINECOUNT 0
+ FUNCTION RACCDT
+/*
+//STEP412  EXEC DSMONRPT
+//SYSUT2   DD DSN=&SRRHLQ..DSMON.RPT(RACGAC),
+//            DISP=SHR
+//SYSIN    DD *
+ LINECOUNT 0
+ FUNCTION RACGAC
+/*
+//STEP413  EXEC DSMONRPT
+//SYSUT2   DD DSN=&SRRHLQ..DSMON.RPT(SYSSDS),
+//            DISP=SHR
+//SYSIN    DD *
+ LINECOUNT 0
+ FUNCTION SYSSDS
+/*
+//*
+//

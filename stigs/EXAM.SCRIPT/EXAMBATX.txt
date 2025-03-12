@@ -1,0 +1,2 @@
+/*PROFILE PREFIX(IS)                                                    00010000
+ ISPSTART CMD(%EXAMBATX) BDISPMAX(1000)                                 00020000

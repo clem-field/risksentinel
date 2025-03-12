@@ -1,0 +1,339 @@
+/* REXX */
+/* CLS2REXXed by UMLA01S on 25 Jul 2019 at 15:00:39  */
+/*trace ?r*/
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+Address ISREDIT
+ 
+"MACRO"               /* CACM0422 EDIT AUACCESS(*)  */
+/*********************************************************************/
+/* 11/09/2004 JL Nelson Created to build TBLUSR string               */
+/* 02/09/2005 JL Nelson Changed constants to variables               */
+/* 02/16/2005 JL Nelson Added AU member name to output file          */
+/* 06/09/2005 JL Nelson Pass MAXCC in ZISPFRC variable               */
+/* 03/20/2006 JL Nelson Use NRSTR avoid abend 900 if ampersand in    */
+/*            data.                                                  */
+/* 03/29/2006 JL Nelson Test for empty member LINENUM Rcode = 4.     */
+/* 05/23/2012 CL Fenton Chgs to allow use of AUACCESS for authorized */
+/*            users list to prevent the possible "IKJ56548I          */
+/*            INSUFFICIENT STORAGE FOR CLIST TO CONTINUE" message    */
+/*            from occurring when a DIALOG user group contains an    */
+/*            excessive number of user, CSD-AR003400969.             */
+/* 09/18/2012 CL Fenton Corrected 860 errors on RESTYPE with special */
+/*            characters (+, -, *, and /).                           */
+/* 07/25/2019 CL Fenton Converted script from CLIST to REXX.         */
+/* 01/24/2020 CL Fenton Corrected issue with only first user         */
+/*            specified in each user group for specific resources,   */
+/*            STS-023947.                                            */
+/* 05/19/2020 CL Fenton Chgs to bypass process after WRITE_USR       */
+/*            process, STS-024509.                                   */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname = "CACM0422 05/19/20"
+sysprompt = "OFF"                 /* CONTROL NOPROMPT          */
+sysflush  = "OFF"                 /* CONTROL NOFLUSH           */
+sysasis   = "ON"                  /* CONTROL ASIS - caps off   */
+return_code = 0
+cm22vput    = 0
+tblusr = ""
+zerrlm = ""
+maxcc = 0
+Address ISPEXEC "CONTROL NONDISPL ENTER"
+Address ISPEXEC "CONTROL ERRORS RETURN"
+/*******************************************/
+/* VARIABLES ARE PASSED TO THIS MACRO      */
+/*******************************************/
+return_code = 0
+zerrsm = ""
+Address ISPEXEC "VGET ( ACPNAME CONSLIST COMLIST SYMLIST TERMMSGS",
+  "CNTL DIALOG AUACCESS AUACCCNT CACT0000 CACT0008 RESTYPE ) ASIS"
+cm22vget = return_code
+If return_code <> 0 then do
+  Say pgmname "VGET RC =" return_code zerrsm
+  Say pgmname "ACPNAME/"acpname "CONSLIST/"conslist,
+    "COMLIST/"comlist "SYMLIST/"symlist "TERMMSGS/"termmsgs,
+    "CNTL/"cntl "DIALOG/"dialog
+  Say pgmname "AUACCESS/"auaccess "AUACCCNT/"auacccnt,
+    "CACT0000/"cact0000 "CACT0008/"cact0008 "RESTYPE/"restype
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" ,
+  then Trace r
+ 
+return_code = 0
+/*******************************************/
+/* TURN ON MESSAGES                        */
+/*******************************************/
+syssymlist = symlist           /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist          /* CONTROL CONLIST/NOCONLIST */
+syslist    = comlist           /* CONTROL LIST/NOLIST       */
+sysmsg     = termmsgs          /* CONTROL MSG/NOMSG         */
+key = ""
+/*******************************************/
+/* MAIN PROCESS                            */
+/*******************************************/
+"NUMBER OFF"
+"(LASTLINE) = LINENUM .ZLAST"
+If lastline > 0 then,
+  "DELETE ALL NX"
+aulog_lvl = 0
+auuac_lvl = 0
+return_code = 0
+ 
+If restype = "DSN" then do
+  Address ISPEXEC "LMMFIND DATAID("cntl") MEMBER("cact0000")"
+  lmmfind_cntl_rc = return_code
+  If return_code > 4 then do
+    Say pgmname "LMMFIND_CNTL_RC =" return_code "MEMBER =",
+      cact0000 zerrsm
+    return_code = return_code + 16
+    SIGNAL ERR_EXIT
+    end
+  end
+Else do
+  Address ISPEXEC "VGET (TBLINFO) ASIS"
+  key = restype
+  end
+"(MEMBER) = MEMBER"
+"(DSNAME) = DATASET"
+sensmbr8 = left(member,8)
+member = strip(member,"B")
+rcnt = 1
+ 
+ 
+GET_NEXT_TBL:
+do forever
+  return_code = 0
+  If restype = "DSN" then do
+    Address ISPEXEC "LMGET DATAID("cntl") MODE(INVAR)",
+      "DATALOC(TRECORD) MAXLEN(80) DATALEN(LRECL)"
+    lmget_cntl_rc = return_code
+    If return_code = 8 then do
+      lmget_cntl_rc = 0               /* SET RETURN CODE TO 0 */
+      leave
+      end
+    If return_code > 4 then do
+      Say pgmname "LMGET_CNTL_RC =" return_code zerrsm
+      return_code = return_code + 16
+      SIGNAL ERR_EXIT
+      end
+    If left(trecord,1) = "*" then iterate
+    If left(trecord,8) <> sensmbr8 then iterate
+    If left(trecord,9) = sensmbr8"0" then iterate
+    end
+  Else do
+    If rcnt > length(tblinfo) then leave
+    y = pos("#",tblinfo,rcnt)
+    parse var tblinfo =(rcnt) trecord =(y) .
+    rcnt = y + 1
+    end
+  parse var trecord group +8 10 aumbr +8 19 auacc +8 .
+  lvl = 0
+  Select
+    When auacc = "NONE    " then lvl = 0
+    When auacc = "EXECUTE " then lvl = 1
+    When auacc = "FETCH   " then lvl = 1
+    When auacc = "EXEC    " then lvl = 1
+    When auacc = "NOCREATE" then lvl = 2
+    When auacc = "READ    " then lvl = 3
+    When auacc = "INQUIRE " then lvl = 3
+    When auacc = "WRITE   " then lvl = 4
+    When auacc = "UPDATE  " then lvl = 5
+    When auacc = "CONTROL " then lvl = 6
+    When auacc = "CREATE  " then lvl = 7
+    When auacc = "SCRATCH " then lvl = 8
+    When auacc = "ALTER   " then lvl = 9
+    When auacc = "ALL     " then lvl = 9
+    When auacc = "ALLOC   " then lvl = 9
+    Otherwise do
+      Say pgmname "Invalid access" auacc "was found for report",
+        sensmbr8 "in table" cact0000
+      iterate
+      end
+    end
+ 
+  Select
+    When acpname = "ACF2" then do
+      If lvl = 2 then lvl = 3
+      If lvl = 4 then lvl = 5
+      If lvl = 6 then lvl = 9
+      If lvl = 7 then lvl = 9
+      If lvl = 8 then lvl = 9
+      end
+    When acpname = "RACF" then do
+      If lvl = 2 then lvl = 3
+      If lvl = 4 then lvl = 5
+      If lvl = 7 then lvl = 9
+      If lvl = 8 then lvl = 9
+      end
+    Otherwise nop
+    end
+  If aumbr = " " then do
+    aulog_lvl = lvl
+    iterate
+    end
+  If aumbr = "*" then do
+    auuac_lvl = lvl
+    usr = aumbr
+    Call WRITE_USR
+    iterate
+    end
+  return_code = 0
+  Address ISPEXEC "LMMFIND DATAID("dialog") MEMBER("aumbr")"
+  lmmfind_dialog_rc = return_code
+  If return_code <> 0 then do
+    return_code = 0
+    Address ISPEXEC "SELECT CMD(CACC0002 USERID("aumbr") PDI()"
+    If return_code = 0 then do
+      usr = aumbr"        "
+      Call WRITE_USR
+      iterate
+      end
+    Else do
+      If cact0000 <> "NONE" then,
+        Say pgmname "Authorized user list" aumbr "not found for",
+          "table entry" sensmbr8 "in table" cact0000
+      Else,
+        Say pgmname "Authorized user list" aumbr "not found for",
+          "table entry" sensmbr8 "-" restype "in table" cact0008
+      iterate
+      end
+    end
+ 
+ 
+  GET_NEXT_USR:
+  do until return_code > 0
+    return_code = 0
+    If lmmfind_dialog_rc > 0 then leave
+    Address ISPEXEC "LMGET DATAID("dialog") MODE(INVAR)",
+      "DATALOC(URECORD) MAXLEN(80) DATALEN(LRECL)"
+    lmget_dialog_rc = return_code
+    If return_code = 8 then do
+      lmget_dialog_rc = 0             /* SET RETURN CODE TO 0 */
+      leave
+      end
+    If return_code > 4 then do
+      Say pgmname "LMGET  DIALOG  RC =" return_code zerrsm
+      return_code = return_code + 16
+      SIGNAL ERR_EXIT
+      end
+    If left(urecord,1) = "*" |,
+       left(urecord,1) = " " then iterate
+    usr = left(urecord,8)
+ 
+    Call WRITE_USR
+    end
+  end
+ 
+ 
+END_NEXT_TBL:
+return_code = 0
+If acpname = "RACF" &,
+   aulog_lvl = 1 then do
+  aulog_lvl = 3
+  aulog = "READ"
+  end
+tblusr = tblusr"LOGGING" aulog_lvl"#"
+tblusr = tblusr"UACC    "auuac_lvl"#"
+Address ISPEXEC "VPUT (TBLUSR) ASIS"
+"(MEMBER) = MEMBER"
+"(DSNAME) = DATASET"
+return_code = 0
+"(LASTLINE) = LINENUM .ZLAST"
+If return_code > 0 then do
+  If lastline = 0 then,
+    say pgmname "Empty file RCode =" return_code "DSN=" dsname,
+      "MEMBER="member zerrsm restype
+  Else,
+    Say pgmname "LINENUM Error RCode =" return_code "DSN="dsname
+      "MEMBER="member zerrsm
+  return_code = 0
+  SIGNAL ERR_EXIT
+  end
+ 
+/*******************************************/
+/* GET TABLE ENTRIES                       */
+/*******************************************/
+oid = ""
+return_code = 0
+"SORT 1 8 A 9 9 D"
+If return_code > 4 then do
+  If return_code > 8 then,
+    Say pgmname member "SORT" return_code zerrlm
+  Else,
+    return_code = 0
+  SIGNAL ERR_EXIT
+  end
+ 
+Do CNT = 1 to lastline
+  "(DATA) = LINE" cnt
+  If length(data) < 19 then iterate
+  id = left(data,8)
+  If oid <> id then,
+    oid = id
+  Else,
+    "XSTATUS" cnt "= X"
+  end
+ 
+"DELETE ALL X"
+return_code = 0
+Address ISPEXEC "VPUT (TBLUSR) ASIS"
+cm22vput = return_code
+return_code = 0
+ 
+ 
+ERR_EXIT:
+If maxcc >= 16 |,
+   return_code > 0 then do
+  Address ISPEXEC "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then,
+    zispfrc = maxcc
+  Else,
+  zispfrc = return_code
+    Address ISPEXEC "VPUT (ZISPFRC) SHARED"
+  Say pgmname "ZISPFRC =" zispfrc
+  end
+cm422rc = return_code
+auacccnt = auacccnt + 1
+Address ISPEXEC "VPUT (CM22VGET CM22VPUT CM422RC AUACCCNT) ASIS"
+"END"
+Exit 0
+ 
+ 
+WRITE_USR:
+ac = left(usr,8)
+ac = left(ac""lvl""aumbr,17)
+ac = ac""key
+"LINE_AFTER .ZLAST = (AC)"
+return_code = 0
+Return
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname "REXX error" rc "in line" sigl":" strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC >= 16 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname "REXX error" rc "in line" sigl":" ERRORTEXT(rc)
+  say SOURCELINE(sigl)
+  end
+if return_code > maxcc then
+  maxcc = return_code
+return
+ 
+ 

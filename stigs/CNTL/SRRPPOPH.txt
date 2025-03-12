@@ -1,0 +1,52 @@
+)ATTR
+   _ TYPE(INPUT) PAD(' ')
+   + TYPE(TEXT) SKIP(ON) INTENS(LOW)
+   # TYPE(OUTPUT) INTENS(HIGH) SKIP(ON) CAPS(OFF)
+   @ TYPE(OUTPUT) INTENS(LOW)  SKIP(ON) CAPS(OFF)
+   $ AREA(SCRL) EXTEND(ON)
+)BODY WIDTH(80) EXPAND("")
+%"-" Security Readiness Review Self-Audit "-"+
+%" "Pre-Populate Authorized User Groups" "+
+@PGM8     %       " "Version:@SRRVERS +
+%
+%ENTER +To scroll forward.  %PF3  +To Exit/Return.
+%PF11  +To scroll forward.  %PF10 +To scroll backward.
+$HELPSCR ----------------------------------------------------------------------$
++
++
++
+)AREA HELPSCR DEPTH(10)
++ Help documentation to create site Authorized User Groups
++
+% For RACF:
++ Enter a Group name or Attribute in the input fields.
++ At least one field must be entered to generate a group list.
++ Entering an attribute will also select group level attributes.
++    Example: SPECIAL will select SPECIAL and GSPECIAL.
++
++
+% For Top Secret:
++ Enter a Profile name or Attribute in the input fields.
++ At least one field must be entered to generate a group list.
++
++
+% For ACF2:
++ Enter a Privilege name in the input fields.
++ At least one field must be entered to generate a group list.
++
++
+% The process:
++ The program will search the User list and add the ID to the
++   Authorized group if a match is found.
++
++ A Group or Profile name can be a partial name.
++   Example:  Entering%'STC'+will select groups STC, STCOMVS and WEBSTC.
++
++ The program can be run multiple times to create missing groups or to replace
++   an existing group.
++
++ At least one field must be entered to generate a group list.
++
++
++ End of document.
+)END

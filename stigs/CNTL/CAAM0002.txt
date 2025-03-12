@@ -1,0 +1,199 @@
+/* REXX */
+/* CLS2REXXed by FSOX001 on 17 Apr 2017 at 14:37:53  */
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+Address ISREDIT
+ 
+"MACRO"               /* CAAM0002 EDIT MACRO */
+/*********************************************************************/
+/* 04/25/2006 CL.FENTON added information changes on the use of      */
+/*            back or primary security database.                     */
+/* 06/06/2006 C. STERN  Updated ERROR ROUTINE.                       */
+/* 06/08/2006 C. STERN  Corrected field length for TITLE.            */
+/*            Resolved 920 error code.  Resolved 912 error code.     */
+/* 08/08/2006 CL.FENTON Added control options SYSPROMPT and SYSASIS. */
+/* 01/26/2007 CL.FENTON Chgd for hlq data set name.                  */
+/* 03/31/2008 CL.FENTON Added OUTWRITE var for no output written.    */
+/* 07/16/2009 CL.FENTON Changes CACT0001 to CACT0000, CAAM0001 to    */
+/*            CACM000T.  Changes for reflect new table information.  */
+/* 05/09/2011 CL.FENTON Added reset on RETURN_CODE before LMMADD.    */
+/* 01/05/2012 CL.FENTON Chgd &DSN to &NRSTR(&DSN) to prevent         */
+/*            multiple errors.                                       */
+/* 08/26/2016 CL.FENTON Correct issue with TBLMBR.                   */
+/* 04/19/2017 CL.FENTON Converted script from CLIST to REXX.         */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname = "CAAM0002 04/19/17"
+sysprompt = "OFF"                       /* CONTROL NOPROMPT          */
+sysasis = "ON"                          /* CONTROL ASIS - caps off   */
+return_code = 0                         /* SET RETURN CODE TO 0      */
+Address ISPEXEC "CONTROL NONDISPL ENTER"
+Address ISPEXEC "CONTROL ERRORS RETURN"
+ 
+/*******************************************/
+/* VARIABLES ARE PASSED TO THIS MACRO      */
+/*******************************************/
+Address ISPEXEC "VGET (CONSLIST COMLIST SYMLIST TERMMSGS TBLMBR",
+  "TEMP4 OUTPUT PARMACF CAAM0003 CAAM0013) ASIS"
+am2vge = return_code
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" ,
+  then Trace ?r
+ 
+return_code = 0
+ 
+/*******************************************/
+/* TURN ON MESSAGES                        */
+/*******************************************/
+syssymlist = symlist                    /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist                   /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist                       /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs                       /* CONTROL MSG/NOMSG         */
+sysprint = " "
+return_code = 0
+Address ISPEXEC "LMOPEN DATAID("temp4") OPTION(OUTPUT)"
+return_code = 0                         /* SET RETURN CODE TO 0      */
+ 
+/*******************************************/
+/* PROCESS TABLE VARIBLES                  */
+/*******************************************/
+tblmbr = strip(tblmbr,"L","#")
+spc = "          "
+spc = spc""spc""spc
+TABLE_LOOP:
+do until tblmbr = ""
+  parse var tblmbr tabledata "#" tblmbr
+  parse var tabledata 1 iter 3 . 4 member . 22 title "@" .
+  outwrite = "NO"
+  Address ISPEXEC "VPUT (ITER OUTWRITE) ASIS"
+  return_code = 0                       /* SET RETURN CODE TO 0      */
+  cmd = date("u")"   "title
+  Address ISPEXEC "LMPUT DATAID("output") MODE(INVAR)",
+    "DATALOC(CMD) DATALEN("length(cmd)")"
+ 
+  am2lmp = return_code
+  dsn = ""
+  "CURSOR = 1 0"
+/*   MAIN INFORMATION*/
+MAIN_LOOP:
+  do until return_code <> 0
+    return_code = 0
+    "FIND '"iter"' 1 2"
+    If return_code <> 0 then,
+      leave
+    "(DATA) = LINE .ZCSR"
+    parse var data . 4 dsn .
+    If right(dsn,1) = "." then,
+      kdsn = dsn"-"
+    Else,
+      kdsn = dsn
+    kend = pos(".",dsn) - 1
+    If kend > 0 then,
+      key = left(dsn,kend)
+    Else,
+      key = dsn
+    keynum = 0
+KEY_LOOP:
+    do keynum = 0 to 99 by 1 until key = ""
+      Address ISPEXEC "SELECT PGM(ACFRPTXR) PARM('"parmacf "NOLID",
+        "DSN("kdsn") RKEY("key") NORRSUM')"
+      return_code = 0                 /* SET RETURN CODE TO 0 */
+      If sysprint = " " then do
+        Address ISPEXEC "LMINIT DATAID(SYSPRINT) DDNAME(SYSPRINT)"
+        am2int = return_code
+        end
+      keynum = right(keynum,2,"0")
+      Address ISPEXEC "VPUT (KEYNUM) ASIS"
+      Address ISPEXEC "EDIT DATAID("sysprint") MACRO("caam0003")"
+      am2edt = return_code
+      return_code = 0
+      Address ISPEXEC "VGET (KEY) ASIS"
+      end
+    end
+  END_MAIN_LOOP:
+  Address ISPEXEC "VGET (OUTWRITE) ASIS"
+  If dsn = "" | outwrite = "NO" then do
+    return_code = 0                     /* SET RETURN CODE TO 0  */
+    cmd = spc
+    Address ISPEXEC "LMPUT DATAID("output") MODE(INVAR)",
+      "DATALOC(CMD) DATALEN("length(cmd)")"
+    am2lmp = return_code
+    return_code = 0                     /* SET RETURN CODE TO 0  */
+    cmd = "The datasets in this category are not listed for one",
+      "of the following reasons:"
+    Address ISPEXEC "LMPUT DATAID("output") MODE(INVAR)",
+      "DATALOC(CMD) DATALEN("length(cmd)")"
+    am2lmp = return_code
+    return_code = 0                     /* SET RETURN CODE TO 0  */
+    cmd = "1) Datasets have been listed previously in other",
+      "reports.  Therefore to avoid duplication, they have been",
+      "omitted from this report."
+    Address ISPEXEC "LMPUT DATAID("output") MODE(INVAR)",
+      "DATALOC(CMD) DATALEN("length(cmd)")"
+    am2lmp = return_code
+    return_code = 0                     /* SET RETURN CODE TO 0  */
+    cmd = "2) Datasets were not collected for this category."
+    Address ISPEXEC "LMPUT DATAID("output") MODE(INVAR)",
+      "DATALOC(CMD) DATALEN("length(cmd)")"
+    am2lmp = return_code
+    return_code = 0                     /* SET RETURN CODE TO 0  */
+    cmd = "3) A security violation or error occurred with the",
+      "ACP command used in the collecting of information for",
+      "datasets."
+    Address ISPEXEC "LMPUT DATAID("output") MODE(INVAR)",
+      "DATALOC(CMD) DATALEN("length(cmd)")"
+    am2lmp = return_code
+    end
+  return_code = 0
+  Address ISPEXEC "LMMADD DATAID("temp4") MEMBER("member")"
+  If return_code > 0 then,
+    Address ISPEXEC "LMMREP DATAID("temp4") MEMBER("member")"
+  Address ISPEXEC "LMCLOSE DATAID("temp4")"
+  Address ISPEXEC "EDIT DATAID("temp4") MACRO("caam0013")",
+    "MEMBER("member")"
+  Address ISPEXEC "LMCOMP DATAID("temp4")"
+  Address ISPEXEC "LMOPEN DATAID("temp4") OPTION(OUTPUT)"
+  return_code = 0
+  Address ISPEXEC "LMMADD DATAID("output") MEMBER("member")"
+  If return_code > 0 then do
+    am2lmma = return_code
+    return_code = 0
+    Address ISPEXEC "LMMREP DATAID("output") MEMBER("member")"
+    end
+  Else,
+    am2lmma = 0
+  end
+END_IT:
+return_code = 0   /* SET RETURN CODE TO 0 */
+Address ISPEXEC "LMFREE DATAID("sysprint")"
+am2fre = return_code
+Address ISPEXEC "VPUT (AM2VGE AM2INT AM2EDT AM2FRE AM2LMP",
+  "AM2LMMA) ASIS"
+ 
+"END"
+ 
+Exit
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL end_it
+ 
+ 
+Error:
+return_code = RC
+if RC >= 16 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+  say SOURCELINE(sigl)
+  end
+return
+ 
+ 

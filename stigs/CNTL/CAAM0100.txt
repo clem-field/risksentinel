@@ -1,0 +1,178 @@
+/* REXX */
+/* CLS2REXXed by UMLA01S on 27 Jun 2022 at 08:35:51  */
+/*Trace r?*/
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+Address ISREDIT
+ 
+"MACRO"               /* CAAM0100 EDIT MACRO */
+/*********************************************************************/
+/* 06/06/2006 C Stern Updated ERROR ROUTINE.                         */
+/* 11/15/2008 CL Fenton Updated to create evaluation records.        */
+/* 02/28/2009 CL Fenton Update in format of UID data information.    */
+/* 03/10/2011 CL Fenton Update in obtain addition information.       */
+/* 09/24/2019 CL Fenton Updated to process more compact information, */
+/*            STS-023242.                                            */
+/* 06/27/2022 CL Fenton Converted script from CLIST to REXX.         */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname = "CAAM0100 06/27/22"
+return_code = 0   /* SET RETURN CODE TO 0 */
+sysprompt = "OFF"                /* CONTROL NOPROMPT          */
+sysflush = "OFF"                 /* CONTROL NOFLUSH           */
+sysasis = "ON"                   /* CONTROL ASIS - caps off   */
+Numeric digits 10                 /* default of 9 not enough         */
+maxcc = 0
+zerrsm           = ""
+zerrlm           = ""
+zerrmsg          = ""
+prof_test = "OFF"
+return_code = 0                   /* SET RETURN CODE TO 0  */
+Address ISPEXEC "CONTROL NONDISPL ENTER"
+Address ISPEXEC "CONTROL ERRORS RETURN"
+/*******************************************/
+/* Variables are passed to this macro      */
+/* CONSLIST                                */
+/* COMLIST                                 */
+/* SYMLIST                                 */
+/* TERMMSGS                                */
+/*******************************************/
+Address ISPEXEC "VGET (CONSLIST COMLIST SYMLIST TERMMSGS) ASIS"
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" ,
+  then Trace ?r
+syssymlist = symlist          /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist         /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist          /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs         /* CONTROL MSG/NOMSG         */
+/*******************************************/
+/* Merge entries for OMVS segment.         */
+/*******************************************/
+HOUSEKEEPING:
+"(A,B) = AUTOSAVE"
+"AUTOSAVE = ON"
+"CHANGE ALL ' LAST ' '          LAST '"
+"CHANGE ALL '(' '='"
+"CHANGE ALL ')' ' '"
+"EXCLUDE ALL 'UID='"
+"EXCLUDE ALL 'GID='"
+"CHANGE ALL ',' '' X"
+"RESET"
+return_code = 0
+"(ENDER) = LINENUM .ZLAST"
+/*******************************************/
+/* MAIN LOOP                               */
+/*******************************************/
+sysasis = 'ON'
+"CURSOR = 1 0"
+ 
+ 
+LOOP:
+return_code = 0
+"FIND '  OMVS / ' 1"
+If return_code <> 0 then,
+  SIGNAL ERR_EXIT
+"(CNT1,COL) = CURSOR"
+"(DATA) = LINE" cnt1
+parse var data . '/' user .
+user = left(user,8)
+uid = "            "
+gid = ""
+pgm = "               "
+home = "                             "
+x = cnt1
+ 
+Do until data = " "
+  "(DATA) = LINE" x
+  If pos("UID=",data) > 0 then do
+    parse var data . "UID=" uid .
+    If datatype(uid) = "NUM" then do
+      uid = right(uid,11,"0")
+      end
+    Else,
+      uid = left(uid,11)
+    uid = "U"uid
+    gid = ""
+    end
+ 
+  If pos("GID=",data) > 0 then do
+    parse var data . "GID=" gid .
+    gid = right(gid,11,"0")
+    gid = "G"gid
+    uid = ""
+    end
+ 
+  If pos("HOME=",data) > 0 then do
+    parse var data . "HOME=" home .
+    home = left(home,29)
+    end
+ 
+  If pos("OMVSPGM=",data) > 0 then do
+    parse var data . "OMVSPGM=" pgm .
+    pgm = left(pgm,15)
+    end
+ 
+  x = x + 1
+  If x > ender then,
+    data = " "
+  end
+ 
+grp = "        "
+return_code = 0
+If uid <> " " then do
+  "FIND '  RESTRICTIONS ' 1 PREV"
+  If return_code = 0 then do
+    "(DATA) = LINE .ZCSR"
+    parse var data . "GROUP=" grp .
+    grp = left(grp,8)
+    end
+  end
+ 
+"LINE_AFTER .ZLAST = DATALINE '"user"  "uid""gid grp""pgm""home"'"
+cnt1 = cnt1 + 1
+"CURSOR =" cnt1 1
+SIGNAL  LOOP
+ 
+ 
+/*******************************************/
+/* End processes                           */
+/*******************************************/
+ERR_EXIT:
+If maxcc >= 16 | return_code > 0 then do
+  Address ISPEXEC "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then,
+    zispfrc = maxcc
+  Else,
+    zispfrc = return_code
+  Say pgmname "ZISPFRC =" zispfrc
+  Address ISPEXEC "VPUT (ZISPFRC) SHARED"
+  end
+"DELETE 1" ender
+"END"
+Exit
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC > 4 & RC <> 8 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+  say SOURCELINE(sigl)
+  if return_code > maxcc then
+    maxcc = return_code
+  end
+return
+ 
+ 

@@ -1,0 +1,499 @@
+/* REXX */
+/* CLS2REXXed by FSOX001 on 22 Sep 2016 at 11:10:57  */
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+ 
+/*********************************************************************/
+/* 04/07/2004 JL Nelson Changed to Display No Finding text.          */
+/* 04/16/2004 JL Nelson Set up to test finding messages.             */
+/* 06/18/2004 JL Nelson Added Exit Code.                             */
+/* 06/23/2004 JL Nelson Added code to check security system.         */
+/* 08/10/2004 JL Nelson Made parmlib a variable that can be passed.  */
+/* 08/27/2004 JL Nelson Split PROGxx APF/0040 and LNK/0350 PDIs.     */
+/* 08/27/2004 JL Nelson Added LPALST, all LPA libraries are APF.     */
+/* 09/22/2004 JL Nelson Added parameter to turn member error msg     */
+/*            off.                                                   */
+/* 02/11/2005 JL Nelson Changed constants to variables before        */
+/*            rename                                                 */
+/* 03/02/2005 JL Nelson ADDED code for AAMV0325 LPA libraries.       */
+/* 03/02/2005 JL Nelson ADDED code for COPY parmlib noreplace.       */
+/* 03/30/2005 JL Nelson Fixed LMMLIST return_code not being reset.   */
+/* 04/21/2005 JL Nelson Changed to use default PARMLIB.              */
+/* 06/03/2005 JL Nelson Changed STIG requirement to DISA             */
+/*            recommendation.                                        */
+/* 06/03/2005 JL Nelson Suppress recommendation msgs for FSO         */
+/*            auditors.                                              */
+/* 06/09/2005 JL Nelson Pass MAXCC in ZISPFRC variable.              */
+/* 06/15/2005 JL Nelson Reset return code to end job step.           */
+/* 03/03/2006 JL Nelson Made changes to avoid SUBSTR abend 920/932.  */
+/* 03/09/2006 JL Nelson Set/test RCode for every ISPEXEC command.    */
+/* 03/20/2006 JL Nelson Use NRSTR avoid abend 900 if ampersand in    */
+/*            data.                                                  */
+/* 05/09/2006 JL Nelson Added WRITE &LASTCC for debugging.           */
+/* 03/05/2007 CL Fenton Added process for logical parmlibs.          */
+/* 06/11/2007 C Stern Added code for AAMV0370 (SMF parms check).     */
+/* 06/11/2007 C Stern CNTL member is CACM0370.                       */
+/* 10/30/2007 C Stern Added code for ZUSS0011.                       */
+/* 03/05/2007 CL Fenton Chgd testing of vol on mulit input parms.    */
+/* 02/01/2008 C Stern Added code for ZUSS0012.                       */
+/* 09/22/2009 CL Fenton Chgd ZUSS0011 and ZUSS0012 vars to CACM0408. */
+/*            Added AAMV0380 collection for analysis.                */
+/* 09/12/2011 CL Fenton Added collection for CONSOLxx members for    */
+/*            ACP00291, CSD-AR002893724.                             */
+/* 10/21/2016 CL Fenton Converted script from CLIST to REXX.         */
+/* 01/29/2021 CL Fenton Added automation for addition SMFPRMxx       */
+/*            vuls, STS-025825, STS-025826, and STS-025827.          */
+/* 05/19/2021 CL Fenton Added automation for addition CLOCKxx        */
+/*            vul, STS-026251.                                       */
+/* 04/21/2022 CL Fenton Added automation for addition IGDSMSxx       */
+/*            vul, STS-028325.                                       */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+CONSLIST = "OFF"                  /* DEFAULT IS OFF                  */
+COMLIST  = "OFF"                  /* DEFAULT IS OFF                  */
+SYMLIST  = "OFF"                  /* DEFAULT IS OFF                  */
+TERMMSGS = "OFF"                  /* DEFAULT IS OFF                  */
+TESTMSG  = "OFF"                  /* TEST messages = OFF|FINDING     */
+MBRMSG   = "OFF"                  /* Member error messages = OFF|ON  */
+TYPERUN  = "FSO"                  /* Run for SRRAUDIT|FSO            */
+CACC1000 = "CACC1000"             /* Security check program          */
+CACM0408 = "CACM0008"             /* SELECT EDIT APF/SYS/LNK/LPA     */
+CACM0409 = "CACM0009"             /* SELECT EDIT IEALPA, IEAFIX      */
+CACM040A = "CACM000A"             /* SELECT EDIT PDI                 */
+CACM0410 = "CACM0010"             /* SELECT EDIT PROG                */
+CACM0370 = "CACM0370"             /* SELECT EDIT SMFPRM              */
+TEMP9DDN = "TEMP9"                /* TEMP9 DDNAME                    */
+PARMDSN  = " "                    /* Default library                 */
+NUCLDSN  = "SYS1.NUCLEUS"         /* Default library                 */
+TRACE    = "OFF"                  /* TRACE ACTIONS AND ERRORS        */
+pgmname = "CACC0003 04/21/22"
+ 
+sysprompt = "OFF"                 /* CONTROL NOPROMPT                */
+sysflush = "OFF"                  /* CONTROL NOFLUSH                 */
+sysasis = "ON"                    /* CONTROL ASIS - caps off         */
+Numeric digits 10                 /* default of 9 not enough         */
+maxcc = 0
+ 
+Arg OPTION
+do until OPTION = ""
+  parse var OPTION key"("val")" OPTION
+  val = strip(val,"b","'")
+  val = strip(val,"b",'"')
+  optcmd = key '= "'val'"'
+  interpret optcmd
+  end
+ 
+return_code = 0
+If trace = "ON" then do            /* TURN messages on          */
+  termmsgs = "ON"                  /* CONTROL MSG               */
+  comlist = "ON"                   /* CONTROL LIST              */
+  conslist = "ON"                  /* CONTROL CONLIST           */
+  symlist = "ON"                   /* CONTROL SYMLIST           */
+  end
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" | TRACE = "ON",
+  then Trace ?r
+ 
+syssymlist = symlist           /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist          /* CONTROL CONLIST/NOCONLIST */
+syslist    = comlist           /* CONTROL LIST/NOLIST       */
+sysmsg     = termmsgs          /* CONTROL MSG/NOMSG         */
+Address ISPEXEC
+"CONTROL NONDISPL ENTER"
+"CONTROL ERRORS RETURN"
+zispfrc = 0
+"VPUT (ZISPFRC) SHARED"
+return_code = 0
+"VPUT (CONSLIST COMLIST SYMLIST TERMMSGS MBRMSG TESTMSG CACM040A",
+  "TYPERUN) ASIS"
+ 
+cc03vput = return_code
+If return_code <> 0 then do
+  Say pgmname "VPUT RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+/************************************************/
+/* SETUP PARMLIB MEMBER LIST TABLE              */
+/* ADDITIONAL PREFIXS CAN BE ADDED USING        */
+/* EXAMPLES OF XXXXXXYYYYYYYY+                  */
+/* WHERE: XXXXXX IS THE MEMBER PREFIX WITH      */
+/*        TRAILING SPACES UPTO 6 POSITIONS      */
+/*        YYYYYYYY IS THE PDI NUMBER WITH       */
+/*        TRAILING SPACES UPTO 8 POSITIONS      */
+/************************************************/
+member_list = "IEASYS AAMV0030 IEASYS ZUSS0011 IEAAPF AAMV0040",
+  "PROG AAMV0040 LPALST AAMV0325 IEAFIX AAMV0325",
+  "IEALPA AAMV0325 LNKLST AAMV0350 PROG AAMV0350",
+  "SMFPRM AAMV0370 SMFPRM AAMV0371 SMFPRM AAMV0372",
+  "SMFPRM AAMV0373 SMFPRM AAMV0380 BPXPRM ZUSS0012",
+  "CONSOL ACP00291 CLOCK AAMV0070 IGDSMS ZSMS0032"
+ 
+/* Determine which security system is running */
+return_code = 0
+"SELECT CMD("cacc1000 "ACP)"
+/*******************************************/
+/* INITIALIZE LIBRARY MANAGEMENT           */
+/*******************************************/
+return_code = 0
+"SELECT CMD("cacc1000 "PARM)"
+"VGET (PARM PARMVOL)"
+If parm = " " then do
+  Say pgmname "No PARM list  RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+"LMINIT DATAID(TEMP8) DDNAME(TEMP8)"
+lminit_temp8_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT TEMP8    RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+"LMOPEN DATAID("temp8") OPTION(OUTPUT)"
+lmopen_temp8_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMOPEN TEMP8    RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+"LMINIT DATAID(PDIDD) DDNAME(PDIDD)"
+lminit_pdidd_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT PDIDD    RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL  ERR_EXIT
+  end
+"LMINIT DATAID(TEMP9) DDNAME("temp9ddn")"
+lminit_temp9_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT TEMP9    RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL  ERR_EXIT
+  end
+return_code = listdsi(temp9ddn "FILE")
+listdsi_temp9_rcode = return_code
+listdsi_temp9_reason = sysreason
+If sysreason = 0 then do
+  temp9dsn = sysdsname
+  listdsi_temp9_msglvl2 = sysmsglvl2
+  end
+Else do
+  Say pgmname "Unable to determine TEMP9 DSNAME SYSREASON" sysreason
+  Say pgmname sysmsglvl1
+  Say pgmname sysmsglvl2
+  return_code = sysreason
+  SIGNAL ERR_EXIT
+  end
+If parmdsn <> " " then do
+  parm = parmdsn
+  parmvol = ""
+  Do X = 1 to 16
+    parmvol = parmvol"      "
+    end
+  end
+ 
+/*******************************************/
+/* OBTAIN VOLS FOR RES AND MCAT            */
+/*******************************************/
+resdsn = "Not.Found"
+catdsn = "Not.Found"
+trap = outtrap("out.")
+Address TSO "LISTCAT ENTRIES('"nucldsn"')"
+If out.0 >= 2 then do
+  If pos("LISTCAT ENTRIES",out.1) = 0 then do
+    If length(out.1) > 17 then ,
+      resdsn = substr(out.1,17)
+    If length(out.2) > 17 then ,
+      catdsn = substr(out.2,17)
+    end
+  Else do
+    If length(out.2) > 17 then ,
+      resdsn = substr(out.2,17)
+    If length(out.3) > 17 then ,
+      catdsn = substr(out.3,17)
+    end
+  end
+If nucldsn <> resdsn then ,
+  Say pgmname "NUCLDSN =" nucldsn  "RESDSN =" resdsn
+resvol = ""
+If resdsn <> "Not.Found" then do
+  lst = listdsi("'"resdsn"'")
+  If sysreason = 0 then ,
+    resvol = sysvolume
+  end
+catvol = ""
+If catdsn <> "Not.Found" then do
+  lst = listdsi("'"catdsn"'")
+  If sysreason = 0 | sysreason = 12 then ,
+    catvol = sysvolume
+  end
+ 
+/*******************************************/
+/* Load member_list table.                 */
+/*******************************************/
+cnt = 0
+Do until member_list = ""
+  cnt = cnt + 1
+  parse var member_list mbrpref.cnt pdiname.cnt member_list
+  mbrpref.cnt  = strip(mbrpref.cnt)
+  pdiname.cnt  = strip(pdiname.cnt)
+  fndxx.cnt    = "N"
+  fnd00.cnt    = "N"
+  pdierror.cnt = "N"
+  end
+v = 1
+tparm = parm
+Do until tparm = ""
+  parse var tparm parmdsn tparm
+  pvol = substr(parmvol,v,6)
+  v = v + 6
+  return_code = 0
+  If pvol = " " then ,
+    "LMINIT DATAID(PARMLIB) DATASET('"parmdsn"')"
+  Else
+    "LMINIT DATAID(PARMLIB) DATASET('"parmdsn"') VOLUME("pvol")"
+  lminit_parmlib_rc = return_code
+  If return_code <> 0 then do
+    Say pgmname "LMINIT PARMLIB  RC =" return_code zerrsm
+    return_code = return_code + 16
+    SIGNAL ERR_EXIT
+    end
+  /*******************************************/
+  /* OPEN LIBRARY MANAGEMENT                 */
+  /*******************************************/
+  return_code = 0
+  "LMOPEN DATAID("parmlib") OPTION(INPUT)"
+  lmopen_parmlib_rc = return_code
+  If return_code <> 0 then do
+    Say pgmname "LMOPEN PARMLIB  RC =" return_code zerrsm
+    return_code = return_code + 16
+    SIGNAL ERR_EXIT
+    end
+  mbrzfnd = ""
+  /*******************************************/
+  /* LIST SYS1.PARMLIB                       */
+  /*******************************************/
+  Do i = 1 to cnt
+    pdierror = 0
+    member = ""
+    return_code = 0
+    "LMMLIST DATAID("parmlib") OPTION(LIST) MEMBER(MEMBER)",
+      "STATS(NO) PATTERN("mbrpref.i"%%)"
+    lmmlist_parmlib_rc = return_code
+    If testmsg = "FINDING" then ,
+      return_code = 8              /* test error conditions */
+    If return_code = 4 then do
+      Say pgmname "LMMLIST RC =" return_code "PREFIX =" mbrpref.i
+      iterate
+      end
+    Do while return_code = 0
+      If mbrmsg = "ON" then,
+        Say pgmname "LMMLIST RC =" return_code "MEMBER =" member
+      member = strip(member)
+      If right(member,2) = 00 then ,
+        fnd00.i = "Y"
+      else ,
+        fndxx.i = "Y"
+      return_code = 0
+      "LMCOPY FROMID("parmlib") FROMMEM("member") TODATAID("temp9")",
+        "TOMEM("member") REPLACE"
+      lmcopy_parmlib_rc = return_code
+      If return_code <> 0 then do
+        Say pgmname "LMCOPY" member "RC =" return_code zerrsm
+        Say pgmname "FROM" parmdsn "TO" temp9dsn
+        end
+      Select
+        When mbrpref.i = "IEAAPF" | ,
+             mbrpref.i = "IEASYS" | ,
+             mbrpref.i = "LNKLST" | ,
+             mbrpref.i = "LPALST" | ,
+             mbrpref.i = "BPXPRM" | ,
+             mbrpref.i = "CLOCK"  | ,
+             mbrpref.i = "IGDSMS" | ,
+             mbrpref.i = "CONSOL" then macro = cacm0408
+        When mbrpref.i = "IEAFIX" | ,
+             mbrpref.i = "IEALPA" then macro = cacm0409
+        When mbrpref.i = "PROG"   then macro = cacm0410
+        When mbrpref.i = "SMFPRM" then macro = cacm0370
+        Otherwise do
+          Say pgmname "Invalid PREFIX" mbrpref.i "not found from table."
+          iterate
+          end
+        end
+      mbrpref = mbrpref.i
+      pdiname = pdiname.i
+      "VPUT (TEMP8 MBRPREF MBRZFND PARMDSN PDIDD PDINAME",
+        "MEMBER PDIERROR RESVOL CATVOL) ASIS"
+      return_code = 0
+      "EDIT DATAID("temp9") MACRO("macro") MEMBER("member")"
+      If return_code > 4 then
+        Say pgmname "EDIT_TEMP9_RC =" return_code  "MEMBER =",
+          member zerrsm
+      "VGET (PDIERROR) ASIS"
+      If pdierror <> 0 then ,
+        pdierror.i = "Y"
+      return_code = 0
+      "LMMLIST DATAID("parmlib") OPTION(LIST) MEMBER(MEMBER)",
+        "STATS(NO) PATTERN("mbrpref.i"%%)"
+      end
+    "LMMLIST DATAID("parmlib") OPTION(FREE)"
+    return_code = 0
+    end
+  return_code = 0
+  "LMFREE DATAID("parmlib")"
+  lmfree_parmlib_rc = return_code
+  end
+return_code = 0
+pdi_name = ""
+Do i = 1 to cnt
+  member = ""
+  ac = ""
+  If mbrpref.i = 999999 then leave index
+  Say pgmname "PREFIX =" left(mbrpref.i,6) "FNDXX =" fndxx.i "FND00 =",
+    fnd00.i "PDI ERROR =" pdierror.i "for Vulnerability" pdiname.i"."
+  If pdi_name <> pdiname.i then do
+    pdi_name = pdiname.i
+    pdi_rc = pdierror.i
+    end
+  Else
+    If pdierror.i = "Y" then ,
+      pdi_rc = pdierror.i
+  mbrzfnd = "Member does not exist"
+  If fnd00.i = "Y" then ,
+    mbrzfnd = "Member found"
+  If pdiname.i = "AAMV0030" then ,
+    If pdi_rc = "Y" then ,
+      ac = "DISA recommendation: LNKAUTH=APFTAB should be specified",
+        "in the IEASYSxx member concatenation."
+    Else
+      ac = "The LNKAUTH=APFTAB option was found in the IEASYSxx",
+        "member concatenation."
+  If pdiname.i = "AAMV0040" & mbrpref.i = "PROG" then ,
+    If pdi_rc = "Y" then ,
+      ac = "DISA recommendation: All APF-authorized libraries should",
+        "be accessible by the system."
+    Else
+      ac = "All APF-authorized libraries were found to be accessible",
+        "by the system."
+  If pdiname.i = "AAMV0325" & mbrpref.i = "IEALPA" then ,
+    If pdi_rc = "Y" then ,
+      ac = "DISA recommendation: All LPA libraries should be",
+        "accessible by the system."
+    Else
+      ac = "All LPA libraries were found to be accessible by the",
+        "system."
+  If pdiname.i = "AAMV0350" & mbrpref.i = "PROG" then ,
+    If pdi_rc = "Y" then ,
+      ac = "DISA recommendation: All LINKLIST libraries should be",
+        "accessible by the system."
+    Else
+      ac = "All LINKLIST libraries were found to be accessible by",
+        "the system."
+  If left(pdiname.i,7) = "AAMV037" & mbrpref.i = "SMFPRM" then ,
+    If pdi_rc = "Y" then ,
+      ac = "DISA recommendation: Ensure SMF recording options are",
+        "correctly specified."
+    Else
+      ac = "All SMFPRM members have the SMF recording options",
+        "correctly specified."
+  If pdiname.i = "ZUSS0011" & mbrpref.i = "IEASYS" then ,
+    If pdi_rc = "Y" then ,
+      ac = "DISA recommendation: Ensure OMVS parameter option is",
+        "correctly specified."
+    Else
+      ac = "OMVS parameter option is correctly specified."
+  If pdiname.i = "ZUSS0012" & mbrpref.i = "BPXPRM" then ,
+    If pdi_rc = "Y" then ,
+      ac = "DISA recommendation: Ensure BPXPRMxx parameter(s) is",
+        "(are) correctly specified.)"
+    Else
+      ac = "BPXPRMxx parameter(s) is (are) correctly specified.)"
+  If typerun <> "SRRAUDIT" then,
+    ac = " "
+  pdiname = pdiname.i
+  mbrpref = mbrpref.i
+  "VPUT (MEMBER PDINAME MBRPREF MBRZFND AC) ASIS"
+  If pdiname.i > " " then do
+    return_code = 0
+    "EDIT DATAID("pdidd") MACRO("cacm040a") MEMBER("pdiname.i")"
+    If return_code > 4 then ,
+      Say pgmname "EDIT PDI" pdiname "RC =" return_code zerrsm
+    end
+  return_code = 0
+  end
+/*******************************************/
+/* RELEASE IEASYS00                        */
+/*******************************************/
+return_code = 0
+"LMCOMP DATAID("pdidd")"
+lmcomp_pdidd_rc = return_code
+return_code = 0
+"LMFREE DATAID("pdidd")"
+lmfree_pdidd_rc = return_code
+return_code = 0
+"LMFREE DATAID("temp8")"
+lmfree_temp8_rc = return_code
+return_code = 0
+"LMFREE DATAID("temp9")"
+lmfree_temp9_rc = return_code
+return_code = 0
+/*******************************************/
+/* ERROR EXIT                              */
+/*******************************************/
+ERR_EXIT:
+If maxcc >= 16 | return_code > 0 then do
+  "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then
+    zispfrc = maxcc
+  Else
+    zispfrc = return_code
+    "VPUT (ZISPFRC) SHARED"
+    Say pgmname "ZISPFRC =" zispfrc
+  end
+If termmsgs = "ON" then do
+  Say "==============================================================="
+  Say pgmname "LMINIT_PARMLIB_RC              "lminit_parmlib_rc
+  Say pgmname "LMINIT_PDIDD_RC                "lminit_pdidd_rc
+  Say pgmname "LMINIT_TEMP8_RC                "lminit_temp8_rc
+  Say pgmname "LMINIT_TEMP9_RC                "lminit_temp9_rc
+  Say pgmname "LMOPEN_PARMLIB_RC              "lmopen_parmlib_rc
+  Say pgmname "LMOPEN_TEMP8_RC                "lmopen_temp8_rc
+  Say pgmname "LMMLIST_PARMLIB_RC             "lmmlist_parmlib_rc
+  Say pgmname "LMCOPY_PARMLIB_RC              "lmcopy_parmlib_rc
+  Say pgmname "LMCOMP_PDIDD_RC                "lmcomp_pdidd_rc
+  Say pgmname "LMFREE_PDIDD_RC                "lmfree_pdidd_rc
+  Say pgmname "LMFREE_PARMLIB_RC              "lmfree_parmlib_rc
+  Say pgmname "LMFREE_TEMP8_RC                "lmfree_temp8_rc
+  Say pgmname "LMFREE_TEMP9_RC                "lmfree_temp9_rc
+  Say "==============================================================="
+  end /* do - end */
+Exit 0
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC > 4 & RC <> 8 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname 'REXX error' rc 'in line' sigl':' ERRORTEXT(rc)
+  say SOURCELINE(sigl)
+  end
+if return_code > maxcc then
+  maxcc = return_code
+return
+ 
+ 

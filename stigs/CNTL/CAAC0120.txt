@@ -1,0 +1,362 @@
+/* REXX */
+/* CLS2REXXed by UMLA01S on 15 Nov 2024 at 17:28:28  */
+/*trace r?*/
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+ 
+/*********************************************************************/
+/* 06/01/2004 JL Nelson CREATE TO REPORT NEW FINDINGS.               */
+/* 07/12/2004 JL Nelson copied from CARC0420 for TSS.                */
+/* 11/16/2004 JL Nelson Added code for Authorized users.             */
+/* 01/25/2005 JL Nelson Changed to add dslist to PDIs.               */
+/* 02/08/2005 JL Nelson Changed constants to variables.              */
+/* 03/28/2005 JL Nelson Added TYPERUN for Reports without PDIs.      */
+/* 06/06/2006 C Stern Updated ERROR ROUTINE.  Removed PDI compress.  */
+/*            This is done in last step of job.                      */
+/* 08/08/2006 CL Fenton Added 'Not a finding' for empty dsn groups.  */
+/* 05/23/2012 CL Fenton Chgs to allow use of AUACCESS for authorized */
+/*            users list to prevent the possible "IKJ56548I          */
+/*            INSUFFICIENT STORAGE FOR CLIST TO CONTINUE" message    */
+/*            from occurring when a DIALOG user group contains an    */
+/*            excessive number of user, CSD-AR003400969.             */
+/* 04/08/2019 CL Fenton Chgs to evaluate ZCIC0021 for system that    */
+/*            are running both production and test/developement CICS */
+/*            regions, STS-021044.                                   */
+/* 11/15/2024 CL Fenton Converted script from CLIST to REXX.         */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+CONSLIST    = "OFF"            /* DEFAULT IS OFF                     */
+COMLIST     = "OFF"            /* DEFAULT IS OFF                     */
+SYMLIST     = "OFF"            /* DEFAULT IS OFF                     */
+TERMMSGS    = "ON"             /* DEFAULT IS OFF                     */
+CACT0008    = "CACT0008"       /* SELECT RESOURCE TABLE              */
+CACC1000    = "CACC1000"       /* SELECT SECURITY CHECK PGM          */
+CAAM0013    = "CAAM0013"       /* Edit macro for LIDs                */
+CAAM0121    = "CAAM0121"       /* SELECT EDIT macro SEN(pdi)         */
+CACM042R    = "CACM042R"       /* SELECT edit macro/CACT0008         */
+CACM0422    = "CACM0422"       /* SELECT edit macro/AUACCESS         */
+CNTLDD      = "CNTL"           /* Default DDNAME - Security table    */
+PDIDD       = "PDIDD"          /* Default DDNAME - PDI data set      */
+TEMP4DD     = "TEMP4"          /* Default DDNAME - TEMP records      */
+DIALOGDD    = "DIALOG"         /* Default DDNAME - Authorized users  */
+AUACCESSDD  = "AUACCESS"       /* Default DDNAME - Work file         */
+TRACE       = "OFF"            /* TRACE ACTIONS AND ERRORS           */
+pgmname = "CAAC0120 04/08/19"
+sysprompt   = "OFF"               /* CONTROL NOPROMPT                */
+sysflush    = "OFF"               /* CONTROL NOFLUSH                 */
+sysasis     = "ON"                /* CONTROL ASIS - caps off         */
+sysprompt   = "OFF"               /* CONTROL NOPROMPT                */
+sysflush    = "OFF"               /* CONTROL NOFLUSH                 */
+sysasis     = "ON"                /* CONTROL ASIS - caps off         */
+vput_rc             = "N/A"
+lminit_pdidd_rc     = "N/A"
+lminit_temp4_rc     = "N/A"
+lminit_cntl_rc      = "N/A"
+lminit_dialog_rc    = "N/A"
+lminit_auaccess_rc  = "N/A"
+lmopen_pdidd_rc     = "N/A"
+lmopen_dialog_rc    = "N/A"
+lmopen_auaccess_rc  = "N/A"
+view_cact0008_rc    = "N/A"
+view_resource_rc    = "N/A"
+lmclose_pdidd_rc    = "N/A"
+lmclose_dialog_rc   = "N/A"
+lmclose_auaccess_rc = "N/A"
+lmcomp_auaccess_rc  = "N/A"
+lmfree_pdidd_rc     = "N/A"
+lmfree_temp4_rc     = "N/A"
+lmfree_cntl_rc      = "N/A"
+lmfree_dialog_rc    = "N/A"
+lmfree_auaccess_rc  = "N/A"
+Numeric digits 10                 /* default of 9 not enough         */
+maxcc = 0
+Address ISPEXEC
+"CONTROL NONDISPL ENTER"
+"CONTROL ERRORS RETURN"
+ 
+Arg OPTION
+do until OPTION = ""
+  parse var OPTION key"("val")" OPTION
+  val = strip(val,"b","'")
+  val = strip(val,"b",'"')
+  optcmd = key '= "'val'"'
+  interpret optcmd
+  end
+ 
+return_code = 0
+If trace = "ON" then do            /* TURN messages on          */
+  termmsgs = "ON"                  /* CONTROL MSG               */
+  comlist = "ON"                   /* CONTROL LIST              */
+  conslist = "ON"                  /* CONTROL CONLIST           */
+  symlist = "ON"                   /* CONTROL SYMLIST           */
+  end
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" | TRACE = "ON",
+  then Trace ?r
+ 
+sysflush = "OFF"
+syssymlist = symlist          /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist         /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist             /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs             /* CONTROL MSG/NOMSG         */
+sysasis = "ON"
+zispfrc = 0
+"VPUT (ZISPFRC) SHARED"
+return_code = 0
+ 
+rp = ")"
+"VPUT (CONSLIST COMLIST SYMLIST TERMMSGS CACM0422) ASIS"
+VPUT_RC = return_code
+If return_code <> 0 then,
+  Say pgmname "VPUT_RC =" return_code zerrsm
+ 
+/* Determine which security system is running */
+ 
+return_code = 0
+"SELECT CMD("cacc1000 "ACP)"
+"VGET (ACPNAME ACPVERS) ASIS"
+If acpname <> "ACF2" then do
+  Say pgmname "ACF2 Job running on the wrong system"
+  Say pgmname acpname acpvers
+  return_code = 12
+  SIGNAL ERR_EXIT
+  End
+ 
+/*******************************************/
+/* INITIALIZE LIBRARY MANAGEMENT           */
+/*******************************************/
+return_code = 0
+"LMINIT DATAID(PDIDD) DDNAME("pdidd")"
+lminit_pdidd_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT_PDIDD_RC" return_code zerrsm
+  SIGNAL ERR_EXIT
+  End
+ 
+"LMINIT DATAID(TEMP4) DDNAME("temp4dd")"
+lminit_temp4_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT_TEMP4_RC" return_code zerrsm
+  SIGNAL ERR_EXIT
+  End
+ 
+"LMINIT DATAID(CNTL) DDNAME("cntldd")"
+lminit_cntl_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT_CNTL_RC" return_code zerrsm
+  SIGNAL ERR_EXIT
+  End
+ 
+"LMINIT DATAID(DIALOG) DDNAME("dialogdd")"
+lminit_dialog_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT DIALOG  RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  End
+ 
+"LMINIT DATAID(AUACCESS) DDNAME("auaccessdd") ENQ(EXCLU)"
+lminit_auaccess_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT AUACCESS  RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  End
+ 
+oddname = "TEMP4"
+Call ListDSI oddname "FILE"
+listdsi_file_rcode = return_code
+listdsi_file_reason = sysreason
+If sysreason = 0 then do
+  odsname = sysdsname
+  listdsi_file_msglvl2 = sysmsglvl2
+  End
+Else do
+  Say pgmname "LISTDSI failed for TEMP4" sysreason
+  Say pgmname sysmsglvl1
+  Say pgmname sysmsglvl2
+  End
+ 
+/*******************************************/
+/* OPEN DATASETS                           */
+/*******************************************/
+return_code = 0
+"LMOPEN DATAID("pdidd") OPTION(OUTPUT)"
+lmopen_pdidd_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMOPEN_PDIDD_RC" return_code zerrsm
+  SIGNAL ERR_EXIT
+  End
+ 
+"LMOPEN DATAID("dialog") OPTION(INPUT)"
+lmopen_dialog_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMOPEN_DIALOG_RC" return_code zerrsm
+  SIGNAL ERR_EXIT
+  End
+ 
+"LMOPEN DATAID("auaccess") OPTION(INPUT)"
+lmopen_auaccess_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMOPEN_AUACCESS_RC" return_code zerrsm
+  SIGNAL ERR_EXIT
+  End
+ 
+/*******************************************/
+/* GET TABLE VALUES                        */
+/*******************************************/
+auacccnt = 0
+return_code = 0
+rectype = 1
+pdiname = ""
+resname = ""
+ 
+"VPUT (RECTYPE PDINAME RESNAME PDIDD TEMP4 CNTL DIALOG AUACCESS",
+  "AUACCCNT CACT0008 CAAM0013 CACM042R) ASIS"
+ 
+return_code = 0
+"VIEW DATAID("cntl") MEMBER("cact0008") MACRO("cacm042r")"
+ 
+view_cact0008_rc = return_code
+If view_cact0008_rc > 4 then do
+  Say pgmname "VIEW CNTL" cact0008 "RC =" view_cact0008_rc
+  return_code = return_code + 16
+  SIGNAL BYPASS_CACT0008
+  End
+ 
+"VGET (REC1TBL) ASIS"
+Do X = 1 to length(rec1tbl) by 18
+  parse var rec1tbl . =(x) pdiname resname .
+  /*******************************************/
+  /* EDIT TEMP4 PDI MEMBER                   */
+  /*******************************************/
+ 
+  "EDIT DATAID("temp4") MACRO("caam0121") MEMBER("pdiname")"
+  view_resource_rc = return_code
+  return_code = 0
+  End
+ 
+ 
+/*******************************************/
+/* CLOSE OUTPUT                            */
+/*******************************************/
+return_code = 0
+"LMCLOSE DATAID("pdidd")"
+lmclose_pdidd_rc = return_code
+ 
+return_code = 0
+"LMCLOSE DATAID("dialog")"
+lmclose_dialog_rc = return_code
+ 
+return_code = 0
+"LMCLOSE DATAID("auaccess")"
+lmclose_auaccess_rc = return_code
+ 
+return_code = 0
+"LMCOMP DATAID("auaccess")"
+lmcomp_auaccess_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMCOMP_AUACCESS_RC" return_code zerrsm
+  End
+ 
+/*******************************************/
+/* FREE FILES                              */
+/*******************************************/
+return_code = 0
+"LMFREE DATAID("temp4")"
+lmfree_temp4_rc = return_code
+ 
+return_code = 0
+"LMFREE DATAID("pdidd")"
+lmfree_pdidd_rc = return_code
+ 
+return_code = 0
+"LMFREE DATAID("cntl")"
+lmfree_cntl_rc = return_code
+ 
+return_code = 0
+"LMFREE DATAID("dialog")"
+lmfree_dialog_rc = return_code
+ 
+return_code = 0
+"LMFREE DATAID("auaccess")"
+lmfree_auaccess_rc = return_code
+return_code = 0
+ 
+ 
+/*******************************************/
+/* ERROR EXIT                              */
+/*******************************************/
+ERR_EXIT:
+If maxcc >= 16 | return_code > 0 then do
+  "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then,
+    zispfrc = maxcc
+  Else
+    zispfrc = return_code
+  "VPUT (ZISPFRC) SHARED"
+  Say pgmname "ZISPFRC =" zispfrc
+  End
+ 
+If termmsgs = "ON" then do
+  Say "==============================================================="
+  Say pgmname "VPUT_RC                  "vput_rc
+  Say pgmname "LMINIT_PDIDD_RC          "lminit_pdidd_rc
+  Say pgmname "LMINIT_TEMP4_RC          "lminit_temp4_rc
+  Say pgmname "LMINIT_CNTL_RC           "lminit_cntl_rc
+  Say pgmname "LMINIT_DIALOG_RC         "lminit_dialog_rc
+  Say pgmname "LMINIT_AUACCESS_RC       "lminit_auaccess_rc
+  Say "==============================================================="
+  Say pgmname "LMOPEN_PDIDD_RC          "lmopen_pdidd_rc
+  Say pgmname "LMOPEN_DIALOG_RC         "lmopen_dialog_rc
+  Say pgmname "LMOPEN_AUACCESS_RC       "lmopen_auaccess_rc
+  Say "==============================================================="
+  Say pgmname "VIEW_CACT0008_RC         "view_cact0008_rc
+  Say pgmname "VIEW_RESOURCE_RC         "view_resource_rc
+  Say "==============================================================="
+  Say pgmname "LMCLOSE_PDIDD_RC         "lmclose_pdidd_rc
+  Say pgmname "LMCLOSE_DIALOG_RC        "lmclose_dialog_rc
+  Say pgmname "LMCLOSE_AUACCESS_RC      "lmclose_auaccess_rc
+  Say "==============================================================="
+  Say pgmname "LMCOMP_AUACCESS_RC       "lmcomp_auaccess_rc
+  Say "==============================================================="
+  Say pgmname "LMFREE_PDIDD_RC          "lmfree_pdidd_rc
+  Say pgmname "LMFREE_TEMP4_RC          "lmfree_temp4_rc
+  Say pgmname "LMFREE_CNTL_RC           "lmfree_cntl_rc
+  Say pgmname "LMFREE_DIALOG_RC         "lmfree_dialog_rc
+  Say pgmname "LMFREE_AUACCESS_RC       "lmfree_auaccess_rc
+  Say "==============================================================="
+  End
+Exit
+ 
+ 
+/*******************************************/
+/*  SYSCALL SUBROUTINES                    */
+/*******************************************/
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC > 4 & RC <> 8 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+  say SOURCELINE(sigl)
+  end
+if return_code > maxcc then
+  maxcc = return_code
+return
+ 
+ 

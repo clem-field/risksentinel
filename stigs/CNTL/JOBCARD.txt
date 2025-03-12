@@ -1,0 +1,15 @@
+//JOBCARD   JOB (ACCOUNT),'SECURITY',
+//  CLASS=A,REGION=0M,NOTIFY=&SYSUID,MSGCLASS=X
+//*
+//* Change the above jobcard to a valid jobcard.
+//*
+//* Change XXXX and MMMYYYY in the FSOSETS as follows:
+//*
+//*  1. Change XXXX to the SYSNAME specified in IEASYSxx member
+//*     in the logical parmlib concatination.
+//*  2. Change MMMYYYY to reflect the month and year of the review.
+//*
+//*     example:
+//*             SRRHLQ=SYS3.FSO.MMS.OCT2004
+//*
+//FSOSETS  SET SRRHLQ=SYS3.FSO.XXXX.MMMYYYY

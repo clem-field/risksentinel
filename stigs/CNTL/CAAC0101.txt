@@ -1,0 +1,381 @@
+/* REXX */
+/* CLS2REXXed by UMLA01S on 6 Nov 2024 at 15:21:06  */
+/*trace r?*/
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+ 
+/*********************************************************************/
+/* 01/31/2008 CL Fenton Copied from CAAC0001.                        */
+/* 07/16/2009 CL Fenton Added LIDLINE variable.                      */
+/* 05/17/2010 CL Fenton Changes made in the collection of SHOW       */
+/*            CLASMAP output from V12 to V14 of ACF2.                */
+/* 03/22/2013 CL Fenton Changes evaluation of REC1TBL for a 3 char   */
+/*            RESNAME replacing this as RESTYPE, STS-002186.         */
+/* 11/06/2024 CL Fenton Converted script from CLIST to REXX.         */
+/*            Addition changes made for different formats of the     */
+/*            SHOW CLASMAP output.                                   */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+CONSLIST = "OFF"                 /* DEFAULT IS OFF                   */
+COMLIST  = "OFF"                 /* DEFAULT IS OFF                   */
+SYMLIST  = "OFF"                 /* DEFAULT IS OFF                   */
+TERMMSGS = "OFF"                 /* DEFAULT IS OFF                   */
+CAAT0001 = "CAAT0001"            /* Resource table                   */
+CAAM0004 = "CAAM0004"            /* Process resource table           */
+CACC1000 = "CACC1000"            /* Security check program           */
+CAAM0102 = "CAAM0102"            /* Edit macro resource output       */
+CAAM0013 = "CAAM0013"            /* Edit macro for LIDs              */
+TRACE    = "OFF"                 /* TRACE ACTIONS AND ERRORS         */
+pgmname = "CAAC0101 11/06/24"
+lminit_cntl_rc     = "N/A"
+lminit_resource_rc = "N/A"
+lminit_output_rc   = "N/A"
+lminit_temp4_rc    = "N/A"
+lmopen_output_rc   = "N/A"
+edit_temp4_rc      = "N/A"
+vput_cntl_rc       = "N/A"
+vput_resource_rc   = "N/A"
+view_cntl_rc       = "N/A"
+view_resource_rc   = "N/A"
+lmclose_output_rc  = "N/A"
+lmfree_cntl_rc     = "N/A"
+lmfree_resource_rc = "N/A"
+lmfree_temp4_rc    = "N/A"
+ 
+sysprompt = "OFF"                 /* CONTROL NOPROMPT                */
+sysflush = "OFF"                  /* CONTROL NOFLUSH                 */
+sysasis = "ON"                    /* CONTROL ASIS - caps off         */
+Numeric digits 10                 /* default of 9 not enough         */
+maxcc = 0
+Address ISPEXEC
+"CONTROL NONDISPL ENTER"
+"CONTROL ERRORS RETURN"
+ 
+Arg OPTION
+do until OPTION = ""
+  parse var OPTION key"("val")" OPTION
+  val = strip(val,"b","'")
+  val = strip(val,"b",'"')
+  optcmd = key '= "'val'"'
+  interpret optcmd
+  end
+ 
+return_code = 0
+If trace = "ON" then do            /* TURN messages on          */
+  termmsgs = "ON"                  /* CONTROL MSG               */
+  comlist = "ON"                   /* CONTROL LIST              */
+  conslist = "ON"                  /* CONTROL CONLIST           */
+  symlist = "ON"                   /* CONTROL SYMLIST           */
+  end
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" | TRACE = "ON",
+  then Trace ?r
+ 
+sysflush = 'OFF'
+syssymlist = symlist          /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist         /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist             /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs             /* CONTROL MSG/NOMSG         */
+sysasis = "ON"
+zispfrc = 0
+"VPUT (ZISPFRC) SHARED"
+return_code = 0
+lidline = 0
+ 
+"VPUT (LIDLINE CONSLIST COMLIST SYMLIST TERMMSGS) ASIS"
+ac01vput = return_code
+If return_code <> 0 then,
+  Say pgmname "VPUT RC =" return_code zerrsm
+ 
+/* Determine which security system is running */
+return_code = 0
+"SELECT CMD("cacc1000 "ACP)"
+"VGET (ACPNAME ACPVERS) ASIS"
+If acpname <> "ACF2" then do
+  Say pgmname "ACF2 Job running on the wrong system"
+  Say pgmname acpname acpvers
+  return_code = 12
+  SIGNAL ERR_EXIT
+  End
+ 
+/*******************************************/
+/* INITIALIZE LIBRARY MANAGEMENT           */
+/*******************************************/
+ 
+return_code = 0                         /* SET RETURN CODE TO 0 */
+"LMINIT DATAID(CNTL) DDNAME(CNTL)"
+lminit_cntl_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT_CNTL_RC" return_code zerrsm
+  SIGNAL ERR_EXIT
+  End
+ 
+"LMINIT DATAID(RESID) DDNAME(RESOURCE)"
+lminit_resource_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT_RESOURCE_RC" return_code zerrsm
+  SIGNAL ERR_EXIT
+  End
+ 
+"LMINIT DATAID(OUTPUT) DDNAME(REPORT)"
+lminit_output_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT_OUTPUT_RC" return_code zerrsm
+  SIGNAL ERR_EXIT
+  End
+ 
+"LMINIT DATAID(TEMP4) DDNAME(TEMP4)"
+lminit_temp4_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT_TEMP4_RC" return_code zerrsm
+  SIGNAL ERR_EXIT
+  End
+ 
+"LMOPEN DATAID("output") OPTION(OUTPUT)"
+lmopen_output_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMOPEN_OUTPUT_RC" return_code zerrsm
+  SIGNAL ERR_EXIT
+  End
+ 
+"EDIT DATAID("temp4") MEMBER(LIDS) MACRO("caam0013")"
+edit_temp4_rc = return_code
+return_code = 0                         /* SET RETURN CODE TO 0 */
+ 
+/* *************************************** */
+/* PUT VARS IN POOL                        */
+/* *************************************** */
+"VPUT (CNTL OUTPUT TEMP4 CAAM0013) ASIS"
+ 
+vput_cntl_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "VPUT_CNTL_RC" return_code zerrsm
+  SIGNAL ERR_EXIT
+  End
+ 
+/* *************************************** */
+/* OBTAIN RESOURCES                        */
+/* *************************************** */
+resource = ""
+type = "I"
+spc = "               "
+merge = ""
+x = outtrap("out.")
+queue "SHOW CL"
+queue "QUIT"
+Address TSO "ACF"
+Do X = 1 to out.0
+  data = out.x
+  If substr(data,1,12) = "-- MERGED CL" then do
+    merge = "Y"
+    iterate
+    end
+  If substr(data,1,12) = "-- EXTERNAL" then do
+    type = "E"
+    iterate
+    end
+  b = length(data)
+  If merge = "Y" & b >= 50 then,
+    If pos(" EXT" ,data) > 50 then,
+      type = "E"
+    Else
+      type = "I"
+ 
+  If b > 33 then do
+    c = substr(data,30,6)
+    If pos("=",c) = 0 then,
+      c = strip(c,"B")
+    If datatype(c) = "NUM" then do
+      c = substr(data,12,15)type
+      If merge = "Y" then,
+        resource = resource" "c
+      Else do
+        If pos(" "c,resource) = 0 then do
+          xx = pos(substr(" "c,1,9),resource)
+          If xx = 0 then,
+            resource = resource" "c
+          Else,
+            If xx = 1 then,
+              resource = " "c""resource
+            Else do
+              parse var resource a =(xx) b
+              resource = a c""b
+              End
+          End
+        End
+      End
+    End
+  End
+ 
+return_code = 0
+"VPUT (RESOURCE) ASIS"
+vput_resource_rc = return_code
+If return_code > 0 then,
+  SIGNAL ERR_EXIT
+ 
+return_code = 0
+"VIEW DATAID("cntl") MACRO("caam0004") MEMBER("caat0001")"
+view_cntl_rc = return_code
+If return_code > 4 then,
+  SIGNAL ERR_EXIT
+ 
+return_code = 0
+rectype = 1
+pdiname = ""
+resname = ""
+ 
+"VPUT (RECTYPE PDINAME RESNAME) ASIS"
+return_code = 0
+"VIEW DATAID("cntl") MEMBER(CACT0008) MACRO(CACM042R)"
+view_cact0008_rc = return_code
+If view_cact0008_rc > 4 then do
+  Say pgmname "VIEW CNTL" cact0008  "RC =" view_cact0008_rc
+  return_code = return_code + 16
+  SIGNAL BYPASS_CACT0008
+  End
+ 
+"VGET (REC1TBL RESOURCE) ASIS"
+ 
+Do X = 1 to length(rec1tbl) by 18
+  parse var rec1tbl . =(x) pdiname resname .
+/*ressp = pos(" ",resname)*/
+  ressp = length(resname)
+  resind = pos(" "resname,resource)
+  restype = ""
+  type = ""
+  If resind > 0 then do
+    parse var resource . =(resind) a +9 restype +3 type +1 .
+    Say pgmname "Processing" pdiname "for resource class" resname,
+      "TYPE("restype")."
+    End
+  Else do
+/*  If ressp = 4 then do
+      restype = substr(1,3,resname)
+      Say pgmname "Processing" pdiname "for TYPE("restype")."
+      End*/
+    If ressp = 3 then do
+      restype = resname
+      Say pgmname "Processing" pdiname "for TYPE("restype")."
+      End
+    Else do
+      Say pgmname "Unable to processing" pdiname,
+        "for resource class" resname"."
+      End
+    End
+  "VPUT (RESTYPE PDINAME) ASIS"
+ 
+  return_code = 0
+  /*******************************************/
+  /* VIEW RESOURCE OUTPUT AND CREATE TEMP4   */
+  /*******************************************/
+ 
+  "VIEW DATAID("resid") MACRO("caam0102")"
+  view_resource_rc = return_code
+ 
+  return_code = 0
+  End
+ 
+ 
+BYPASS_CACT0008:
+return_code = 0
+/*******************************************/
+/* CLOSE OUTPUT                            */
+/*******************************************/
+ 
+"LMCLOSE DATAID("output")"
+lmclose_output_rc = return_code
+ 
+return_code = 0
+/*******************************************/
+/* FREE FILES                              */
+/*******************************************/
+"LMFREE DATAID("cntl")"
+lmfree_cntl_rc = return_code
+ 
+return_code = 0
+"LMFREE DATAID("resid")"
+lmfree_resource_rc = return_code
+ 
+return_code = 0
+"LMFREE DATAID("output")"
+lmfree_output_rc = return_code
+ 
+return_code = 0
+"LMFREE DATAID("temp4")"
+lmfree_temp4_rc = return_code
+ 
+return_code = 0
+/*******************************************/
+/* ERROR EXIT                              */
+/*******************************************/
+ 
+ 
+ERR_EXIT:
+If maxcc >= 16 | return_code > 0 then do
+  "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then
+    zispfrc = /*!*/maxcc
+  Else,
+    zispfrc = return_code
+  "VPUT (ZISPFRC) SHARED"
+  Say pgmname "ZISPFRC =" zispfrc
+  End
+ 
+If termmsgs = "ON" then do
+  Say "==============================================================="
+  Say pgmname "LMINIT_CNTL_RC                "lminit_cntl_rc
+  Say pgmname "LMINIT_RESOURCE_RC            "lminit_resource_rc
+  Say pgmname "LMINIT_OUTPUT_RC              "lminit_output_rc
+  Say pgmname "LMINIT_TEMP4_RC               "lminit_temp4_rc
+  Say "==============================================================="
+  Say pgmname "LMOPEN_OUTPUT_RC              "lmopen_output_rc
+  Say "==============================================================="
+  Say pgmname "EDIT_TEMP4_RC                 "edit_temp4_rc
+  Say "==============================================================="
+  Say pgmname "VPUT_CNTL_RC                  "vput_cntl_rc
+  Say pgmname "VPUT_RESOURCE_RC              "vput_resource_rc
+  Say "==============================================================="
+  Say pgmname "VIEW_CNTL_RC                  "view_cntl_rc
+  Say "==============================================================="
+  Say pgmname "VIEW_RESOURCE_RC              "view_resource_rc
+  Say "==============================================================="
+  Say pgmname "LMCLOSE_OUTPUT_RC             "lmclose_output_rc
+  Say "==============================================================="
+  Say pgmname "LMFREE_CNTL_RC                "lmfree_cntl_rc
+  Say pgmname "LMFREE_RESOURCE_RC            "lmfree_resource_rc
+  Say pgmname "LMFREE_TEMP4_RC               "lmfree_temp4_rc
+  Say "==============================================================="
+  End
+Exit 0
+ 
+ 
+/*******************************************/
+/*  SYSCALL SUBROUTINES                    */
+/*******************************************/
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC > 4 & RC <> 8 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+  say SOURCELINE(sigl)
+  end
+if return_code > maxcc then
+  maxcc = return_code
+return
+ 
+ 

@@ -1,0 +1,355 @@
+/* REXX */
+/* CLS2REXXed by FSOX001 on 23 Aug 2017 at 11:04:56  */
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+Address ISPEXEC
+ 
+/*********************************************************************/
+/* 11/07/2005 JL.NELSON Was sy$stdpz                                 */
+/* 10/11/2005 JL.NELSON Changed to edit user cntl STCILIST.          */
+/* 10/12/2005 JL.NELSON Changed to select SRR$PDI program.           */
+/* 10/13/2005 JL.NELSON Fixed TOP SECRET dataset names.              */
+/* 10/20/2005 JL.NELSON Modified for ACF2 dataset name change.       */
+/* 10/27/2005 JL.NELSON Added program name to panel for diagnostics. */
+/* 11/07/2005 JL.NELSON Re-did data set checks with error panel.     */
+/* 11/08/2005 JL.NELSON Added "Please wait" messages.                */
+/* 11/09/2005 JL.NELSON Added empty data set messages.               */
+/* 03/07/2006 C. Stern  Modified to support LPAR node in DSN.        */
+/* 08/07/2007 CL.Fenton Added addition Please Wait messages.         */
+/* 08/23/2017 CL.FENTON Converted script from CLIST to REXX.         */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname = "SRR$ADMN 08/23/17"
+pgm8 = substr(pgmname,1,8)
+jobinst  = "CACJ0521"         /* BATCH Install job                */
+jobdata  = "CACJ051D"         /* BATCH Install job for dialog     */
+datasuf  = "DATA"             /* Data file suffix                 */
+datambr  = "ASSET"            /* Data file member                 */
+/*******************************************/
+/* CONSLIST = CONLIST                      */
+/* COMLIST = LIST                          */
+/* SYMLIST = SYMLIST                       */
+/* TERMPRO = PROMPT                        */
+/* TERMMSGS = MESSAGES                     */
+/* TRACE TURNS ON MESSAGING                */
+/*******************************************/
+"VGET (CONSLIST COMLIST SYMLIST TERMMSGS) ASIS"
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" then,
+  Trace r
+ 
+syssymlist = symlist           /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist          /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist              /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs              /* CONTROL MSG/NOMSG         */
+sysprompt = "OFF"              /* CONTROL NOPROMPT          */
+sysflush = "OFF"               /* CONTROL NOFLUSH           */
+"CONTROL ERRORS RETURN"
+zispfrc = 0
+return_code = 0
+"VGET (ACPNAME SRRUSER ZTRAIL) ASIS"
+jobrpts  = "CA"left(acpname,1)"J043R"    /* BATCH Reports job*/
+ 
+ 
+DISPLAY:
+do until return_code > 0
+  return_code = 0
+  zcmd = " "
+  opt = " "
+  srrmsg = " "
+  if ztrail = "" then,
+    "DISPLAY PANEL(SRRPADMN)"
+  else do
+    zcmd = ztrail
+    parse var zcmd opt '.' ztrail
+    if index("ABCDEF",opt) = 0 then,
+      "DISPLAY PANEL(SRRPADMN) MSG(ISPG211)"
+    end
+  "VPUT (ZTRAIL) ASIS"
+  If return_code = 8 then leave
+  If return_code > 4 then do
+    Say pgmname "DISPLAY RC =" return_code zerrmsg zerrsm
+    SIGNAL  ERR_EXIT
+    end
+  opt = opt
+  Select
+    When opt = "A" then,
+      Call SELECT_A
+    When opt = "B" then,
+      Call SELECT_B
+    When opt = "C" then,
+      Call SELECT_C
+    When opt = "D" then,
+      Call SELECT_D
+    When opt = "E" then,
+      Call SELECT_E
+    When opt = "F" then,
+      Call SELECT_F
+    When opt = "X" then,
+      leave
+    end /* Select */
+  end /* do until return_code > 0 */
+ 
+ 
+END_EXIT:
+return_code = 0
+ERR_EXIT:
+zispfrc = return_code
+"VPUT (ZISPFRC) SHARED"
+EXIT:
+Exit
+ 
+ 
+SELECT_A:
+return_code = 0
+srrmsg = "Please wait, reading all PDIs may take a few minutes."
+"CONTROL DISPLAY LOCK"
+"DISPLAY PANEL(SRRPADMN)"
+"SELECT CMD(SRR$PDI)"
+return_code = 0
+Return
+ 
+ 
+SELECT_B:
+return_code = 0
+srrdsn = srruser".AUACCESS"
+x = listdsi("'"srrdsn"'")
+If sysreason <> 0 then do
+  srrdsn = srruser"."jobrpts".AUACCESS"
+  x = listdsi("'"srrdsn"'")
+  If sysreason <> 0 then do
+    srrdsn = srruser"."jobrpts"."sysname".AUACCESS"
+    x = listdsi("'"srrdsn"'")
+    If sysreason <> 0 then do
+      srrdsn = srruser"."jobrpts"."sysplex".AUACCESS"
+      x = listdsi("'"srrdsn"'")
+      If sysreason <> 0 then do
+        srrerr = "Dataset AUACCESS is missing, batch job" jobrpts,
+          "must be run to create the file."
+        srrerc = sysreason
+        zerrlm = srrdsn
+        srrmsg1 = sysmsglvl1
+        srrmsg2 = sysmsglvl2
+        "DISPLAY PANEL(SRRPERR)"
+        Return
+        end
+      end
+    end
+  end
+ 
+ 
+BROWSE_B:
+return_code = 0
+"BROWSE DATASET('"srrdsn"')"
+If return_code <> 0 then do
+  srrerr = "Dataset AUACCESS may be empty, batch job" jobrpts,
+    "must be run to create the file."
+  srrerc = return_code
+  srrmsg1 = srrdsn
+  srrmsg2 = " "
+  "DISPLAY PANEL(SRRPERR)"
+  end
+return_code = 0
+Return
+ 
+ 
+SELECT_C:
+return_code = 0
+srrdsn = srruser".SENSITVE.RPT"
+x = listdsi("'"srrdsn"'")
+If sysreason <> 0 then do
+  srrdsn = srruser"."jobrpts".SENSITVE.RPT"
+  x = listdsi("'"srrdsn"'")
+  If sysreason <> 0 then do
+    srrdsn = srruser"."jobrpts"."sysname".SENSITVE.RPT"
+    x = listdsi("'"srrdsn"'")
+    If sysreason <> 0 then do
+      srrdsn = srruser"."jobrpts"."sysplex".SENSITVE.RPT"
+      x = listdsi("'"srrdsn"'")
+      If sysreason <> 0 then do
+        srrerr = "Dataset SENSITVE is missing, batch job" jobrpts,
+          "must be run to create the file."
+        srrerc = sysreason
+        zerrlm = srrdsn
+        srrmsg1 = sysmsglvl1
+        srrmsg2 = sysmsglvl2
+        "DISPLAY PANEL(SRRPERR)"
+        Return
+        end
+      end
+    end
+  end
+ 
+ 
+BROWSE_C:
+return_code = 0
+"BROWSE DATASET('"srrdsn"')"
+If return_code <> 0 then do
+  srrerr = "Dataset SENSITVE may be empty, batch job" jobrpts,
+    "must be run to create the file."
+  srrerc = return_code
+  srrmsg1 = srrdsn
+  srrmsg2 = " "
+  "DISPLAY PANEL(SRRPERR)"
+  end
+return_code = 0
+Return
+ 
+ 
+SELECT_D:
+return_code = 0
+dsnmbr = srruser".CNTL(STCILIST)"
+locate = sysdsn("'"dsnmbr"'")
+If locate <> "OK" then do
+  srrerr = "Member STCILIST is missing, batch job" jobinst,
+    "must first be run to create the member."
+  srrerc = return_code
+  zerrlm = dsnmbr
+  srrmsg1 = locate
+  srrmsg2 = " "
+  "DISPLAY PANEL(SRRPERR)"
+  Return
+  end
+"EDIT DATASET('"dsnmbr"')"
+return_code = 0
+Return
+ 
+ 
+SELECT_E:
+return_code = 0
+srrmsg = "Please wait, locating all members may take a few minutes."
+"CONTROL DISPLAY LOCK"
+"DISPLAY PANEL(SRRPADMN)"
+"SELECT CMD(SRR$USR)"
+return_code = 0
+Return
+ 
+ 
+SELECT_F:
+srrmsg = "Please wait, reading all PDIs may take a few minutes."
+"CONTROL DISPLAY LOCK"
+"DISPLAY PANEL(SRRPADMN)"
+srrmsg = ""
+srrmsg1 = ""
+return_code = 0
+datadsn = srruser"."datasuf
+x = listdsi("'"datadsn"'")
+If sysreason <> 0 then do
+  srrerr = "Dataset" datasuf "is missing, batch job" jobdata,
+    "must be ran to create the file."
+  srrerc = sysreason
+  zerrlm = datadsn
+  srrmsg1 = sysmsglvl1
+  srrmsg2 = sysmsglvl2
+  "DISPLAY PANEL(SRRPERR)"
+  Return
+  end
+ 
+assetmbr = datadsn"("datambr")"
+If sysdsn("'"assetmbr"'") = "OK" then do
+  Address TSO "ALLOC FI(TBLMBR) DA('"assetmbr"') SHR"
+  Address TSO "EXECIO * DISKR TBLMBR (FINIS STEM AC."
+  Address TSO "FREE FILE(TBLMBR)"
+  end
+Else,
+  ac.0 = 0
+ 
+ 
+READ_ASSET:
+return_code = 0
+do assnr = 1 to ac.0
+  ac = strip(ac.assnr,"T")
+  parse var ac ass_key 11 ass_data
+  interpret ass_key "= '"ass_data"'"
+  end
+ 
+ 
+ASSET_FINISH:
+return_code = 0
+"SELECT CMD(CACC1000 HOST)"
+"VGET (HOSTADDR SERNR MODEL MANUF) ASIS"
+a = 1
+ipadd1 = ""
+ipadd2 = ""
+ipadd3 = ""
+ipadd4 = ""
+Do a = 1 to words(hostaddr)
+  interpret "ipadd"a "= word(hostaddr,a)"
+  "VPUT (IPADD"a") ASIS"
+  end
+ 
+ 
+DISPLAY_F:
+do until return_code > 0
+  return_code = 0
+  opt = ""
+  "DISPLAY PANEL(SRRPADMV)"
+  If return_code = 8 then,
+    leave
+  srrmsg = ""
+  srrmsg1 = ""
+  If opt = "CREATE" then do
+    "VPUT (DESC CLASS MAC CONF STATUS USE BLDG ROOM SERNR BARCD",
+      "MAKE MODEL MANUF DATADSN) ASIS"
+    "SELECT CMD(CACC041X)"
+    cacc041x_rc = return_code
+    end
+ 
+  If opt = "CREATE" | opt = "SAVE" then do
+    queue left("DESC",10)desc
+    queue left("CLASS",10)class
+    queue left("MAC",10)mac
+    queue left("CONF",10)conf
+    queue left("STATUS",10)status
+    queue left("USE",10)use
+    queue left("BLDG",10)bldg
+    queue left("ROOM",10)room
+    queue left("SERNR",10)sernr
+    queue left("BARCD",10)barcd
+    queue left("MAKE",10)make
+    queue left("MODEL",10)model
+    queue left("MANUF",10)manuf
+    queue ""
+    If sysdsn("'"assetmbr"'") = "OK" then
+      assinf = "updated"
+    Else,
+      assinf = "added"
+    Address TSO "ALLOC FI(TBLMBR) DA('"assetmbr"') SHR"
+    Address TSO "EXECIO * DISKW TBLMBR (FINIS"
+    Address TSO "FREE FILE(TBLMBR)"
+ 
+    If opt = "SAVE" then,
+      srrmsg = assetmbr assinf"."
+    Else
+      If sysdsn("'"srruser".XMLASSET'") <> "OK" |,
+         cacc041x_rc > 0 then,
+        srrmsg = srruser".XMLASSET was not created.  RC =",
+          cacc041x_rc
+      Else do
+        srrmsg = srruser".XMLASSET is created.  Review Help for",
+          "further details."
+        srrmsg1 = "And" assetmbr assinf"."
+        end
+    end
+  end
+return_code = 0
+Return
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+Exit
+ 
+ 
+Error:
+return_code = RC
+return
+ 
+ 

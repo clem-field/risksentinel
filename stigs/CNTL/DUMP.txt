@@ -1,0 +1,36 @@
+//*
+//*--------------------------------------------------------------------
+//*-------------------------->> DUMP     <<----------------------------
+//*--------------------------------------------------------------------
+//*                DUMP PREVIOUS SRR
+//*
+//*  THIS JOB EXECUTES STEP THAT PERFORMS A DUMP AGAINST
+//*  ALL SYS3.FSO.XXXX.MMMYYYY DATASETS.
+//*
+//*
+//*  DUMPIT:          EXECUTES ADRDSSU TO DUMP DATASETS WITH A PREFIX
+//*                   OF SYS3.FSO.XXXX.MMMYYYY
+//*
+//*  ===> IMPORTANT:  PERFORM THE FOLLOWING STEPS BEFORE SUBMITTING
+//*                   THIS JOB FOR EXECUTION:
+//*
+//*       1)  CHANGE ALL OCCURRENCES OF THE FOLLOWING:
+//*
+//*           A)  'XXXX' TO THE SMF ID OF THE DOMAIN.
+//*           B)  'MMMYYYY' TO THE CURRENT MONTH AND YEAR.
+//*
+//*--------------------------------------------------------------------
+//*
+//DUMPIT    EXEC PGM=ADRDSSU,REGION=4096K
+//SYSPRINT  DD SYSOUT=*
+//DASDO     DD DSN=SYS3.FSO.XXXX.MMMYYYY.DUMP,
+//             DISP=(NEW,CATLG),
+//             UNIT=SYSDA,
+//             SPACE=(CYL,(75,15),RLSE)
+//SYSIN     DD *
+ DUMP  -
+       DATASET(INCLUDE(                     -
+                       SYS3.FSO.XXXX.MMMYYYY.** -
+                      ))                    -
+       OUTDDNAME(DASDO)
+/*

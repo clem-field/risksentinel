@@ -1,0 +1,1 @@
+  COPY    I=((SYSI,R)),O=SYSU,LIST=NO

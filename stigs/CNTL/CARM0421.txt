@@ -1,0 +1,750 @@
+ISREDIT MACRO       /* CARM0421 EDIT SENSITVE(pdi*)  */
+ 
+/* 06/01/2004 JL.NELSON CREATED TO WRITE OUT data set FINDINGS
+/* 06/15/2004 JL.NELSON ADDED EXIT CODE
+/* 11/11/2004 JL.NELSON Drop N/A Alias or File not found
+/* 11/11/2004 JL.NELSON Limit PDI text to 25 per error
+/* 01/13/2005 JL.NELSON Changed messages for AU log and access.
+/* 01/19/2005 JL.NELSON Changed message for access to fit screen.
+/* 01/20/2005 JL.NELSON Add data set list to PDI members for Access
+/* 01/28/2005 JL.NELSON Add data set list to PDI members for Generic
+/* 02/28/2004 JL.NELSON Moved PDI limit to input variable
+/* 02/28/2005 JL.NELSON Changed constants to variables
+/* 03/09/2005 JL.NELSON Changed LMMREP to LMMADD/LMMREP to avoid errors
+/* 04/21/2005 JL.NELSON Changed GENERIC message, Added Justification msg
+/* 04/25/2005 JL.NELSON Reset profile when finding number changes
+/* 06/03/2005 JL.NELSON Renumbered messages for FSO auditors
+/* 06/03/2005 JL.NELSON Moved Justification msg to number 2.
+/* 06/03/2005 JL.NELSON Suppress recommendation msgs for FSO auditors.
+/* 06/09/2005 JL.NELSON Pass MAXCC in ZISPFRC variable
+/* 07/18/2005 JL.NELSON Don't truncate SENSITVE report.
+/* 10/23/2006 CL.FENTON Chgd finding details.  Chgd RACF0120 and
+/*            RACF0170 to UADSRPT and ACPRPT.
+/* 09/10/2007 CL.Fenton Added resource process.  Chgd several
+/*            variables and routines being executed by process.
+/* 11/30/2007 CL.Fenton Added resource will not be defined analysis
+/* 01/09/2013 CL.Fenton Chgd process to remove duplicates from PDI
+/*            results.
+/* 03/08/2017 CL.Fenton Chgd format of output PDI finding.
+/* 02/20/2018 CL.Fenton Chgd check on RESNAME to specify resources
+/*            that use the same profile.
+/* 06/07/2019 CL.FENTON Chgs to evaluate ZCIC0021 for system that
+/*            are running both production and test/developement
+/*            CICS regions, STS-021044.
+ 
+NGLOBAL RETURN_CODE OMEMBER DSRULE SENSITVE RPTMBR PGMNAME CARM0422
+ 
+SET PGMNAME = &STR(CARM0421 06/07/19)
+ 
+SET SYSPROMPT = OFF                /* CONTROL NOPROMPT          */
+SET SYSFLUSH  = OFF                /* CONTROL NOFLUSH           */
+SET SYSASIS   = ON                 /* CONTROL ASIS - caps off   */
+ 
+/* ERROR ROUTINE */
+ERROR DO
+  SET RETURN_CODE = &LASTCC          /* SAVE LAST ERROR CODE */
+  IF &LASTCC GE 16 THEN +
+    WRITE &PGMNAME LASTCC = &LASTCC &ZERRLM
+  RETURN
+  END
+ 
+/* *************************************** */
+/* VARIABLES ARE PASSED TO THIS MACRO      */
+/* CONSLIST                                */
+/* COMLIST                                 */
+/* SYMLIST                                 */
+/* TERMMSGS                                */
+/* *************************************** */
+ 
+SET RETURN_CODE = 0
+ 
+ISPEXEC VGET ( +
+  CONSLIST     +
+  COMLIST      +
+  SYMLIST      +
+  TERMMSGS     +
+  PDIDD        +
+  SENSITVE     +
+  RPTMBR       +
+  CARM0422     +
+  PDILIMIT     +
+  RESOURCE     +
+  TYPERUN      +
+  ) ASIS
+ 
+SET RM21VGET = &RETURN_CODE
+IF &RETURN_CODE NE 0 THEN DO
+  WRITE &PGMNAME VGET RC = &RETURN_CODE  &ZERRSM
+  WRITE &PGMNAME CONSLIST/&CONSLIST COMLIST/&COMLIST SYMLIST/&SYMLIST +
+    TERMMSGS/&TERMMSGS
+  WRITE &PGMNAME PDIDD/&PDIDD SENSITVE/&SENSITVE RPTMBR/&RPTMBR +
+    CARM0422/&CARM0422 PDILIMIT/&PDILIMIT RESOURCE/&RESOURCE +
+    TYPERUN/&TYPERUN
+  SET RETURN_CODE = &RETURN_CODE + 16
+  GOTO ERR_EXIT
+  END
+ 
+SET RETURN_CODE = 0
+ 
+/* *************************************** */
+/* TURN ON MESSAGES                        */
+/* *************************************** */
+ 
+ISPEXEC CONTROL NONDISPL ENTER
+ISPEXEC CONTROL ERRORS RETURN
+ 
+SET SYSSYMLIST = &SYMLIST          /* CONTROL SYMLIST/NOSYMLIST */
+SET SYSCONLIST = &CONSLIST         /* CONTROL CONLIST/NOCONLIST */
+SET SYSLIST    = &COMLIST          /* CONTROL LIST/NOLIST       */
+SET SYSMSG     = &TERMMSGS         /* CONTROL MSG/NOMSG         */
+ 
+ISREDIT (MEMBER) = MEMBER
+ISREDIT (DSNAME) = DATASET
+IF &MEMBER = &STR(ZCICS0021) THEN DO
+  SET SYSSYMLIST = &STR(ON)
+  SET SYSCONLIST = &STR(ON)
+  SET SYSLIST    = &STR(ON)
+  SET SYSMSG     = &STR(ON)
+  END
+ 
+ISREDIT (ENDER) = LINENUM .ZLAST
+ 
+SET OMEMBER = &MEMBER
+ 
+SET BLANK = &STR( )
+ 
+SET LP = &STR((
+SET RP = )
+ 
+SET Y0 = 0
+SET Y1 = 0
+SET Y2 = 0
+SET Y3 = 0
+SET Y4 = 0
+SET Y5 = 0
+SET S0 = 0
+SET S1 = 0
+SET S2 = 0
+SET S3 = 0
+SET S4 = 0
+SET S5 = 0
+SET MSGLOG = &STR(ALTER)
+SET MSGACC = &STR()
+SET M  = 1   /* Message number for findings
+ 
+SET RETURN_CODE = 0
+ 
+ISREDIT CURSOR = 1 0
+ 
+ISREDIT FIND 'SRR START'  1
+ 
+IF &RETURN_CODE NE 0 THEN -
+    GOTO FIND_YES
+ 
+ISREDIT (CURLINE) = LINENUM .ZCSR
+ISREDIT (DATA) = LINE &CURLINE
+ 
+SET AULOG   = &SUBSTR(24:31,&NRSTR(&DATA        ))
+SET AUUACC  = &SUBSTR(43:50,&NRSTR(&DATA        ))
+ 
+SELECT &AULOG
+  WHEN (NONE    ) SET LLVL = 0
+  WHEN (EXECUTE ) SET LLVL = 1
+  WHEN (READ    ) SET LLVL = 3
+  WHEN (UPDATE  ) SET LLVL = 5
+  WHEN (CONTROL ) SET LLVL = 6
+  WHEN (ALTER   ) SET LLVL = 9
+  OTHERWISE DO
+    WRITE &PGMNAME Unknown logging &AULOG not found in list
+    SET LLVL = 0
+    END
+  END
+ 
+SELECT &AUUACC
+  WHEN (NONE    ) SET ALVL = 0
+  WHEN (EXECUTE ) SET ALVL = 1
+  WHEN (READ    ) SET ALVL = 3
+  WHEN (UPDATE  ) SET ALVL = 5
+  WHEN (CONTROL ) SET ALVL = 6
+  WHEN (ALTER   ) SET ALVL = 9
+  OTHERWISE DO
+    WRITE &PGMNAME Unknown access &AUUACC not found in list
+    SET ALVL = 9
+    END
+  END
+ 
+IF &LLVL LT 9 THEN +
+  IF &LLVL LT 5 THEN SET MSGLOG = &STR(UPDATE, and/or &MSGLOG)
+  ELSE SET MSGLOG = &STR(UPDATE and/or &MSGLOG)
+IF &LLVL LT 5 THEN SET MSGLOG = &STR(READ, &MSGLOG)
+IF &LLVL LT 3 THEN SET MSGLOG = &STR(EXECUTE, &MSGLOG)
+IF &LLVL EQ 0 THEN SET MSGLOG = &STR(None)
+ 
+IF &ALVL LT 5 THEN SET MSGACC = &STR(UPDATE and/or )
+IF &ALVL LT 3 THEN SET MSGACC = &STR(READ, UPDATE, and/or )
+IF &ALVL LT 1 THEN SET MSGACC = &STR(EXECUTE, &MSGACC)
+ 
+ 
+FIND_YES: +
+SET RETURN_CODE = 0
+ 
+SET PREVNBR  = &STR( )
+SET PREVPROF = &STR( )
+ 
+ISREDIT CURSOR = 1 0
+ 
+ISREDIT FIND 'SRR YES'  1
+ 
+IF &RETURN_CODE NE 0 THEN -
+    GOTO NOT_APPLICABLE
+ 
+ISREDIT (CURLINE) = LINENUM .ZCSR
+SET CURLINE = &CURLINE - 1
+ 
+IF &NRSTR(&RESOURCE) EQ &STR(DSNAME) THEN +
+  SET AC = &STR(The following data set access authorization&LP.s&RP +
+    is &LP.are&RP inappropriate: )
+ELSE +
+  SELECT &STR(&OMEMBER)
+    WHEN (ZJES0051) +
+      SET AC = &STR(The JES2.** resource is protected improperly.)
+    OTHERWISE +
+      SET AC = &STR(The following access authorization&LP.s&RP is +
+        &LP.are&RP inappropriate: )
+    END
+ 
+ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC)                -
+    DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+ 
+/* *************************************** */
+/* FINDING LOOP                            */
+/* *************************************** */
+ 
+NEXT_FINDING: +
+SET RETURN_CODE = 0
+SET CURLINE = &CURLINE + 1
+ 
+ISREDIT (DATA) = LINE &CURLINE
+ISREDIT (XSTAT) = XSTATUS &CURLINE
+ 
+IF &SUBSTR(5:7,&NRSTR(&DATA)) NE &STR(YES) OR +
+   &XSTAT EQ &STR(X) THEN +
+  GOTO NEXT_STD
+ 
+SET PROFILE = &SUBSTR(10:53,&NRSTR(&DATA))
+SET Y = &LENGTH(&NRSTR(&DATA))
+IF &NRSTR(&RESOURCE) EQ &STR(DSNAME) THEN +
+  SET TEXT    = &SUBSTR(54:&Y,&NRSTR(&DATA))
+ELSE DO
+  SET RESNAME = &SUBSTR(55:99,&NRSTR(&DATA))
+  IF &SYSINDEX(&STR(#),&NRSTR(&RESNAME)) GT 0 THEN DO
+    SET X = &SYSINDEX(&STR(#),&NRSTR(&RESNAME)) + 1
+    SET RESNAME = &SUBSTR(&X:&LENGTH(&NRSTR(&RESNAME)),&NRSTR(&RESNAME))
+    END
+  SET TEXT    = &SUBSTR(100:&Y,&NRSTR(&DATA))
+  END
+SET NBR     = &SUBSTR(8,&NRSTR(&DATA))
+ 
+IF &STR(&NBR) GT &STR(2) THEN +
+  ISREDIT EXCLUDE '&SUBSTR(1:54,&STR(&DATA))' ALL 1 54
+ 
+IF &STR(&NBR) NE &STR(&PREVNBR) THEN DO
+  SET PREVNBR  = &STR(&NBR)
+  SET PREVPROF = &STR( )
+  END
+ 
+SET SP = &STR(     )
+IF &STR(&NBR) EQ &STR(0) THEN DO
+  SET SP = &STR()
+  IF &Y0 GT 0 AND +
+    &NRSTR(&PROFILE) NE &STR( ) AND +
+    &NRSTR(&PREVPROF) EQ &STR( ) THEN +
+    SET Y0 = 0
+  IF &Y0 = 0 THEN DO
+    SET AC = &STR( )
+    ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC)    -
+      DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+    IF &NRSTR(&RESOURCE) EQ &STR(DSNAME) THEN +
+      SET AC = &STR(&M&RP Data set access authorization is not +
+        defined.)
+    ELSE DO
+      IF &NRSTR(&PROFILE) EQ &STR( ) THEN +
+        SET AC = &STR(&M&RP Resource is not defined.)
+       ELSE +
+        SET AC = &STR(&M&RP Resource is defined.)
+      END
+    ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) -
+      DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+    SET M  = &M  + 1
+    SET Y0 = &Y0 + 1
+    SET AC = &STR( )
+    ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC)    -
+      DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+    END
+  ELSE DO
+    SET Y0 = &Y0 + 1
+    IF &Y0 GT &PDILIMIT THEN +
+      GOTO NEXT_FINDING
+    END
+  IF &NRSTR(&RESOURCE) NE &STR(DSNAME) THEN +
+    IF &NRSTR(&PROFILE) EQ &STR( ) THEN +
+      SET TEXT = &NRSTR(&RESNAME)
+    ELSE DO
+      SET TEXT = &RESNAME
+      SET TEXT = &TEXT &NRSTR(in profile &PROFILE)
+      SET PROFILE = &NRSTR(&PREVPROF)
+      END
+  END
+ 
+IF &STR(&NBR) EQ &STR(1) THEN -
+  IF &Y1 = 0 THEN DO
+    SET AC = &STR( )
+    ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) -
+      DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+ 
+    IF &NRSTR(&RPTMBR) NE &STR(UADSRPT) THEN DO
+      SET AC = &STR(&M&RP Data set access authorization does not +
+        restrict &MSGACC)
+      SET AC1 = &STR(ALTER access to systems programming personnel.)
+      IF &NRSTR(&RPTMBR) EQ &STR(ACPRPT) THEN +
+        SET AC1 = &STR(ALTER access to systems programming personnel +
+          and/or security personnel.)
+      IF &NRSTR(&RESOURCE) EQ &STR(DSNAME) THEN +
+        SET AC = &NRSTR(&AC.&AC1)
+      ELSE +
+        SET AC = &STR(&M&RP Access authorization does not +
+          restrict access to appropriate personnel.)
+      ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) -
+        DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+      END
+ 
+    IF &NRSTR(&RPTMBR) EQ &STR(UADSRPT) THEN DO
+      SET AC = &STR(&M&RP Data set access authorization does not +
+        restrict ALTER access to systems programming personnel.)
+      ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) -
+        DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+      SET M  = &M  + 1
+      SET XA = &SYSINDEX(&STR(, and),&NRSTR(&MSGACC))
+      IF &XA EQ 0 THEN +
+        SET XA = &SYSINDEX(&STR( and),&NRSTR(&MSGACC))
+      SET XB = &SYSINDEX(&STR(, ),&NRSTR(&MSGACC))
+      IF &XA GT 0 THEN +
+        IF &XB GT 0 THEN +
+          SET MSGACC = &SUBSTR(1:&XB-1,&NRSTR(&MSGACC))+
+            &STR( and &SUBSTR(&XB+2:&XA-1,&NRSTR(&MSGACC)))
+        ELSE +
+          SET MSGACC = &SUBSTR(1:&XA-1,&NRSTR(&MSGACC))
+      SET AC = &STR(&M&RP Data set access authorization does not +
+        restrict &MSGACC access to systems programming personnel +
+        and/or security personnel.)
+      ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) -
+        DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+      END
+ 
+    SET M  = &M  + 1
+    SET AC = &STR(&M&RP Justification for access authorization +
+      was not provided.)
+    ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) -
+      DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+    SET M  = &M  + 1
+    SET Y1 = &Y1 + 1
+/*  SET AC = &STR( )
+/*  ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC)    -
+/*    DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+    END
+  ELSE DO
+    SET Y1 = &Y1 + 1
+    IF &Y1 GT &PDILIMIT THEN +
+      GOTO NEXT_FINDING
+    END
+ 
+IF &STR(&NBR) EQ &STR(2) THEN -
+  IF &Y2 = 0 THEN DO
+    SET AC = &STR( )
+    ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) -
+      DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+    SET AC = &STR(&M&RP Generic USERIDs can not be used for the +
+      specified access.)
+    ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) -
+      DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+    SET M  = &M  + 1
+    SET Y2 = &Y2 + 1
+    SET AC = &STR( )
+    ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC)    -
+      DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+    END
+  ELSE DO
+    SET Y2 = &Y2 + 1
+    IF &Y2 GT &PDILIMIT THEN +
+      GOTO NEXT_FINDING
+    END
+ 
+IF &STR(&NBR) EQ &STR(3) THEN -
+  IF &Y3 = 0 THEN DO
+    SET AC = &STR( )
+    ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC)-
+      DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+    IF &NRSTR(&RESOURCE) EQ &STR(DSNAME) THEN +
+      SET AC = &STR(&M&RP Data set &MSGLOG access is not logged.)
+    ELSE +
+      SET AC = &STR(&M&RP All resource access is not logged.)
+    ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC)-
+      DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+    SET M  = &M  + 1
+    SET Y3 = &Y3 + 1
+    SET AC = &STR( )
+    ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) -
+      DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+    END
+  ELSE DO
+    SET Y3 = &Y3 + 1
+    IF &Y3 GT &PDILIMIT THEN +
+      GOTO NEXT_FINDING
+    END
+ 
+IF &STR(&NBR) EQ &STR(4) THEN -
+  IF &Y4 = 0 THEN DO
+    SET AC = &STR( )
+    ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) -
+      DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+    SET AC = &STR(&M&RP The profile WARNING flag is ON.)
+    ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) -
+      DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+    SET M  = &M  + 1
+    SET Y4 = &Y4 + 1
+    SET AC = &STR( )
+    ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) -
+      DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+    END
+  ELSE DO
+    SET Y4 = &Y4 + 1
+    IF &Y4 GT &PDILIMIT THEN +
+      GOTO NEXT_FINDING
+    END
+ 
+IF &STR(&NBR) EQ &STR(5) THEN -
+  IF &Y5 = 0 THEN DO
+    SET AC = &STR( )
+    ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) -
+      DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+    SET AC = &STR(&M&RP The profile UACC value is not set to NONE.)
+    ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) -
+      DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+    SET M  = &M  + 1
+    SET Y5 = &Y5 + 1
+    SET AC = &STR( )
+    ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) -
+      DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+    END
+  ELSE DO
+    SET Y5 = &Y5 + 1
+    IF &Y5 GT &PDILIMIT THEN +
+      GOTO NEXT_FINDING
+    END
+ 
+IF &STR(&NBR) EQ &STR(3) OR   -
+   &STR(&NBR) EQ &STR(4) OR   -
+   &STR(&NBR) EQ &STR(5) THEN DO
+  SET AC = &STR(&PROFILE &TEXT)
+  ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC)    -
+    DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+  GOTO NEXT_FINDING
+  END
+ 
+/* ADDED RESNAME CHECK */
+IF &STR(&PROFILE) NE &STR(&PREVPROF) OR +
+   &NRSTR(&RESNAME) NE &STR(&PREVRES) THEN DO
+  IF &NRSTR(&RESOURCE) EQ &STR(DSNAME) THEN DO
+    SET AC = &STR( )
+    ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) -
+      DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+    END
+  IF &NRSTR(&RESNAME) NE &STR(&PREVRES) AND +
+     &NRSTR(&RESNAME) NE &STR( ) AND +
+     &STR(&NBR) NE &STR(0) THEN DO
+    SET AC = &STR( )
+    ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) -
+      DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+    SET PREVRES = &STR(&RESNAME)
+    SET AC = &STR(&RESNAME)
+    ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) -
+      DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+    SET AC = &STR(     &PROFILE)
+    END
+  ELSE +
+    IF &NRSTR(&RESOURCE) EQ &STR(DSNAME) THEN +
+      SET AC = &STR(&PROFILE)
+    ELSE +
+      SET AC = &STR(     &PROFILE)
+  IF &STR(&NBR) NE &STR(0) THEN +
+    ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) -
+      DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+  SET PREVPROF = &STR(&PROFILE)
+  IF &STR(&NBR) EQ &STR(1) OR +
+     &STR(&NBR) EQ &STR(2) THEN DO
+    SET DSRULE   = &STR(&PROFILE)
+    IF &NRSTR(&RESOURCE) EQ &STR(DSNAME) THEN +
+      SYSCALL COPY_DSNAMES
+/*  ELSE */
+    END
+  END
+ 
+/*IF &NRSTR(&RESOURCE) NE &STR(DSNAME) THEN +
+/*  IF &STR(&NBR) EQ &STR(1) OR +
+/*     &STR(&NBR) EQ &STR(2) THEN DO
+/*    SET DSRULE   = &STR(&PROFILE)
+/*    IF &NRSTR(&RESNAME) NE &STR(&PREVRES) THEN DO
+/*      SET PREVRES = &STR(&RESNAME)
+/*      SET AC = &STR(  &RESNAME)
+/*      ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) -
+/*        DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+/*      END
+/*    END
+ 
+IF &NRSTR(&RESOURCE) NE &STR(DSNAME) THEN +
+  SET AC = &STR(     &SP&TEXT)
+ELSE +
+  SET AC = &STR(     &TEXT)
+ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC)                -
+  DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+GOTO NEXT_FINDING
+ 
+ 
+NEXT_STD: +
+SET RETURN_CODE = 0
+ 
+IF &SUBSTR(5:7,&NRSTR(&DATA)) EQ &STR(END) THEN +
+  GOTO END_FINDING
+ 
+IF &SUBSTR(5:7,&NRSTR(&DATA)) NE &STR(STD) THEN +
+  GOTO NEXT_FINDING
+ 
+IF &STR(&TYPERUN) NE &STR(SRRAUDIT) THEN +
+  GOTO NEXT_FINDING
+ 
+SET DISA = &SUBSTR(10:90,&NRSTR(&DATA)                                 )
+ 
+IF &SUBSTR(8,&NRSTR(&DATA)) EQ &STR(0) THEN -
+  IF &S0 = 0 THEN DO
+    SET AC = &STR( )
+    ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) -
+      DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+    SET S0 = &S0 + 1
+    END
+ 
+IF &SUBSTR(8,&NRSTR(&DATA)) EQ &STR(1) THEN -
+  IF &S1 = 0 THEN DO
+    SET AC = &STR( )
+    ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) -
+      DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+    SET S1 = &S1 + 1
+    END
+ 
+IF &SUBSTR(8,&NRSTR(&DATA)) EQ &STR(2) THEN -
+  IF &S2 = 0 THEN DO
+    SET AC = &STR( )
+    ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) -
+      DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+    SET S2 = &S2 + 1
+    END
+ 
+IF &SUBSTR(8,&NRSTR(&DATA)) EQ &STR(3) THEN -
+  IF &S3 = 0 THEN DO
+    SET AC = &STR( )
+    ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) -
+      DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+    SET S3 = &S3 + 1
+    END
+ 
+IF &SUBSTR(8,&NRSTR(&DATA)) EQ &STR(4) THEN -
+  IF &S4 = 0 THEN DO
+    SET AC = &STR( )
+    ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) -
+      DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+    SET S4 = &S4 + 1
+    END
+ 
+IF &SUBSTR(8,&NRSTR(&DATA)) EQ &STR(5) THEN -
+  IF &S5 = 0 THEN DO
+    SET AC = &STR( )
+    ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) -
+      DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+    SET S5 = &S5 + 1
+    END
+ 
+SET AC = &STR(&DISA    )
+ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) -
+  DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+ 
+GOTO NEXT_FINDING
+ 
+ 
+END_FINDING: +
+SET RETURN_CODE = 0
+ 
+SET AC = &STR( )
+ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) -
+    DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+ 
+ISREDIT (DATA) = LINE &ENDER
+ 
+SET AC = &SUBSTR(1:128,&NRSTR(&DATA)                                   )
+ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) -
+  DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+ 
+GOTO END_EDIT
+ 
+ 
+NOT_APPLICABLE: +
+SET RETURN_CODE = 0
+ 
+GOTO NOT_A_FINDING
+ 
+/* Skip N/A reporting
+ 
+ISREDIT CURSOR = 1 0
+ 
+SET RETURN_CODE = 0
+ 
+ISREDIT FIND 'SRR N/A'  1
+ 
+IF &RETURN_CODE NE 0 THEN +
+    GOTO NOT_A_FINDING
+ 
+ISREDIT (CURLINE) = LINENUM .ZCSR
+ 
+SET AC = &STR(Not Applicable)
+ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC)                -
+    DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+ 
+SET AC = &STR( )
+ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC)    -
+  DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+ 
+NEXT_SRR:                                                             -
+                                                                      -
+IF &CURLINE GT &ENDER THEN -
+  GOTO END_EDIT
+ 
+ISREDIT (DATA) = LINE &CURLINE
+                                                                      -
+IF &SUBSTR(5:7,&NRSTR(&DATA)) EQ &STR(END) THEN -
+  GOTO END_EDIT
+ 
+IF &SUBSTR(5:7,&NRSTR(&DATA)) EQ &STR(N/A) THEN -
+  DO
+  SET AC = &SUBSTR(10:90,&NRSTR(&DATA)                                 )
+  ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC)                -
+    DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+  END
+ 
+SET CURLINE = &CURLINE + 1
+GOTO NEXT_SRR
+ 
+ 
+NOT_A_FINDING: +
+ISREDIT CURSOR = 1 0
+ 
+SET RETURN_CODE = 0
+ 
+ISREDIT FIND 'SRR END'  1
+ 
+IF &RETURN_CODE NE 0 THEN -
+    GOTO END_EDIT
+ 
+ISREDIT (CURLINE) = LINENUM .ZCSR
+ 
+SET AC = &STR(Not a Finding )
+ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC)                -
+    DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+ 
+SET CURLINE = &CURLINE + 2
+ 
+COPY_TEXT: +
+SET RETURN_CODE = 0
+ 
+IF &CURLINE GT &ENDER THEN +
+  GOTO END_EDIT
+ 
+ISREDIT (AC) = LINE &CURLINE
+ 
+/* SET AC = &SUBSTR(1:128,&NRSTR(&DATA)                                )
+ISPEXEC LMPUT DATAID(&PDIDD) MODE(INVAR) DATALOC(AC) +
+  DATALEN(&LENGTH(&NRSTR(&AC))) MEMBER(&OMEMBER)
+ 
+SET CURLINE = &CURLINE + 1
+GOTO COPY_TEXT
+ 
+/* *************************************** */
+/* END of program                          */
+/* *************************************** */
+ 
+ 
+END_EDIT: +
+SET RETURN_CODE = 0
+ 
+ISPEXEC LMMADD DATAID(&PDIDD) MEMBER(&OMEMBER)
+ 
+IF &RETURN_CODE EQ 4 THEN DO          /* MEMBER ALREADY EXISTS
+  SET RETURN_CODE = 0
+ 
+  ISPEXEC LMMREP DATAID(&PDIDD) MEMBER(&OMEMBER)
+ 
+  IF &RETURN_CODE NE 0 THEN DO
+    WRITE &PGMNAME LMMREP_PDIDD_RCODE = &RETURN_CODE &OMEMBER  &ZERRSM
+    END
+  END
+ELSE DO
+  IF &RETURN_CODE NE 0 THEN +
+    WRITE &PGMNAME LMMADD_PDIDD_RCODE = &RETURN_CODE &OMEMBER  &ZERRSM
+  END
+ 
+SET RETURN_CODE = 0
+ 
+ERR_EXIT: +
+IF &MAXCC GE 16 OR +
+   &RETURN_CODE GT 0 THEN DO
+  ISPEXEC VGET (ZISPFRC) SHARED
+  IF &MAXCC GT &ZISPFRC THEN +
+    SET ZISPFRC = &MAXCC
+  ELSE +
+    SET ZISPFRC = &RETURN_CODE
+  ISPEXEC VPUT (ZISPFRC) SHARED
+  WRITE &PGMNAME ZISPFRC = &ZISPFRC
+  END
+ 
+SET RM421RC = &RETURN_CODE
+ 
+ISPEXEC VPUT ( +
+  RM21VGET     +
+  RM421RC      +
+  ) ASIS
+ 
+ISREDIT END
+ 
+EXIT CODE(0)
+ISREDIT MEND
+ 
+ 
+/* *************************************** */
+/*  SYSCALL COPY_DSNAMES                   */
+/* *************************************** */
+ 
+COPY_DSNAMES: PROC 0
+ 
+SET RETURN_CODE = 0
+ 
+ISPEXEC VPUT ( +
+ DSRULE        +
+ OMEMBER       +
+ ) ASIS
+ 
+SET RETURN_CODE = 0
+ 
+ISPEXEC  VIEW DATAID(&SENSITVE) MACRO(&CARM0422) MEMBER(&RPTMBR)
+ 
+IF &RETURN_CODE GT 4 THEN +
+  WRITE &PGMNAME VIEW_SENSITVE_RC = &RETURN_CODE +
+    MEMBER &RPTMBR for &OMEMBER  &ZERRSM
+ 
+END

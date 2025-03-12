@@ -1,0 +1,64 @@
+//CACJ051D JOB (ACCOUNT),'FSO / SRR MVS AUDIT',
+//         CLASS=A,MSGCLASS=X,USER=SRRAUDT
+//*
+//******************************************************************
+//* CREATE ACF2, RACF AND TOP SECRET USER LISTS
+//*
+//* 1. If need be, change
+//*         SET SRRINST=SYS2.SRRAUDIT
+//*         SET SRRUSER=SYS3.SRRAUDIT
+//*    to match your local dataset names.
+//* 2. This should run under USER=SRRAUDT so that List User functions
+//*    will work.
+//******************************************************************
+//*
+// SET SRRINST=SYS2.SRRAUDIT         Install libraries
+// SET SRRUSER=SYS3.SRRAUDIT         User libraries
+//*
+// SET CNTL=&SRRINST..CNTL
+// SET SRRDATA=&SRRUSER..DATA        Authorized user groups
+//*
+//PROCLIB JCLLIB ORDER=(&SRRUSER..CNTL,&SRRINST..CNTL)
+//*
+//JSTEP010 EXEC PGM=IEFBR14
+//USER     DD DISP=(MOD,DELETE,DELETE),
+//            SPACE=(TRK,0),UNIT=SYSALLDA,
+//            DSN=&SRRUSER..LISTUSER
+//CMDS     DD DISP=(MOD,DELETE,DELETE),
+//            SPACE=(TRK,0),UNIT=SYSALLDA,
+//            DSN=&SRRUSER..LISTCMDS
+//DATA     DD DISP=(MOD,CATLG,KEEP),
+//            DCB=(DSORG=PO,RECFM=FB,LRECL=80,BLKSIZE=13680),
+//            SPACE=(TRK,(60,15,25)),
+//*           DATACLAS=ALLOCX1V,   <--- Use if SMS rule applies
+//            UNIT=(SYSALLDA,1),
+//            DSNTYPE=LIBRARY,
+//            DSN=&SRRDATA
+//*
+//JSTEP020  EXEC EXAMRPTS,
+//            CNTL=&CNTL
+//SYSTSPRT DD DISP=(NEW,CATLG,DELETE),
+//            DCB=(DSORG=PS,RECFM=VB,LRECL=137,BLKSIZE=27920),
+//            SPACE=(TRK,(150,150),RLSE),
+//*           DATACLAS=ALLOCX1V,   <--- Use if SMS rule applies
+//            UNIT=(SYSDA,1),
+//            DSN=&SRRUSER..LISTCMDS
+//SYSTSIN  DD *
+  ISPSTART CMD(%CACC041A TERMMSG(ON))
+//*
+//  IF (RC<=4 AND JSTEP020.PSTEP020.RUN=TRUE) THEN
+//JSTEP030 EXEC EXAMRPTS,
+//            CNTL=&CNTL
+//LISTCMDS DD DISP=(SHR,DELETE,KEEP),
+//            DSN=&SRRUSER..LISTCMDS
+//LISTUSER DD DISP=(NEW,DELETE,CATLG),
+//            DCB=(DSORG=PS,RECFM=FB,LRECL=137,BLKSIZE=13700),
+//            SPACE=(TRK,(150,150),RLSE),
+//*           DATACLAS=ALLOCX1V,   <--- Use if SMS rule applies
+//            UNIT=(SYSDA,1),
+//            DSN=&SRRUSER..LISTUSER
+//DATA     DD DISP=OLD,DSN=&SRRDATA
+//SYSTSIN   DD *
+  ISPSTART CMD(%CACC0501)
+//  ENDIF
+//

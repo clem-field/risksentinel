@@ -1,0 +1,198 @@
+//DIALOGDS SET DIALOG=&SRRHLQ..DATA         <<---- CHANGE TO DIALOG DS
+//FSOJCL   JCLLIB ORDER=(&SRRHLQ..CNTL)
+//*--------------------------------------------------------------------
+//*-------------------------->> CATJ0001 <<----------------------------
+//*--------------------------------------------------------------------
+//*                      GENERATE CHAP REPORTS
+//*
+//*  IMPORTANT:  Copy member JOBCARD to the beginning of this job.
+//*
+//*  THIS JOB EXECUTES NUMEROUS CLIST AND EDIT MACROS TO GENERATE
+//*  A REPORT OF ACCESSES OF SYSTEM LIBRARIES/FILES.
+//*
+//*  STEP1:           REMOVES PREVIOUS RUNS DATASETS.
+//*
+//*  STEP2:           THIS ACP SPECIFIC ROUTINE FOR TSS GENERATES
+//*                   TSS COMMANDS TO BE USED IN STEP4.
+//*
+//*  STEP3:           GENERATES A FORMATED REPORT OF TSS COMMANDS,
+//*                   CONDIITON CODE OF 8 IS ACCEPTABLE.
+//*
+//*  STEP4:           GENERATES A FORMATED REPORT OF TSS COMMANDS,
+//*                   CONDIITON CODE OF 8 IS ACCEPTABLE.
+//*
+//*  STEP5:           GENERATES A FORMATED REPORT OF LIBRARY ACCESS
+//*                   FROM FILE CREATED IN STEP4.
+//*
+//*  STEP6:           CREATES PDI FINDINGS FROM DATA SET CHECKS
+//*
+//*  STEP7:           GENERATES A FORMATED REPORT OF THE WHO HAS
+//*                   RESOUCES.
+//*
+//*  ===> NOTE:  THE JOB STEPS MAY END WITH A CONDITION CODE OF 0,
+//*              ALTHOUGH ERRORS OCCURRED.  REVIEW THE ISPLOG AND
+//*              SYSTSPRT FILES OF EACH STEP, ALONG WITH THE JOBLOG
+//*              OR JESLOG FILES, FOR ERROR MESSAGES AND TO ENSURE
+//*              SUCCESSFUL EXECUTION.  CONDITION CODE OF 8 IS
+//*              ACCEPTABLE FOR STEP4.
+//*--------------------------------------------------------------------
+//STEP1     EXEC PGM=IEFBR14
+//TEMP4     DD DSN=&SRRHLQ..TEMP4,
+//             DISP=(MOD,DELETE,DELETE),
+//             SPACE=(TRK,0),UNIT=SYSALLDA
+//TEMP5     DD DSN=&SRRHLQ..TEMP5,
+//             DISP=(MOD,DELETE,DELETE),
+//             SPACE=(TRK,0),UNIT=SYSALLDA
+//TEMP6     DD DSN=&SRRHLQ..TEMP6,
+//             DISP=(MOD,DELETE,DELETE),
+//             SPACE=(TRK,0),UNIT=SYSALLDA
+//TEMP7     DD DSN=&SRRHLQ..TEMP7,
+//             DISP=(MOD,DELETE,DELETE),
+//             SPACE=(TRK,0),UNIT=SYSALLDA
+//AUACCESS  DD DSN=&SRRHLQ..AUACCESS,
+//             DISP=(MOD,DELETE,DELETE),
+//             SPACE=(TRK,0),UNIT=SYSALLDA
+//SENS      DD DSN=&SRRHLQ..SENSITVE.RPT,
+//             DISP=(MOD,DELETE,DELETE),
+//             SPACE=(TRK,0),UNIT=SYSALLDA
+//TSSL      DD DSN=&SRRHLQ..TSSLIST,
+//             DISP=(MOD,DELETE,DELETE),
+//             SPACE=(TRK,0),UNIT=SYSALLDA
+//TSSLP     DD DSN=&SRRHLQ..TSSLISTP,
+//             DISP=(MOD,DELETE,DELETE),
+//             SPACE=(TRK,0),UNIT=SYSALLDA
+//*
+//STEP2     EXEC EXAMRPTS,
+//             CNTL=&SRRHLQ..CNTL
+//CNTL      DD DSN=&SRRHLQ..TABLE,
+//             DISP=SHR
+//          DD DSN=&SRRHLQ..CNTL,
+//             DISP=SHR
+//TEMPDATA  DD DSN=&SRRHLQ..TEMP3,
+//             DISP=OLD
+//TSSALL    DD DSN=&SRRHLQ..TEMP4,
+//             DISP=(NEW,CATLG,DELETE),
+//*            DATACLAS=ALLOCX1V,   <--- Use if SMS rule applies
+//             UNIT=SYSDA,
+//             SPACE=(TRK,(5,5)),
+//             DCB=(RECFM=FB,LRECL=80,BLKSIZE=27920,DSORG=PS)
+//SYSTSIN   DD *
+  ISPSTART CMD(%CATC0001 TERMMSGS(ON) TYPERUN(FSO))
+/*
+//STEP3     EXEC PGM=TSSCFILE
+//*
+//* PRODUCES A FORMATED REPORT OF TSS COMMANDS
+//*
+//*
+//PRINT     DD SYSOUT=*
+//OUT       DD DSN=&SRRHLQ..TEMP5,
+//             DISP=(NEW,CATLG,DELETE),
+//             DCB=(RECFM=FB,LRECL=300,BLKSIZE=27900),
+//             SPACE=(CYL,(10,10),RLSE),
+//*            DATACLAS=ALLOCX1V,   <--- Use if SMS rule applies
+//             UNIT=SYSDA
+//IN        DD DSN=&SRRHLQ..TEMP4,
+//             DISP=SHR
+//*
+//*-------------------------------------------------------------------
+//*      EXECUTE TSS LIST PROFILE COMMAND
+//*-------------------------------------------------------------------
+//*
+//STEP4     EXEC PGM=IKJEFT01,DYNAMNBR=20
+//SYSLBC    DD DISP=SHR,DSN=SYS1.BRODCAST
+//SYSTSPRT  DD DSN=&SRRHLQ..TSSLISTP,
+//             DISP=(NEW,CATLG,CATLG),
+//             DCB=(DSORG=PS,RECFM=FB,LRECL=80,BLKSIZE=13680),
+//             SPACE=(TRK,(180,90),RLSE,CONTIG),
+//*            DATACLAS=ALLOCX1V,   <--- Use if SMS rule applies
+//             UNIT=SYSDA
+//SYSTSIN   DD *
+TSS LIST(ACIDS) DATA(ACID) TYPE(PROFILE)
+TSS LIST(ACIDS) DATA(NAME)
+//*
+//*
+//STEP4A    EXEC PGM=IKJEFT01,DYNAMNBR=20
+//SYSLBC    DD DISP=SHR,DSN=SYS1.BRODCAST
+//SYSTSPRT  DD DSN=&SRRHLQ..TSSLIST,
+//             DISP=(NEW,CATLG,CATLG),
+//             DCB=(DSORG=PS,RECFM=FB,LRECL=80,BLKSIZE=13680),
+//             SPACE=(TRK,(180,90),RLSE,CONTIG),
+//*            DATACLAS=ALLOCX1V,   <--- Use if SMS rule applies
+//             UNIT=SYSDA
+//SYSTSIN   DD *
+TSS LIST(ACIDS) DATA(NAME,RESOURCE,XA)
+TSS LIST(ALL)
+//*
+//*
+//STEP5     EXEC EXAMRPTS,
+//             CNTL=&SRRHLQ..CNTL
+//CNTL      DD DSN=&SRRHLQ..TABLE,
+//             DISP=SHR
+//          DD DSN=&SRRHLQ..CNTL,
+//             DISP=SHR
+//TEMP3     DD DSN=&SRRHLQ..TEMP3,
+//             DISP=OLD
+//TSSLISTP  DD DSN=&SRRHLQ..TSSLISTP,
+//             DISP=OLD
+//TSSLIST   DD DSN=&SRRHLQ..TSSLIST,
+//             DISP=OLD
+//TEMP5     DD DSN=&SRRHLQ..TEMP5,
+//             DISP=OLD
+//TEMP6     DD DSN=&SRRHLQ..TEMP6,
+//             DISP=(NEW,CATLG,DELETE),
+//*            DATACLAS=ALLOCX1V,   <--- Use if SMS rule applies
+//             UNIT=SYSDA,
+//             SPACE=(CYL,(50,10,30)),
+//             DCB=(RECFM=VB,LRECL=255,BLKSIZE=27795,DSORG=PO)
+//SENSITVE  DD DSN=&SRRHLQ..SENSITVE.RPT,
+//             DISP=(NEW,CATLG,DELETE),
+//*            DATACLAS=ALLOCX1V,   <--- Use if SMS rule applies
+//             UNIT=(SYSDA,1),
+//             SPACE=(CYL,(50,25,30)),
+//             DCB=(RECFM=FB,LRECL=133,BLKSIZE=27930,DSORG=PO)
+//SYSTSIN   DD *
+  ISPSTART CMD(%CATC0002 TERMMSGS(ON))
+  ISPSTART CMD(%CATC0102 TERMMSGS(ON))
+/*
+//STEP6     EXEC EXAMRPTS,
+//             CNTL=&SRRHLQ..CNTL
+//CNTL      DD DSN=&SRRHLQ..TABLE,
+//             DISP=SHR
+//          DD DSN=&SRRHLQ..CNTL,
+//             DISP=SHR
+//SENSITVE  DD DSN=&SRRHLQ..SENSITVE.RPT,
+//             DISP=OLD
+//TSSLISTP  DD DSN=&SRRHLQ..TSSLISTP,
+//             DISP=OLD
+//TEMP6     DD DSN=&SRRHLQ..TEMP6,
+//             DISP=OLD
+//PDIDD     DD DSN=&SRRHLQ..PDI,
+//             DISP=OLD
+//DIALOG    DD DSN=&DIALOG,
+//             DISP=SHR
+//AUACCESS  DD DSN=&SRRHLQ..AUACCESS,
+//             DISP=(NEW,CATLG,DELETE),
+//*            DATACLAS=ALLOCX1V,   <--- Use if SMS rule applies
+//             UNIT=SYSDA,
+//             SPACE=(TRK,(45,15,30),,CONTIG),
+//             DCB=(RECFM=FB,LRECL=32,BLKSIZE=27968,DSORG=PO)
+//SYSTSIN   DD *
+  ISPSTART CMD(%CATC0420 TERMMSGS(ON))
+  ISPSTART CMD(%CATC0120 TERMMSGS(ON))
+/*
+//STEP7     EXEC EXAMRPTS,
+//             CNTL=&SRRHLQ..CNTL
+//CNTL      DD DSN=&SRRHLQ..CNTL,
+//             DISP=SHR
+//OUTPUT    DD DSN=&SRRHLQ..SENSITVE.RPT,
+//             DISP=OLD
+//TEMP      DD DSN=&SRRHLQ..TEMP7,
+//             DISP=(NEW,CATLG,DELETE),
+//*            DATACLAS=ALLOCX1V,   <--- Use if SMS rule applies
+//             UNIT=SYSDA,
+//             SPACE=(TRK,(50,50,50)),
+//             DCB=(RECFM=VB,LRECL=300,BLKSIZE=27795,DSORG=PO)
+//SYSTSIN   DD *
+  ISPSTART CMD(%CATC0003 TERMMSGS(ON))
+/*
+//*

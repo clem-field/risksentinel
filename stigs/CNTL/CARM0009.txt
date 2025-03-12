@@ -1,0 +1,352 @@
+/* REXX */
+/* CLS2REXXed by UMLA01S on 6 Aug 2019 at 14:55:01  */
+/*trace r?*/
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+Address ISREDIT
+ 
+"MACRO"               /* CARM0009 EDIT TEMP9 */
+/*********************************************************************/
+/* 03/24/2004 JL.Nelson Changed to display NO Finding text.          */
+/* 04/23/2004 JL.Nelson Added code for DISA standards text.          */
+/* 06/15/2004 JL.Nelson Added EXIT code.                             */
+/* 07/15/2004 JL.Nelson Changed DISA Standard to STIG requirement.   */
+/* 02/23/2005 JL.Nelson Changed constants to variables before        */
+/*            rename.                                                */
+/* 04/18/2005 JL.Nelson Added TEST(MOD) to use input test file.      */
+/* 06/06/2005 JL.Nelson Changed ADSP to NOADSP per Charles.          */
+/* 06/06/2005 JL.Nelson Changed to detect noprotectall,              */
+/*            protect(warn).                                         */
+/* 06/09/2005 JL.Nelson Pass MAXCC in ZISPFRC variable.              */
+/* 06/30/2005 JL.Nelson Added checks for nohistory, nowarning.       */
+/* 06/30/2005 JL.Nelson Added checks for norule, norevoke.           */
+/* 07/08/2005 JL.Nelson Changed NOADSP back to ADSP again.           */
+/* 07/08/2005 JL.Nelson Changed RACF0555 to RACF0330 per Charles.    */
+/* 03/08/2006 JL.Nelson Made changes to avoid abend 920/932.         */
+/* 07/09/2007 CL.Fenton Removed requirement for UNCLASS systems.     */
+/* 07/16/2009 CL.Fenton Changed analysis on password rule            */
+/*            RACF0460 to include MIXEDCASE and rules with mixed     */
+/*            numeric and a national character.                      */
+/* 02/16/2010 CL.Fenton Removed RACF0390.                            */
+/* 03/15/2011 CL.Fenton Chgd RACF0360 test from 35 to 30 days.       */
+/* 05/25/2011 CL.Fenton Reverted RACF0360 test from 30 to 35 days.   */
+/* 12/21/2012 CL.Fenton Added RACF0445 for PASSWORD(MINCHANGE).      */
+/* 09/24/2013 CL.Fenton Chgd RACF0300 for All systems to specify     */
+/*            ERASE(ALL), STS-003180.                                */
+/* 01/30/2015 CL.Fenton Chgd RACF0460 to bypass evaluation until     */
+/*            able to verify new configuration settings within       */
+/*            REXX using MODIFY AXR command, STS-004529.             */
+/* 04/10/2015 CL.Fenton Added eval of PASSWORD settings for          */
+/*            RACF0462.  Evaluation includes ensuring RACF           */
+/*            security exit (ICHPWX01) is available, RACF System     */
+/*            REXX (IRRPWREX) is used, as well as settings for       */
+/*            variables that are set in the RACF System REXX,        */
+/*            STS-009990.                                            */
+/* 01/27/2016 CL.Fenton Added eval of PASSWORD ENCRYPTION            */
+/*            RACF0467, STS-013211.                                  */
+/* 11/14/2016 CL.Fenton Removed RACF0530, STS-015908.                */
+/* 07/21/2017 CL.Fenton Added automation for ZUSSR050 to evaluate    */
+/*            BPX.UNIQUE.USER resource definition, STS-017964.       */
+/* 08/06/2019 CL.Fenton Converted script from CLIST to REXX.         */
+/* 04/01/2021 CL Fenton Changes made to correct say statement for    */
+/*            information pertaining to pdi being evaluated.         */
+/* 07/02/2021 CL Fenton Chgs to remove automation for RACF0280,      */
+/*            RACF0290, RACF0330, RACF0370, and RACF0470,            */
+/*            STS-026846.                                            */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname = "CARM0009 07/02/21"
+sysprompt = "OFF"                /* CONTROL NOPROMPT          */
+sysflush = "OFF"                 /* CONTROL NOFLUSH           */
+sysasis = "ON"                   /* CONTROL ASIS - caps off   */
+return_code = 0
+maxcc = 0
+zerrsm = ""
+Address ISPEXEC "CONTROL NONDISPL ENTER"
+Address ISPEXEC "CONTROL ERRORS RETURN"
+return_code = 0   /* SET RETURN CODE TO 0 */
+ 
+/*********************************************************************/
+/* This EDIT macro provides the finding details for RACF SETROPTS.   */
+/*********************************************************************/
+/* Notes on the following table.                                     */
+/* PDINAME                                                           */
+/* Blank or 1                                                        */
+/*        Blank if no more parameters need to be checked.            */
+/*        One if additional parameter checks are to be made.         */
+/* Global parameter#                                                 */
+/* 'First search field'                                              */
+/*        Used to obtain information from the report.                */
+/*        Used to determine if information is invalid and for        */
+/*        messages.                                                  */
+/* 'Second search field' .ZCSR .ZCSR                                 */
+/*        Used to test information and set return code.              */
+/* @      End of search fields                                       */
+/* DISA recommendation                                               */
+/* $      End of STIG fields                                         */
+/*                                                                   */
+/*********************************************************************/
+table = "RACF0250 ADSP#"||,
+          "'AUTOMATIC DATASET PROTECTION'#"||,
+          "'AUTOMATIC DATASET PROTECTION IS NOT IN EFFECT' .ZCSR .ZCSR @"||,
+          "NOADSP$"||,
+        "RACF03001ERASE #"||,
+          "'ERASE-ON-SCRATCH IS'#"||,
+          "'ERASE-ON-SCRATCH BY'#"||,
+          "'ERASE-ON-SCRATCH FOR'@"||,
+          "ERASE(ALL) for All systems$"||,
+        "RACF0350 GRPLIST#"||,
+          "'LIST OF GROUPS ACCESS'#"||,
+          "'LIST OF GROUPS ACCESS CHECKING IS ACTIVE.' .ZCSR .ZCSR @"||,
+          "GRPLIST$"||,
+        "RACF03601INACTIVE#"||,
+          "'INACTIVE USERIDS'#"||,
+          "'INACTIVE USERIDS ARE BEING AUTOMATICALLY REVOKED AFTER' "||,
+          " .ZCSR .ZCSR @"||,
+          "INACTIVE(1 to 35)$"||,
+        "RACF0380 JES(BATCHALLRACF)#"||,
+          "'JES-BATCHALLRACF'#"||,
+          "'JES-BATCHALLRACF OPTION IS ACTIVE' .ZCSR .ZCSR @"||,
+          "JES(BATCHALLRACF)$"||,
+        "RACF0400 JES(XBMALLRACF)#"||,
+          "'JES-XBMALLRACF'#"||,
+          "'JES-XBMALLRACF OPTION IS ACTIVE' .ZCSR .ZCSR @"||,
+          "JES(XBMALLRACF)$"||,
+        "RACF04201OPERAUDIT#"||,
+          "'ATTRIBUTES = '#"||,
+          "' OPERAUDIT ' .ZCSR .ZCSR @"||,
+          "OPERAUDIT$"||,
+        "RACF04301PASSWORD(HISTORY)#"||,
+          "'PASSWORDS BEING MAINTAINED'#"||,
+          "'PASSWORD HISTORY'@"||,
+          "PASSWORD(HISTORY(10 or more))$"||,
+        "RACF04401PASSWORD(INTERVAL)#"||,
+          "'PASSWORD CHANGE INTERVAL'@"||,
+          "PASSWORD(INTERVAL(1 to 60))$"||,
+        "RACF04451PASSWORD(MINCHANGE)#"||,
+          "'PASSWORD MINIMUM CHANGE INTERVAL'@"||,
+          "PASSWORD(MINCHANGE(1 to 59))$"||,
+        "RACF04501PASSWORD(REVOKE)#"||,
+          "'PASSWORD ATTEMPTS'#"||,
+          "'WILL BE REVOKED'#"||,
+          "'USERIDS NOT BEING AUTOMATICALLY REVOKED'@"||,
+          "PASSWORD(REVOKE(3))$"||,
+        "RACF04601PASSWORD(RULE)#"||,
+          "'MIXED CASE PASSWORD SUPPORT'#"||,
+          "'SPECIAL CHARACTERS ARE'#"||,
+          "'PASSWORD SYNTAX RULES'#"||,
+          "'    RULE' ALL@"||,
+          "PASSWORD(MIXEDCASE)#"||,
+          "PASSWORD(SPECIALCHARS)#"||,
+          "PASSWORD(RULEn(LENGTH(8|8:8) MIXEDALL(1:8)))$"||,
+        "RACF04621IRRPWREX#"||,
+          "'PASSWORD PROCESSING'#"||,
+          "'SPECIAL CHARACTERS ARE'@"||,
+          "STIG_COMPLIANT = 'yes'#"||,
+          "SPECIAL > null#"||,
+          "PWD_MINLEN = 8#"||,
+          "PWD_REQ_TYPES = 4#"||,
+          "PWD_NAME_ALLOWED = 'no'#"||,
+          "PWD_NAME_MINLEN = 8#"||,
+          "PWD_NAME_CHARS >= 4#"||,
+          "PWD_USERID_ALLOWED = 'no'#"||,
+          "PWD_USERID_CHARS >= 4#"||,
+          "PWD_MAX_UNCHANGED = 3#"||,
+          "PWD_MAX_UNCHANGED_UPPER = 'yes'#"||,
+          "PWD_MAX_UNCHANGED_CONSECUTIVE = 'yes'#"||,
+          "PWD_REPEAT_CHARS = 0#"||,
+          "PWD_REPEAT_UPPER = 'yes'#"||,
+          "PWD_DICT.0 >= 0#"||,
+          "PWD_PREFIX.0 >= 0#"||,
+          "PWD_PATTERN.0 >= 0$"||,
+        "RACF0467 PASSWORD ENCRYPTION ALGORITHM#"||,
+          "'THE ACTIVE PASSWORD ENCRYPTION ALGORITHM IS'#"||,
+          "'THE ACTIVE PASSWORD ENCRYPTION ALGORITHM IS KDFAES' "||,
+          "       .ZCSR .ZCSR@"||,
+          "PASSWORD(ALGORITHM(KDFAES))$"||,
+        "RACF04801PROTECTALL#"||,
+          "'PROTECT-ALL OPTION'#"||,
+          "'PROTECT-ALL IS'#"||,
+          "'PROTECT-ALL FAIL'#"||,
+          "'PROTECT-ALL WARN'@"||,
+          "PROTECTALL(FAILURES)$"||,
+        "RACF0490 REALDSN#"||,
+          "'REAL DATA SET NAMES'#"||,
+          "'REAL DATA SET NAMES OPTION IS ACTIVE' .ZCSR .ZCSR @"||,
+          "REALDSN$"||,
+        "RACF0500 RETPD#"||,
+          "'SECURITY RETENTION PERIOD'#"||,
+          "' NEVER-EXPIRES ' .ZCSR .ZCSR@"||,
+          "RETPD(99999)$"||,
+        "RACF05201SAUDIT#"||,
+          "'ATTRIBUTES = '#"||,
+          "' SAUDIT ' .ZCSR .ZCSR @"||,
+          "SAUDIT$"||,
+        "RACF0550 TAPEDSN#"||,
+          "'TAPE DATA SET PROTECTION'#"||,
+          "'TAPE DATA SET PROTECTION IS ACTIVE' .ZCSR .ZCSR @"||,
+          "TAPEDSN$"||,
+        "RACF05601WHEN(PROGRAM)#"||,
+          "'ATTRIBUTES = '#"||,
+          "' WHEN(PROGRAM' .ZCSR .ZCSR @"||,
+          "WHEN(PROGRAM)$"||,
+        "ZUSSR0501BPX.UNIQUE.USER#"||,
+          "'PASSWORD EXPIRATION WARNING'@"||,
+          "BPX.UNIQUE.USER definition$"
+ 
+/*******************************************/
+/* VARIABLES ARE PASSED TO THIS MACRO      */
+/* CONSLIST                                */
+/* COMLIST                                 */
+/* SYMLIST                                 */
+/* TERMMSGS                                */
+/*******************************************/
+return_code = 0
+Address ISPEXEC "VGET (CONSLIST COMLIST SYMLIST TERMMSGS",
+  "CARM040A PDIDD TEST ) ASIS"
+rm09vget = return_code
+If return_code <> 0 then do
+  Say pgmname "VGET RC =" return_code zerrsm
+  Say pgmname "CONSLIST/"conslist "COMLIST/"comlist,
+    "SYMLIST/"symlist "TERMMSGS/"termmsgs "CARM040A/"carm040a,
+    "PDIDD/"pdidd "TEST/"test
+  return_code = return_code + 16
+  SIGNAL  ERR_EXIT
+  end
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON",
+  then Trace r
+ 
+/*******************************************/
+/* TURN ON MESSAGES                        */
+/*******************************************/
+syssymlist = symlist           /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist          /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist              /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs              /* CONTROL MSG/NOMSG         */
+/*******************************************/
+/* MAIN PROCESS                            */
+/*******************************************/
+"NULLS ON ALL"
+"CURSOR = 1 0"
+return_code = 0
+Do X = 1 to length(table) - 8
+  disatxt  = /*  DISA recommendation */
+  findtxt8 = /*  strings not found   */
+  "CURSOR = 1 0"
+  parse var table . =(x) pdinum +8 pditext "#" pdi_data "@",
+    disatxt "$" .
+  findtxt8 = pdi_data
+  pdi_data = pdi_data"#"
+ 
+  y = pos("$",table,x)
+  findrc = 0
+ 
+  do until pdi_data = ""
+    parse var pdi_data find_text "#" pdi_data
+    find_text = find_text" "
+    return_code = 0
+    "FIND" find_text
+    If test = "FINDING" then, /* test error code */
+      return_code = 8
+    findrc = findrc + return_code
+    If return_code = 0 &,
+       pos(".ZCSR",find_text) = 0 then do
+      "(DATA) = LINE .ZCSR"
+      "(LINE,ROW) = CURSOR"
+      If pdinum = "RACF0300" then,
+        line = 1
+      "CURSOR =" line 0
+      If pos(" ALL ",find_text" ") <> 0 then do
+        parse var find_text find_text " ALL " .
+        row = row + 1
+        "CURSOR =" line row
+        Do until return_code > 0
+          return_code = 0
+          pditext = pditext"#"strip(data,"T")
+          "FIND" find_text
+          "(DATA) = LINE .ZCSR"
+          end
+        end
+      Else,
+        pditext = pditext"#"strip(data,"T")
+      end
+    end
+ 
+  pditext = pditext" #@"
+  txt = disatxt"#"
+  do until txt = ""
+    parse var txt ac "#" txt
+    Say pgmname left(pdinum,8) ac
+    end
+  Address ISPEXEC "VPUT (FINDRC PDITEXT FINDTXT8 DISATXT) ASIS"
+  return_code = 0
+  Address ISPEXEC "EDIT DATAID("pdidd") MACRO("carm040a")",
+    "MEMBER("pdinum")"
+  If return_code > 4 then,
+    Say pgmname "EDIT PDI RC ="return_code "MEMBER ="pdinum zerrsm
+  x = y
+  end
+ 
+return_code = 0
+ 
+ 
+ERR_EXIT:
+If maxcc >= 16 | return_code > 0 then do
+  Address ISPEXEC "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then,
+    zispfrc = maxcc
+  Else,
+    zispfrc = return_code
+  Address ISPEXEC "VPUT (ZISPFRC) SHARED"
+  Say pgmname "ZISPFRC =" zispfrc
+  end
+rm009rc = return_code
+Address ISPEXEC "VPUT (RM09VGET RM009RC) ASIS"
+"END"
+Exit (0)
+ 
+ 
+substrc: Procedure
+ If arg(3) = ''
+   Then
+     Do
+     s = Arg(1)
+     l = 1
+     v = arg(2)
+     End
+   Else
+     Do
+     s = arg(1)
+     l = arg(2)-arg(1)+1
+     v = arg(3)
+     End
+  Return substr(v,s,l)
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname "REXX error" rc "in line" sigl":" strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC >= 16 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname "REXX error" rc "in line" sigl":" ERRORTEXT(rc)
+  say SOURCELINE(sigl)
+  end
+if return_code > maxcc then
+  maxcc = return_code
+return
+ 
+ 

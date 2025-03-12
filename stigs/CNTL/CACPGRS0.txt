@@ -1,0 +1,574 @@
+//CACPGRS0 JOB (ACCOUNT),'FSO / SRR MVS AUDIT',
+//         CLASS=A,MSGCLASS=X ,USER=SRRAUDT
+//*
+//SYSOUT OUTPUT DEFAULT=YES,CLASS=*,OUTDISP=(HOLD,HOLD),JESDS=ALL
+//*
+//*       ASSEMBLE BATCH PROGRAMS
+//*
+//* PROCLIB JCLLIB ORDER=
+//*
+// SET     SYSLMOD=SYS4.SRRAUDIT.TEST.LOADLIB
+// SET     PGMNAME=CACPGRS0
+//*
+//* JSTEP010 EXEC ASMHCLG
+//JSTEP010 EXEC ASMACL
+//C.SYSLIB DD
+//         DD DISP=SHR,DSN=SYS1.MODGEN
+//*        ASMPARM='XREF(SHORT),NORENT',
+//*        LNKPARM='MAP,NORENT,NOREUS,RMODE=24',
+//*        SRCLIB2=CICS.V410.PROGRAMS.SRCLIB,
+//*        SYSLMOD=SYS1.ESYSLINK,
+//SYSIN   DD *
+         PRINT ON,NOGEN
+         TITLE  'CACPGRS0-Program to list all allocated datasets'
+CACPGRS0 CSECT
+CACPGRS0 AMODE  31
+CACPGRS0 RMODE  24
+*
+* copied from SYS1.SAMPLIB(ISGECMON)                     jln 09/10/2004
+*             OS/390 02.10.00 HBB7703                    jln 09/10/2004
+*
+*/* START OF SPECIFICATIONS *******************************************
+*
+*
+*01* MODULE-NAME = CACPGRS0
+*
+*02*   DESCRIPTIVE-NAME = Program to list all datasets allocated
+*                         on this system for security auditing
+*
+***********************************************************************
+*
+*02*   RECOVERY-OPERATION = This program functions without recovery.
+*
+***********************************************************************
+*
+*01* NOTES =
+*
+*      (3) Sample install JCL:
+*
+*           //LINK      EXEC PGM=IEWL,
+*           //    PARM='RENT,REFR,XREF,LET,LIST,NCAL,SIZE=(750K,200K)'
+*           //SYSUT1   DD UNIT=SYSDA,SPACE=(1024,(200,20))
+*           //OBJLIB   DD DSN=USERID.MY.OBJ,DISP=SHR
+*           //SYSLMOD  DD DSN=LNKLST.LIB,DISP=OLD
+*           //SYSPRINT DD SYSOUT=*
+*           //SYSLIN DD *
+*               INCLUDE OBJLIB(ISGECMON)
+*               ENTRY ISGECMON
+*               NAME ISGECMON(R)
+*
+*02*   DEPENDENCIES = None
+*
+*02*   RESTRICTIONS = None
+*
+*02*   REGISTER-CONVENTIONS =
+*
+*03*     REGISTER-USAGE = See register declarations in code
+*
+*02*   PATCH-LABEL = None
+*
+*01* MODULE-TYPE = CSECT
+*
+*02*   PROCESSOR = Assembler-H
+*
+*02*   MODULE-SIZE = See assembler External Symbol Dictionary
+*
+*02*   ATTRIBUTES =
+*
+*03*     LOCATION = User private
+*
+*03*     RMODE =    24 - DCB dataset
+*
+*03*     TYPE  =    Reentrant
+*
+**********************************************************************
+*
+*01* ENTRY-POINT =  ISGECMON
+*
+*02*   PURPOSE =  See FUNCTION section for this module.
+*
+*03*     OPERATION =  See OPERATION section for this module.
+*
+*02*   LINKAGE = BALR
+*
+*03*     CALLERS = Any
+*
+*02*   ATTRIBUTES =
+*
+*03*     ENTRY
+*
+*04*       ENABLED
+*04*       STATE = Problem program
+*04*       KEY = User key
+*04*       AMODE = 31
+*04*       LOCKS HELD = None
+*04*       ASC MODE = Primary
+*04*       MEMORY MODE = Primary equal to Secondary equal to Home
+*04*       DISPATCH MODE = Task
+*
+*03*     EXECUTION
+*
+*04*       ENABLED
+*04*       STATE = Problem program
+*04*       KEY = User key
+*04*       AMODE = 31
+*04*       LOCKS OBTAINED = None
+*04*       ASC MODE = Primary
+*04*       MEMORY MODE = Primary equal to Secondary equal to Home
+*02*   SERIALIZATION = None
+*
+*02*   INPUT = None
+*
+*03*     ENTRY-REGISTERS =
+*
+*           R0       = Irrelevant
+*           R1       = Points to the address of a parameter list
+*           R2 - R12 = Irrelevant
+*           R13      = Address of a standard save area
+*           R14      = Return address
+*           R15      = Entry point address
+*
+*03*     PARAMETER-LIST =  Halfword value followed by a byte string
+*                          whose length is in the halfword value.
+*
+*
+*02*   OUTPUT = None
+*
+*02*   EXIT-NORMAL = None, task runs until cancelled.
+*
+*03*     CONDITIONS = N/A
+*
+*03*     EXIT-REGISTERS = N/A
+*
+*03*     RETURN-CODES =  N/A
+*
+*02*   EXIT-ERROR =  Program ends at end of GRS list.
+*                    All the resources that it uses (such as
+*                    virtual storage) are task-related, and
+*                    will be cleaned up by task-termination.
+*
+***********************************************************************
+*
+*01* EXTERNAL-REFERENCES  =
+*
+*
+*02*   ROUTINES = None
+*
+*02*   DATA-AREAS = None
+*
+*02*   CONTROL-BLOCKS =
+*
+*   Common  Mapping
+*    Name    Macro        Usage               Full Name
+*   ------  --------  -------------  ----------------------------------
+*    ASCB   IHAASCB   Read           Address Space Control Block
+*    CVT    CVT       Read           Communication Vector Table
+*    OUCB   IRAOUCB   Read           SRM User Control Block
+*    RIB    ISGRIB    Read           Resource Information Block
+*
+*
+*01* TABLES =
+*
+*01* MACROS-EXECUTABLE =
+*                        FREEMAIN
+*                        GETMAIN
+*                        GQSCAN
+*                        LOCASCB
+*                        MODID
+*
+*01* SERIALIZATION = None.
+*
+*01* MESSAGES =
+*
+*01* ABEND-CODES =  None
+*
+*01* WAIT-STATE-CODES = None
+*
+*01* CHANGE-ACTIVITY =
+*       $L0=ENQCM   ,HBB4430,920709,PDDX:Sample program to monitor
+*                                        dataset contention.
+*
+**** END OF SPECIFICATIONS *******************************************/
+         SPACE 2
+***********************************************************************
+*                                                                     *
+*                  Outline of mainline logic                          *
+*                                                                     *
+***********************************************************************
+*++Obtain dynamic storage                                             *
+*++Do Forever                                                         *
+*++ If GQSCAN was successful (RC=0|4|8)                               *
+*++   Do for each RIB returned (possibly none)                        *
+*++    If dataset is not a system temporary then                      *
+*++      Add DSName and JOBname to output list                        *
+*++    EndIf                                                          *
+*++   EndDo                                                           *
+*++ Else GQSCAN was not successful (RC>8)                             *
+*++   Exit program                                                    *
+*++ EndIf                                                             *
+*++EndDo                                                              *
+***********************************************************************
+         SPACE 2
+***********************************************************************
+*                                                                     *
+*   Constants for installation tweaking                               *
+*                                                                     *
+***********************************************************************
+AREASIZE EQU    10000                  Size of area for RIBs and RIBEs
+*                                      returned by GQSCAN
+         EJECT
+***********************************************************************
+*                                                                     *
+*   Standard entry linkage                                            *
+*                                                                     *
+***********************************************************************
+         STM    R14,R12,12(R13)
+         BALR   BASEPTR,0
+         USING  *,BASEPTR
+         B     START
+*        MODID  BR=NO
+ASMPGM   DC    C' CACPGRS0'            CSECT NAME &SYSECT ??
+         LCLC  &MM,&DD,&YYYY
+&MM      SETC  '&SYSDATC'(5,2)
+&DD      SETC  '&SYSDATC'(7,2)
+&YYYY    SETC  '&SYSDATC'(1,4)
+ASMDATE  DC    C' &MM./&DD./&YYYY'
+ASMTIME  DC    C' &SYSTIME'
+         DC    C' LAST CHANGED'
+         DC    C' 09/15/2004'  changed to list all datasets
+START    DS    0H
+         LR     R2,R1                  Save input parameter
+         LR     R3,R13                 Save callers savearea address
+         L      R0,DYNASIZE            Get amount of storage needed
+         GETMAIN RU,LV=(R0),LOC=(BELOW,ANY) Obtain dynamic storage
+         LR     DATAPTR,R1
+         LA     DATAPTR2,4095(,R1)
+         USING  DYNA,DATAPTR
+         USING  DYNA+4095,DATAPTR2
+         ST     R3,SAVEAREA+4          Save @ of callers savearea
+         ST     R1,8(,R3)              Chain our savearea to callers
+*
+*        LTR    R2,R2                  Test for parameters
+*        BE     DEFAULT                None, take the default
+*        L      R1,0(,R2)              Address parameter area
+*        USING  PARMAREA,R1
+*        LH     R3,PARMLEN             Get length of parameters
+*        LTR    R3,R3                  Test for parameters
+*        BNE    GETPARM
+* DEFAULT  MVC    INTERVAL,=F'6000'      No parameter was specified,
+*                                      default to 60 seconds.
+*        B      INIT
+***********************************************************************
+*                                                                     *
+*   Convert input parameter into .01 second units for STIMER          *
+*                                                                     *
+***********************************************************************
+* GETPARM  EQU    *                      Parameter was specified
+*        MVC    PARMBUF,=C'0000'
+*        LA     R2,L'PARMBUF
+*        SLR    R2,R3
+*        LA     R2,PARMBUF(R2)
+*        EX     R3,COPYPARM            Right justify parameter
+*        PACK   PACKAREA,PARMBUF       EBCDIC -> Decimal
+*        CVB    R4,PACKAREA            Decimal -> Binary
+*        MH     R4,=H'100'             Convert to .01 second units
+*        ST     R4,INTERVAL            Save for STIMER
+*        DROP   R1
+***********************************************************************
+*                                                                     *
+*   Initialize the Current list to empty                              *
+*                                                                     *
+***********************************************************************
+INIT     EQU    *
+         OPEN  (GRSLIST,(OUTPUT))   OPEN OUTPUT report FILE
+         LA    R1,GRSLIST           AFTER OPEN ATTEMPT,
+         USING IHADCB,R1            GET ADDRESSABLE TO DCB.
+         TM    DCBOFLGS,X'10'
+         BO    OPENOK
+         DROP  R1
+         L     R15,=F'16'           RC=16 NO SYSPRINT DD
+         B     ERROR                ABEND IF OPEN FAILS
+OPENOK   DS    0H
+*        MVC   ERRPGM,ASMPGM
+*        MVC   ERRMSGD(L'MSG00),MSG00
+*        MVC   MSG00_DATE,ASMDATE
+*        MVC   MSG00_TIME,ASMTIME
+*        PUT   GRSLIST,ERRMSG
+         SR     R1,R1
+         ST     R1,TOKENF        Token starts empty
+         EJECT
+NEXTSCAN EQU    *
+***********************************************************************
+*                                                                     *
+*   Check for dataset contention via GQSCAN                           *
+*   Limit scan to                                                     *
+*         RESNAME=SYSDSN      to get only dataset ENQs.               *
+*         WAITCNT=1           to get only resources with contention.  *
+*         REQLIM=2            to get information on only the first    *
+*                               two requestors for a dataset, since   *
+*                               this program does not worry about     *
+*                               other waiting jobs.                   *
+*                                                                     *
+*   When GQSCAN returns:                                              *
+*         R0 contains size values for the RIB and RIBE                *
+*         R1 contains the number of RIBs returned in SCANAREA         *
+*         R15 contains a return code.                                 *
+*                                                                     *
+***********************************************************************
+*       GQSCAN AREA=(SCANAREA,AREASIZE),SCOPE=ALL,RESNAME=QNAME,      X
+*              WAITCNT=1,REQLIM=2,MF=(E,SCANLIST)
+         GQSCAN AREA=(SCANAREA,AREASIZE),SCOPE=ALL,RESNAME=QNAME,      X
+               OWNERCT=1,REQLIM=99,TOKEN=TOKENF,MF=(E,SCANLIST)
+         ST     R15,GQSCANRC           Save return code
+         C      R15,=F'8'              Good return code (<=8)
+         BH     ERROR                  No, some unexpected error, do
+*                                      not process any data.
+         C      R15,=F'4'              No matches found, RIB empty
+         BE     COMPLETE               nothing to process
+***********************************************************************
+*                                                                     *
+*   Scan through the RIBs (possibly none) that were returned.         *
+*                                                                     *
+***********************************************************************
+         LTR    R1,R1                  Test number of RIBs returned
+*                                      by GQSCAN
+         BZ     COMPLETE               If none were returned, then done
+         ST     R0,SIZES               Save size of RIB and RIBEs
+         LA     RIBPTR,SCANAREA        Get address of first RIB
+         USING  RIB,RIBPTR
+***********************************************************************
+*                                                                     *
+*   Check RIB to see if it matches the search criteria.               *
+*                                                                     *
+***********************************************************************
+CHECKRIB EQU    *
+         ST     R1,RIBSLEFT            Save remaining number of RIBs
+         LR     RIBVPTR,RIBPTR
+         AH     RIBVPTR,LENRIB         Compute address of RIBVAR
+         USING  RIBVAR,RIBVPTR
+         LR     RIBEPTR,RIBVPTR
+         AH     RIBEPTR,RIBVLEN        Get address of first RIBE
+         USING  RIBE,RIBEPTR
+*
+*        LR     R2,RIBEPTR             Get address of first RIBE
+**       AH     R2,LENRIBE             Compute address of second RIBE
+**       TM     RIBESFLG-RIBE(R2),RIBESTAT  Is the second requestor
+*                                      waiting for the dataset?
+**       BNZ    NEXTRIB                No, there are multiple owners
+*                                      sharing the dataset, skip this
+*                                      RIB
+*        L      R2,CVTPTR              Find the CVT
+*        CLC    CVTSNAME-CVTMAP(L'RIBESYSN,R2),RIBESYSN Is the dataset
+*                                      owner from this system ?
+*        BNE    NEXTRIB                No, unable to notify users
+*                                      on other systems, skip this RIB
+         SPACE 2
+***********************************************************************
+*                                                                     *
+*   Resource & job were found that match the criteria. Add to the     *
+*   Current list.                                                     *
+*                                                                     *
+***********************************************************************
+*        XC     DSNAME,DSNAME          Sets to low values
+         MVI    DSNAME,C' '            Set to blanks
+         MVC    DSNAME+1(L'DSNAME-1),DSNAME
+         MVC    JOBNAME,RIBQNAME
+         SR     R4,R4
+         IC     R4,RIBRNMLN            Get length of dataset name
+         LA     R0,L'DSNAME            Get maximum length in output
+         CR     R4,R0                  Name exceeds output length?
+         BL     NOTRIM
+         LR     R4,R0                  Yes, trim length for output
+NOTRIM   STH    R4,LENDSN              Save length of dataset name
+         BCTR   R4,0                   Adjust length -1 for MVC
+         EX     R4,MOVEDSN             Store datset name
+         CLC    =C'SYS0',DSNAME        Is this a temporary dataset?
+         BNE    GET_JOB
+         CLC    =C'.T',DSNAME+8        SYSyyjjj.Thhmmss.
+         BE     TEMP_DSN
+GET_JOB  EQU    *
+         LR     R2,RIBEPTR             Get address of first RIBE
+         L      R3,RIBNRIBE            Get number of RIBEs
+         LTR    R3,R3
+         BZ     NORIBE                 None returned
+NEXTRIBE EQU    *
+         MVC    JOBNAME,RIBEJBNM-RIBE(R2)   Store name of dataset owner
+         MVC    JOBASID,RIBEASID-RIBE(R2)   Store ASID of dataset owner
+NORIBE   EQU    *
+         MVC    ERRMSGD(L'MSG01),MSG01
+         MVC    MSG01_JOBN,JOBNAME
+         MVC    MSG01_DSN,DSNAME
+         PUT    GRSLIST,ERRMSG
+         AH     R2,LENRIBE             Compute address of next RIBE
+         BCT    R3,NEXTRIBE
+TEMP_DSN EQU    *
+         SPACE 2
+***********************************************************************
+*                                                                     *
+*   Finished processing this RIB, go on to the next one.              *
+*                                                                     *
+***********************************************************************
+NEXTRIB  EQU    *
+         L      R2,RIBNRIBE            Get number of RIBEs for this RIB
+         MH     R2,LENRIBE             Compute total size of the RIBEs
+         ALR    RIBEPTR,R2             Compute address of next RIB
+         LR     RIBPTR,RIBEPTR         Save address of next RIB
+         L      R1,RIBSLEFT            Get number of RIBs left
+         BCT    R1,CHECKRIB            Process next RIB, if any
+         EJECT
+***********************************************************************
+*                                                                     *
+*   Finished processing all RIBS returned by GQSCAN.                  *
+*                                                                     *
+***********************************************************************
+         CLC    =F'8',GQSCANRC         Check return code
+         BE     NEXTSCAN               Last request filled working stg.
+*        SR     R15,R15                Set completion code to zero
+         L      R15,GQSCANRC           Display return code
+         B      COMPLETE
+***********************************************************************
+*                                                                     *
+*   Error, GQSCAN was unsuccessful.                                   *
+*                                                                     *
+***********************************************************************
+ERROR    EQU    *
+***********************************************************************
+*                                                                     *
+*   Return to the caller with return code set R15                     *
+*                                                                     *
+***********************************************************************
+COMPLETE EQU    *
+         CLOSE  GRSLIST
+         LR     R2,R13
+         L      R13,SAVEAREA+4
+         L      R0,DYNASIZE
+         FREEMAIN RU,A=(R2),LV=(R0)
+*        LM     R14,R12,12(R13)
+*        SR     R15,R15
+*        BR     R14
+         RETURN (14,12),RC=(15)
+         EJECT
+***********************************************************************
+*                                                                     *
+*   Targets of EX instructions                                        *
+*                                                                     *
+***********************************************************************
+         USING  PARMAREA,R1
+COPYPARM MVC    0(0,R2),PARM           Used for right-justifying input
+         DROP   R1
+         SPACE
+MOVEDSN  MVC    DSNAME(0),RIBRNAME     Used to copy dataset name into
+*                                      entry in Current list
+         SPACE
+***********************************************************************
+*                                                                     *
+*   Register declares                                                 *
+*                                                                     *
+***********************************************************************
+R0       EQU    0
+R1       EQU    1
+R2       EQU    2
+R3       EQU    3
+R4       EQU    4
+R5       EQU    5
+RIBVPTR  EQU    5                      Address of RIBVAR section
+RIBPTR   EQU    6                      Address of RIB
+RIBEPTR  EQU    7                      Address of RIBE
+R8       EQU    8
+R9       EQU    9
+R10      EQU    10                     Reserved for future expansion
+*                                      of the code or the dynamic area
+DATAPTR2 EQU    11                     Second data register
+BASEPTR  EQU    12                     Code register
+R12      EQU    12
+DATAPTR  EQU    13                     First data register
+R13      EQU    13
+R14      EQU    14
+R15      EQU    15
+***********************************************************************
+*                                                                     *
+*   Static data                                                       *
+*                                                                     *
+***********************************************************************
+         DS     0F
+DYNASIZE DC     AL4(LENDYNA)           Amount of dynamic storage needed
+QNAME    DC     CL8'SYSDSN  '          Major name for dataset ENQs
+*
+ERRMSG   DS    0CL133
+ERRMSGD  DC    CL80' '
+         ORG   ERRMSG+L'ERRMSG
+MSG00    DC    C'ASSEMBLED ON MM/DD/YYYY AT HH.MM                     '
+MSG00_DATE EQU   ERRMSGD+12,11
+MSG00_TIME EQU   ERRMSGD+26,6
+MSG01    DC    C'Jobname ........  DSName .........                   '
+MSG01_JOBN EQU   ERRMSGD+8,8
+MSG01_DSN  EQU   ERRMSGD+25,44
+*
+GRSLIST  DCB   DDNAME=SYSPRINT,DSORG=PS,MACRF=(PM),                    X
+               BLKSIZE=27920,LRECL=80
+         EJECT
+***********************************************************************
+*                                                                     *
+*   Dynamic data                                                      *
+*                                                                     *
+***********************************************************************
+DYNA     DSECT
+SAVEAREA DS     18F                    Standard savearea
+SAVE1    DS     15F                    First level subroutine savearea
+SAVE2    DS     15F                    Second level subroutine savearea
+INTERVAL DS     F                      Time to pause between scans
+TOKENF   DS     F                      Token for multiple scans
+GQSCANRC DS     F                      Return code from scan
+PACKAREA DS     D                      Interval in packed decimal form
+PARMBUF  DS     CL4                    Right-justified parameter
+SIZES    DS     F
+         ORG    SIZES
+LENRIB   DS     H                      Returned size of RIB
+LENRIBE  DS     H                      Returned size of RIBE
+RIBSLEFT DS     F                      Number of RIBs left to process
+MSGBUF   DS     CL120                  Buffer to build message in
+JOBNAME  DS     CL8                    User owning dataset resource
+JOBASID  DS     H                      Address space of user
+LENDSN   DS     H                      True length of dataset name
+DSNAME   DS     CL44                   Buffer for dataset name
+SCANLIST GQSCAN MF=L
+*
+*
+*  Area for resource data returned by GQSCAN.
+*
+SCANAREA DS     0F                     Area for GQSCAN data
+         ORG    SCANAREA+AREASIZE
+SCANEND  DS     0F                     End of GQSCAN data
+LENDYNA  EQU    *-DYNA                 Total size of dynamic storage
+         EJECT
+***********************************************************************
+*                                                                     *
+*   Input parameter mapping                                           *
+*                                                                     *
+***********************************************************************
+PARMAREA DSECT
+PARMLEN  DS     H
+PARM     DS     CL3                    Interval in seconds
+         EJECT
+***********************************************************************
+*                                                                     *
+*   Mapping macros                                                    *
+*                                                                     *
+***********************************************************************
+         PRINT NOGEN
+         DCBD  DSORG=BS,DEVD=DA                            JLN 09/13/04
+         IHAASCB
+         CVT    DSECT=YES
+         IRAOUCB
+         ISGRIB
+         END   CACPGRS0
+//*
+//L.SYSLMOD DD DISP=OLD,DSN=&SYSLMOD(&PGMNAME)
+//*
+//  IF (RC=0) THEN
+//GO     EXEC PGM=&PGMNAME  ,PARM='00,TCPIP   '
+//STEPLIB  DD DISP=SHR,DSN=&SYSLMOD
+//SYSPRINT DD SYSOUT=*
+//SYSABEND DD SYSOUT=*
+//  ENDIF
+//

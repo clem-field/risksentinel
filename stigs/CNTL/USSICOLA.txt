@@ -1,0 +1,586 @@
+#!/bin/sh
+#
+################################################################
+#       ITEM: CNTL(USSICOLA)                                   #
+#    CREATED: 07/07/00 DCM                                     #
+#   FUNCTION: Shell script for OS/390 UNIX System Services     #
+#             data collection.                                 #
+#     NOTES: - This member contains UNIX commands.             #
+#              - It MUST stay in mixed case.                   #
+#              - It MUST NOT be numbered.                      #
+#            - Any find commands that are continued must have  #
+#              the continuation character (i.e., \) in column  #
+#              80. This is required becuase the OCOPY command  #
+#              will be inserting  new line characters that     #
+#              MUST follow.                                    #
+#              --> ANY CONTINUED FIND COMMANDS MUST HAVE \ in  #
+#                  column 80.                                  #
+#   CHANGES:                                                   #
+#   07/12/01 - DCM - Added _BPX_SHAREAS for performance        #
+#                    Changed "if" statements using bracket     #
+#                    characters to use test statement          #
+#   04/19/13 - CLF - Chgd checking of permissions to reflect   #
+#                    that sticky bit can be specified for      #
+#                    directories, STS-001987.                  #
+#   08/16/13 - CLF - Chgd permission bit setting for /etc/     #
+#                    resolv.conf, STS-003141.                  #
+#   05/21/15 - CLF - Added tests for CSFTP and CSTCP, plus     #
+#                    removal of unneeded commands, STS-008182. #
+#   12/07/15 - CLF - Changed information specified in PATH.    #
+#   04/27/16 - CLF - Changes in how sticky bit is evaluated    #
+#                    in usscmds_rpt_ls function, STS-014368.   #
+#   08/11/16 - CLF - Changed how information processing is     #
+#                    displayed in output and changed value of  #
+#                    the PATH variable issue, STS-015326.      #
+#   05/16/18 - CLF - Commented out env command.                #
+#   03/29/21 - CLF - Added evaluation for sntpd PDI ZUSS0037   #
+#                    for ACF2-OS-000150, RACF-OS-000190, and   #
+#                    TSS0-OS-000280, STS-026250.               #
+################################################################
+#
+################################################################
+#  Set Variables                                               #
+################################################################
+export _BPX_SHAREAS=YES
+RPT0HOST="System `/bin/uname -nm` at `/bin/uname -sv`.`/bin/uname -r`"
+#env
+RPT1DIR=$HOME"/fso_srrmvs/usscmds_rpt"
+#RPT1DIR=$HOME
+RPT1DATE=`/bin/date "+%Y-%m-%d %T %Z"`
+RPT1HOST="System `/bin/uname -n`"
+PGMNAME="USSICOLA 03/29/21"
+#
+################################################################
+#  Define functions                                            #
+#   - usscmds_rpt_cat    - print permission bits and contents  #
+#   - usscmds_rpt_ls     - print permission bits               #
+#   - usscmds_rpt_hdr    - print report header                 #
+#   - usscmds_perm_trans - translate permission bits           #
+################################################################
+function usscmds_rpt_cat
+{
+echo '         usscmds_rpt_cat:' ${1}
+if test -e ${1}
+  then
+    LSDATA=`ls -aldELW ${1}`
+    FPERM=0000
+    usscmds_perm_trans ${LSDATA}
+    echo " ${FPERM}   ${LSDATA}"                      >> ${RPT1FILE}
+    echo " ........ Contents Start -" ${1} "........" >> ${RPT1FILE}
+    cat ${1}                                          >> ${RPT1FILE}
+    echo " ........ Contents Stop  -" ${1} "........" >> ${RPT1FILE}
+  else
+    echo "    File does not exist -" ${1} >> ${RPT1FILE}
+fi
+#
+return 0
+}
+#
+function usscmds_rpt_ls
+{
+#
+echo '         usscmds_rpt_ls:' ${1} ${2} ${3}
+AUD=${3}
+if test ${1} = ${AUTOMNT}
+  then
+    AUD="---"
+ fi
+if test -e ${1}
+  then
+    LSDATA=`ls -aldELW ${1}`
+    FPERM=0000
+    usscmds_perm_trans ${LSDATA}
+    T1=`echo ${FPERM} | /bin/tr 01234567 01452367`
+    T2=`echo ${2}     | /bin/tr 01234567 01452367`
+#   echo ${FPERM} 'to' ${T1} 'and' ${2} 'to' ${T2}
+    T11=`/bin/expr substr ${T1} 1 1`
+    T12=`/bin/expr substr ${T1} 2 1`
+    T13=`/bin/expr substr ${T1} 3 1`
+    T14=`/bin/expr substr ${T1} 4 1`
+    T21=`/bin/expr substr ${T2} 1 1`
+    T22=`/bin/expr substr ${T2} 2 1`
+    T23=`/bin/expr substr ${T2} 3 1`
+    T24=`/bin/expr substr ${T2} 4 1`
+    XTST=0
+#   echo ${1} ${T11} ${T21} "act:"${FPERM} "rec:"${2} "start"
+    if test ${T11} -ne ${T21}                                                  \
+         -o ${T12} -gt ${T22}                                                  \
+         -o ${T13} -gt ${T23}                                                  \
+         -o ${T14} -gt ${T24}
+      then
+#       echo ${DIR} ${1} "first if"
+        if test ${T11} -eq 1                                                   \
+             -a ${T21} -eq 0                                                   \
+             -a ${DIR} = 'd'                                                   \
+             -a ${T12} -le ${T22}                                              \
+             -a ${T13} -le ${T23}                                              \
+             -a ${T14} -le ${T24}
+          then
+#           echo "second if"
+            XTST=0
+          else
+#           echo "second if else"
+            XTST=1
+          fi
+        else
+#         echo "first if else"
+          XTST=0
+      fi
+#   echo ${1} ${T11} ${T21} "act:"${FPERM} "rec:"${2} "X:"${XTST} "D:"${DIR}
+    XAUD=`/bin/expr substr "${LSDATA}" 13 3`
+    XAUD1=`/bin/expr substr "${LSDATA}" 13 11`
+    XOWN=`/bin/expr substr "${LSDATA}" 28 17`
+    if test ${XAUD} != ${AUD}
+      then
+        XTST=$((${XTST} + 2))
+    fi
+    echo "${XTST}   ${FPERM}   ${XAUD1} ${XOWN} ${1}"     >> ${RPT1FILE}
+  else
+    echo "    File does not exist -" ${1}    >> ${RPT1FILE}
+fi
+#
+return 0
+}
+#
+function usscmds_rpt_hdr
+{
+if test ! -e ${1}
+  then
+    RPT1DATE=`/bin/date "+%Y-%m-%d %T %Z"`
+    echo " ************************" >  ${1}
+    echo " " $1 " Report created on" $RPT1DATE "for" $RPT1HOST >> ${1}
+    echo " ************************" >> ${1}
+  else
+    echo " "                        >> ${1}
+fi
+#
+return 0
+}
+#
+function usscmds_perm_trans
+{
+#
+if test ${#1} -lt 10
+  then
+    return 1
+fi
+#
+DIR=`/bin/expr substr "${1}" 1 1`
+ALPPERM=`/bin/expr substr "${1}" 2 9`
+NUMPERM=`echo ${ALPPERM} | /bin/tr rwstxST- 42111000`
+#
+FPERM1=$((`/bin/expr substr ${NUMPERM} 1 1`                                    \
+            + `/bin/expr substr ${NUMPERM} 2 1`                                \
+            + `/bin/expr substr ${NUMPERM} 3 1`))
+FPERM2=$((`/bin/expr substr ${NUMPERM} 4 1`                                    \
+            + `/bin/expr substr ${NUMPERM} 5 1`                                \
+            + `/bin/expr substr ${NUMPERM} 6 1`))
+FPERM3=$((`/bin/expr substr ${NUMPERM} 7 1`                                    \
+            + `/bin/expr substr ${NUMPERM} 8 1`                                \
+            + `/bin/expr substr ${NUMPERM} 9 1`))
+#
+FPERM0=0
+if test "`/bin/expr substr "${ALPPERM}" 3 1`" = "s"                            \
+  -o "`/bin/expr substr "${ALPPERM}" 3 1`" = "S"
+  then
+    FPERM0=4
+fi
+if test "`/bin/expr substr "${ALPPERM}" 6 1`" = "s"                            \
+  -o "`/bin/expr substr "${ALPPERM}" 6 1`" = "S"
+  then
+    FPERM0=$((${FPERM0} + 2))
+fi
+if test "`/bin/expr substr "${ALPPERM}" 9 1`" = "t"                            \
+  -o "`/bin/expr substr "${ALPPERM}" 9 1`" = "T"
+  then
+    FPERM0=$((${FPERM0} + 1))
+fi
+#
+FPERM=${FPERM0}${FPERM1}${FPERM2}${FPERM3}
+#
+return 0
+}
+#
+#
+################################################################
+#  Create collection directories in /tmp                       #
+################################################################
+# cd /tmp
+#
+export PATH=/bin:.:${HOME}
+#
+rm -r fso_srrmvs
+umask 0027
+mkdir -p fso_srrmvs/usscmds_rpt
+cd fso_srrmvs/usscmds_rpt
+testgid=`id -g`
+cnt=0
+until test ${cnt} -eq 20
+do
+  cnt=$((${cnt} + 1))
+# eval echo $cnt \$other$cnt
+  eval y=\$other$cnt
+  if test ${#y} -ne 0
+    then
+    other=$other"$y "
+#   echo $cnt y:$y
+  fi
+done
+if test ${#other} -ne 0
+  then
+  echo other:${other}:${cnt}
+  cnt=1
+  for MNFNAME in ${other}
+    do
+      echo 'other'${cnt} ${MNFNAME}
+      cnt=$((${cnt} + 1))
+    done
+  fi
+################################################################
+#  Create temporary scripts in collection directories          #
+#   - usscmds_rpt_find   - find setuid/setgid files            #
+################################################################
+echo '#!/bin/sh' > ./usscmds_rpt_find
+echo 'echo "  Processing directory" ${1}' >> ./usscmds_rpt_find
+echo 'find ${1} -type f -a -level 0 -a \\( -perm -4000 -o -perm -2000 \\)      \
+     -exec ls -alWE {} \;' >> ./usscmds_rpt_find
+echo 'exit 0' >> ./usscmds_rpt_find
+chmod 0700 ./usscmds_rpt_find
+################################################################
+#  Data collection start                                       #
+################################################################
+RPT1DATE=`/bin/date "+%Y-%m-%d %T %Z"`
+#echo " "
+echo ${PGMNAME} "Data Collection started" ${RPT1DATE} "for" ${RPT0HOST}
+echo "         Using PATH" ${PATH}
+#
+################################################################
+#  Report: ps -ef    - System directory permission bits        #
+################################################################
+echo " "
+RPT1NAME=ps
+echo ${PGMNAME} "Starting report" ${RPT1NAME} `/bin/date "+%Y-%m-%d %T %Z"`
+RPT1FILE=${RPT1DIR}/${RPT1NAME}
+usscmds_rpt_hdr ${RPT1FILE}
+ps -ef >> ${RPT1FILE}
+echo " ........ End Report ...." >> ${RPT1FILE}
+#
+################################################################
+#  Report: zssh0050  - keys or Certificates files              #
+################################################################
+echo " "
+RPT1NAME=zssh0050
+echo ${PGMNAME} "Starting report" ${RPT1NAME} `/bin/date "+%Y-%m-%d %T %Z"`
+RPT1FILE=${RPT1DIR}/${RPT1NAME}
+find / \( -name *.kdb -o                  -name *.jks \)                       \
+    -exec ls -aldWE {} \; >> ${RPT1FILE}
+#echo " ........ End Report ...." >> ${RPT1FILE}
+#
+################################################################
+#  Report: sdperm    - System directory permission bits        #
+################################################################
+echo " "
+RPT1NAME=sdperm
+echo ${PGMNAME} "Starting report" ${RPT1NAME} `/bin/date "+%Y-%m-%d %T %Z"`
+RPT1FILE=${RPT1DIR}/${RPT1NAME}
+usscmds_rpt_hdr ${RPT1FILE}
+usscmds_rpt_ls /                          0755    faf
+usscmds_rpt_ls /bin                       1755    fff  unix checklist
+usscmds_rpt_ls /dev                       1755    fff
+usscmds_rpt_ls /etc                       1755    faf  unix checklist
+usscmds_rpt_ls /lib                       1755    fff
+usscmds_rpt_ls /samples                   1755    fff
+usscmds_rpt_ls /tmp                       1777    fff  unix checklist
+usscmds_rpt_ls /u                         1755    fff
+usscmds_rpt_ls /usr                       1755    fff
+usscmds_rpt_ls /var                       1775    fff
+echo " ........ End Report ...." >> ${RPT1FILE}
+#
+################################################################
+#  Report: owdir     - Other write directories                 #
+################################################################
+echo " "
+RPT1NAME=owdir
+echo ${PGMNAME} "Starting report" ${RPT1NAME} `/bin/date "+%Y-%m-%d %T %Z"`
+RPT1FILE=${RPT1DIR}/${RPT1NAME}
+usscmds_rpt_hdr ${RPT1FILE}
+echo " * other write not sticky on dir" >> ${RPT1FILE}
+/bin/find / -type d          -perm -0002 ! -perm -1000                         \
+    -exec ls -aldWE {} \; >> ${RPT1FILE}
+### Following are alternate commands when UID(0) authority not given
+###/bin/find / -type d -level 1 -perm -0002 ! -perm -1000                      \
+###    -exec ls -aldWE {} \; >> $RPT1FILE
+echo " * other write on dir and setuid or setgid on file" >> ${RPT1FILE}
+/bin/find / -type d          -perm -0002                                       \
+    -exec usscmds_rpt_find {} >> ${RPT1FILE} \;
+### Following are alternate commands when UID(0) authority not given
+###/bin/find / -type d -level 1 -perm -0002                                    \
+###    -exec usscmds_rpt_find {} \;
+echo " ........ End Report ...." >> ${RPT1FILE}
+#
+################################################################
+#  Report: sfperm    - System file permission bits             #
+################################################################
+echo " "
+RPT1NAME=sfperm
+echo ${PGMNAME} "Starting report" ${RPT1NAME} `/bin/date "+%Y-%m-%d %T %Z"`
+RPT1FILE=${RPT1DIR}/${RPT1NAME}
+usscmds_rpt_hdr ${RPT1FILE}
+usscmds_rpt_ls /bin/sh                    1755    faf  unix checklist
+usscmds_rpt_ls /dev/console               0740    fff
+usscmds_rpt_ls /dev/null                  0666    fff  unix checklist
+usscmds_rpt_ls /etc/auto.master           0740    faf
+if test -e /etc/auto.master
+  then
+    for MNFNAME in `/bin/awk ' $0 !~ /^#/ {print $2} ' /etc/auto.master`
+     do
+        usscmds_rpt_ls ${MNFNAME}         0740    faf
+     done
+fi
+#usscmds_rpt_ls /etc/inetd.conf            0440    faf  unix checklist
+usscmds_rpt_ls /etc/inetd.conf            0740    faf  unix checklist
+usscmds_rpt_ls /etc/init.options          0740    faf
+usscmds_rpt_ls /etc/log                   0744    fff
+#usscmds_rpt_ls /etc/profile               0644    faf  unix checklist
+usscmds_rpt_ls /etc/profile               0755    faf
+usscmds_rpt_ls /etc/rc                    0744    faf
+usscmds_rpt_ls /etc/steplib               0740    faf
+usscmds_rpt_ls /etc/tablename             0740    faf
+#usscmds_rpt_ls /usr/lib/cron/at.allow     0600    faf  unix checklist
+usscmds_rpt_ls /usr/lib/cron/at.allow     0700    faf  unix checklist
+#usscmds_rpt_ls /usr/lib/cron/at.deny      0600    faf  unix checklist
+usscmds_rpt_ls /usr/lib/cron/at.deny      0700    faf  unix checklist
+#usscmds_rpt_ls /usr/lib/cron/cron.allow   0600    faf  unix checklist
+usscmds_rpt_ls /usr/lib/cron/cron.allow   0700    faf  unix checklist
+#usscmds_rpt_ls /usr/lib/cron/cron.deny    0600    faf  unix checklist
+usscmds_rpt_ls /usr/lib/cron/cron.deny    0700    faf  unix checklist
+echo " ........ End Report ...." >> ${RPT1FILE}
+#
+################################################################
+#  Report: eautom    - /etc/auto.master                        #
+################################################################
+echo " "
+RPT1NAME=eautom
+echo ${PGMNAME} "Starting report" ${RPT1NAME} `/bin/date "+%Y-%m-%d %T %Z"`
+RPT1FILE=${RPT1DIR}/${RPT1NAME}
+usscmds_rpt_hdr ${RPT1FILE}
+usscmds_rpt_cat /etc/auto.master
+if test -e /etc/auto.master
+  then
+    for MNFNAME in `/bin/awk ' $0 !~ /^#/ {print $2} ' /etc/auto.master`
+     do
+        usscmds_rpt_cat ${MNFNAME}
+     done
+fi
+echo " ........ End Report ...." >> ${RPT1FILE}
+#
+################################################################
+#  Report: einetd    - /etc/inetd.conf
+################################################################
+echo " "
+RPT1NAME=einetd
+echo ${PGMNAME} "Starting report" ${RPT1NAME} `/bin/date "+%Y-%m-%d %T %Z"`
+RPT1FILE=${RPT1DIR}/${RPT1NAME}
+usscmds_rpt_hdr ${RPT1FILE}
+usscmds_rpt_cat /etc/inetd.conf
+echo " ........ End Report ...." >> ${RPT1FILE}
+#
+################################################################
+#  Report: eprof     - /etc/profile                            #
+################################################################
+echo " "
+RPT1NAME=eprof
+echo ${PGMNAME} "Starting report" ${RPT1NAME} `/bin/date "+%Y-%m-%d %T %Z"`
+RPT1FILE=${RPT1DIR}/${RPT1NAME}
+usscmds_rpt_hdr ${RPT1FILE}
+usscmds_rpt_cat /etc/profile
+echo " ........ End Report ...." >> ${RPT1FILE}
+#
+################################################################
+#  Report: erc       - /etc/rc                                 #
+################################################################
+echo " "
+RPT1NAME=erc
+echo ${PGMNAME} "Starting report" ${RPT1NAME} `/bin/date "+%Y-%m-%d %T %Z"`
+RPT1FILE=${RPT1DIR}/${RPT1NAME}
+usscmds_rpt_hdr ${RPT1FILE}
+usscmds_rpt_cat /etc/rc
+echo " ........ End Report ...." >> ${RPT1FILE}
+#
+################################################################
+#  Report: eserv     - /etc/services                           #
+################################################################
+echo " "
+RPT1NAME=eserv
+echo ${PGMNAME} "Starting report" ${RPT1NAME} `/bin/date "+%Y-%m-%d %T %Z"`
+RPT1FILE=${RPT1DIR}/${RPT1NAME}
+usscmds_rpt_hdr ${RPT1FILE}
+usscmds_rpt_cat /etc/services
+echo " ........ End Report ...." >> ${RPT1FILE}
+#
+################################################################
+#  Report: estepll   - /etc/steplib                            #
+################################################################
+echo " "
+RPT1NAME=estepll
+echo ${PGMNAME} "Starting report" ${RPT1NAME} `/bin/date "+%Y-%m-%d %T %Z"`
+RPT1FILE=${RPT1DIR}/${RPT1NAME}
+usscmds_rpt_hdr ${RPT1FILE}
+usscmds_rpt_cat /etc/steplib
+echo " ........ End Report ...." >> ${RPT1FILE}
+#
+################################################################
+#  Report: itcp0040  - TCPIP file/dir permission bits          #
+################################################################
+if test ${CSTCP} = "Y"
+  then
+    echo " "
+    RPT1NAME=itcp0040
+    echo ${PGMNAME} "Starting report" ${RPT1NAME} `/bin/date "+%Y-%m-%d %T %Z"`
+    RPT1FILE=${RPT1DIR}/${RPT1NAME}
+    usscmds_rpt_hdr ${RPT1FILE}
+    usscmds_rpt_ls /etc/hosts                 0744    faf
+    usscmds_rpt_ls /etc/protocol              0744    faf
+    usscmds_rpt_ls /etc/resolv.conf           0744    faf
+    #usscmds_rpt_ls /etc/services              0644    faf  unix checklist
+    usscmds_rpt_ls /etc/services              0740    faf  unix checklist
+    usscmds_rpt_ls /usr/lpp/tcpip/sbin        0755    faf
+    usscmds_rpt_ls /usr/lpp/tcpip/bin         0755    faf
+    echo " ........ End Report ...." >> ${RPT1FILE}
+ fi
+#
+################################################################
+#  Report: iutn0030  - /etc/banner                             #
+################################################################
+echo " "
+RPT1NAME=iutn0030
+echo ${PGMNAME} "Starting report" ${RPT1NAME} `/bin/date "+%Y-%m-%d %T %Z"`
+RPT1FILE=${RPT1DIR}/${RPT1NAME}
+usscmds_rpt_hdr ${RPT1FILE}
+usscmds_rpt_cat /etc/banner
+echo " ........ End Report ...." >> ${RPT1FILE}
+#
+################################################################
+#  Report: iutn0040  - TCPIP file/dir permission bits          #
+################################################################
+echo " "
+RPT1NAME=iutn0040
+echo ${PGMNAME} "Starting report" ${RPT1NAME} `/bin/date "+%Y-%m-%d %T %Z"`
+RPT1FILE=${RPT1DIR}/${RPT1NAME}
+usscmds_rpt_hdr ${RPT1FILE}
+usscmds_rpt_ls /usr/sbin/otelnetd         1740    fff
+usscmds_rpt_ls /etc/banner                0744    faf
+echo " ........ End Report ...." >> ${RPT1FILE}
+#
+################################################################
+#  Report: iftp0050  - ftp banner page                         #
+################################################################
+if test ${CSFTP} = "Y"
+  then
+    if test ${#FTPBANNER} -eq 0
+      then
+        FTPBANNER=/etc/ftp.banner
+    fi
+    echo " "
+    RPT1NAME=iftp0050
+    echo ${PGMNAME} "Starting report" ${RPT1NAME} `/bin/date "+%Y-%m-%d %T %Z"`
+    RPT1FILE=${RPT1DIR}/${RPT1NAME}
+    usscmds_rpt_hdr ${RPT1FILE}
+    usscmds_rpt_cat ${FTPBANNER}
+    echo " ........ End Report ...." >> ${RPT1FILE}
+#
+################################################################
+#  Report: iftp0070  - TCPIP file/dir permission bits          #
+################################################################
+    echo " "
+    RPT1NAME=iftp0070
+    echo ${PGMNAME} "Starting report" ${RPT1NAME} `/bin/date "+%Y-%m-%d %T %Z"`
+    RPT1FILE=${RPT1DIR}/${RPT1NAME}
+    usscmds_rpt_hdr ${RPT1FILE}
+    usscmds_rpt_ls /usr/sbin/ftpd             1740    fff
+    usscmds_rpt_ls /usr/sbin/ftpdns           1755    fff
+    usscmds_rpt_ls /usr/sbin/tftpd            0644    faf
+    usscmds_rpt_ls /etc/ftp.data              0744    faf
+    usscmds_rpt_ls ${FTPBANNER}               0744    faf
+    echo " ........ End Report ...." >> ${RPT1FILE}
+ fi
+#
+################################################################
+#  Report: islg0030  - TCPIP file/dir permission bits          #
+################################################################
+echo " "
+RPT1NAME=islg0030
+echo ${PGMNAME} "Starting report" ${RPT1NAME} `/bin/date "+%Y-%m-%d %T %Z"`
+RPT1FILE=${RPT1DIR}/${RPT1NAME}
+usscmds_rpt_hdr ${RPT1FILE}
+tempdata=`grep  "/syslogd" erc|awk '{print $0}'`
+sfound="N"
+for MNFNAME in ${tempdata}
+  do
+    if test ${sfound} = "Y"
+      then
+        syslogd=$MNFNAME
+        sfound="N"
+     fi
+    if test $MNFNAME = "-f"
+      then
+        sfound="Y"
+     fi
+  done
+usscmds_rpt_ls /usr/sbin/syslogd          1740    fff
+#usscmds_rpt_ls /etc/syslog.conf           0640    faf  unix checklist
+#echo "syslogd config file:"$syslogd
+#if test -e $syslogd
+  usscmds_rpt_ls $syslogd                   0744    faf
+  for MNFDIR in `/bin/awk ' $0 !~ /^#/ {print $2} ' $syslogd`
+   do
+     T1=`echo ${MNFDIR} | /bin/tr % " "  `
+     echo ${T1} >> tmp
+   done
+  for MNFDIR in `/bin/awk ' {print $1} ' tmp`
+   do
+     echo ${MNFDIR} >> tmp1
+   done
+  sort -u -o tmp1 tmp1
+  for MNFDIR in `awk '{print $1}' tmp1`
+   do
+     find ${MNFDIR} -type f -a \( -perm -0020 -o -perm -0010                   \
+       -o -perm -0002 -o -perm -0001  -o ! -audit rwx=f \) >> tmp2
+     find ${MNFDIR} -type f | head -10 >> tmp2
+   done
+  sort -u -o tmp3 tmp2
+  for MNFNAME in `awk '{print $1}' tmp3`
+   do
+#     echo "usscmds_rpt_ls" ${MNFNAME} "\t0744 fff"
+      usscmds_rpt_ls ${MNFNAME}         0744    fff
+   done
+#fi
+echo " ........ End Report ...." >> ${RPT1FILE}
+#
+################################################################
+#  Report: zuss0037  - SNTPD file permission bits              #
+################################################################
+echo " "
+RPT1NAME=zuss0037
+echo ${PGMNAME} "Starting report" ${RPT1NAME} `/bin/date "+%Y-%m-%d %T %Z"`
+RPT1FILE=${RPT1DIR}/${RPT1NAME}
+usscmds_rpt_hdr ${RPT1FILE}
+usscmds_rpt_ls /usr/sbin/sntpd            1740    faf
+echo " ........ End Report ...." >> ${RPT1FILE}
+#
+################################################################
+# Remove temporary scripts                                     #
+################################################################
+#chown -R ${LOGNAME}:${testgid} /tmp/fso_srrmvs
+#/bin/cd
+###rm ./usscmds_rpt_find
+#
+################################################################
+#  Data collection end                                         #
+################################################################
+RPT1DATE=`/bin/date "+%Y-%m-%d %T %Z"`
+echo " "
+echo ${PGMNAME} "Data Collection ended " ${RPT1DATE} "for" ${RPT0HOST}
+echo "         ........................"
+echo "         ........................"
+ 

@@ -1,0 +1,1074 @@
+/* REXX */
+/*                                       */
+/* AUTHOR: Charles Fenton                */
+/*                                       */
+Address ISPEXEC
+'VGET (CONSLIST COMLIST SYMLIST TERMPRO TERMMSGS TRACE)'
+If CONSLIST = ON | COMLIST = ON | SYMLIST = ON | TRACE = ON ,
+  then Trace r
+PGMNAME = 'CACC3000 09/14/10'
+MSGLINE = PGMNAME 'starting.'
+/*********************************************************************/
+/* DISPLAY SYSTEM INFORMATION ON TERMINAL                            */
+/*********************************************************************/
+/* EXECUTION SYNTAX:                                                 */
+/*                                                                   */
+/* ISPEXEC SELECT CMD(CACC1000 option)                               */
+/*  or                                                               */
+/* ISPEXEC SELECT CMD(CACC1000 option option2 member)                */
+/*  or                                                               */
+/* SET OPTION=option or SET OPTION=&STR(option option2 member)       */
+/* ISPEXEC VPUT (OPTION)                                             */
+/* ISPEXEC SELECT CMD(CACC1000)                                      */
+/*                                                                   */
+/* The value of option is as follows with definition of results:     */
+/*   ALL      - Returns variable ACPDSNS, also variables from HOST   */
+/*              and ALLPROC options.  ACPDSNS is obtains from data   */
+/*              sets allocated in the ACPs procedure member.         */
+/*   ACP      - Returns variables ACPNAME, ACPVERS, OPSNAME,         */
+/*              OPSVERS, SRRRELS, and SRRVERS after reviewing MVS    */
+/*              data areas.                                          */
+/*   ACPCOMP  - Compares ACPVERS with var sent to process.  Exits    */
+/*              with return codes are as follows:                    */
+/*              1 - ACPVERS LT var                                   */
+/*              2 - ACPVERS EQ var                                   */
+/*              3 - ACPVERS GT var                                   */
+/*   PARM     - Returns variables PARM and PARMVOL, which contains   */
+/*              the PARMLIB data sets specified in the LOADxx        */
+/*              member.  The PARM specifies each data set followed   */
+/*              by a space.  The variable PARMVOL will contain the   */
+/*              volume serial numbers for the data sets stored in    */
+/*              PARM, this variable is in increments of 6 char in    */
+/*              length and may contain spaces.  (ex.)                */
+/*                PARM=&STR(SYS1.PARMLIB SYS1.IPLPARM )              */
+/*                PARMVOL=&STR(VOL001      )                         */
+/*   ALLPARM  - Returns variables PARM and PARMVOL, which contains   */
+/*              the data set that contains the load member data set  */
+/*              and the PARMLIB data sets specified in the LOADxx    */
+/*              member.  The PARM specifies each data set followed   */
+/*              by a space.  The variable PARMVOL will contain the   */
+/*              volume serial numbers for the data sets stored in    */
+/*              PARM, this variable is in increments of 6 char in    */
+/*              length and may contain spaces.  (ex.)                */
+/*                PARM=&STR(SYS1.PARMLIB SYS1.IPLPARM )              */
+/*                PARMVOL=&STR(VOL001      )                         */
+/*   MSTRJCL  - Returns variables PROC and PROCVOL, the MSTRJCLxx    */
+/*              member in logical parmlib or SYS1.LINKLIB is viewed  */
+/*              and the data set that are allocated to the IEFJOBS   */
+/*              and IEFPDSI DD statement concatinations are stored   */
+/*              in the PROC variable.  The volume serial number are  */
+/*              stored in PROCVOL order of the data sets stored in   */
+/*              the PROC variable.  The variable PROCVOL will        */
+/*              contain the volume serial numbers for the data sets  */
+/*              stored in PROC, this variable is in increments of 6  */
+/*              char in length and may contain spaces.               */
+/*   JESPROC  - Returns variables PROC and PROCVOL, the JES          */
+/*              procedure is viewed and data sets that are allocated */
+/*              to the PROCxx DD statement and dynamic PROCLIB       */
+/*              statement concatenation and are stored in the in the */
+/*              PROC variable.  The volume serial numbers are stored */
+/*              in PROCVOL order of the data sets stored in the PROC */
+/*              variable.  The variable PROCVOL will contain the     */
+/*              volume serial numbers for the data sets stored in    */
+/*              PROC, this variable is in increments of 6 char in    */
+/*              length and may contain spaces.                       */
+/*   ALLPROC  - Returns variable PROC, the MSTRJCLxx member in       */
+/*              logical parmlib or SYS1.LINKLIB is viewed and the    */
+/*              data set that are allocated to the IEFJOBS and       */
+/*              IEFPDSI DD statement concatinations additionally the */
+/*              JES procedure is viewed and data sets that are       */
+/*              allocated to the PROCxx DD statement concatinations. */
+/*              The data set list is cleared of duplicates the       */
+/*              remaining data sets are stored in the PROC variable. */
+/*   HOST     - Returns variable HOSTNAME and HOSTADDR to identify   */
+/*              the host.  Also obtains the ACP option variables.    */
+/*   FIND     - Returns variables FOUND and FVOL, finds the member   */
+/*              dependant of additional options that are specified   */
+/*              in call.  The return is the variable FOUND that      */
+/*              contains the data set that that contains the member. */
+/*              The variable FVOL will contain the volume serial     */
+/*              number for the data set stored in FOUND, this        */
+/*              variable is 6 char in length and may contain spaces. */
+/*              Example of call is:                                  */
+/*                ISPEXEC SELECT CMD(CACC1000 FIND JES member)       */
+/*              In the above the member is found in the JES2 proclib */
+/*              concatination.  The format is as follows:            */
+/*                FIND option2 member                                */
+/*                  where: option2 - identifies which data set       */
+/*                                   groups to obtain.               */
+/*                         member - identifies the member to be      */
+/*                                  found.                           */
+/*   DD       - Returns variables FOUND, FVOL, and DDDSNS finds the  */
+/*              member dependant of additional options that are      */
+/*              specified in call.  The return is the variable FOUND */
+/*              that contains the data set that that contains the    */
+/*              member.  The variable FVOL will contain the volume   */
+/*              serial number for the data set stored in FOUND, this */
+/*              variable is 6 char in length and may contain spaces. */
+/*              DDDSNS contains DD names and dataset names for the   */
+/*              member requested.                                    */
+/*              Example of call is:                                  */
+/*                ISPEXEC SELECT CMD(CACC3000 DD JES member)         */
+/*              In the above the member is found in the JES2 proclib */
+/*              concatination.  The format is as follows:            */
+/*                DD option2 member                                  */
+/*                  where: option2 - identifies which data set       */
+/*                                   groups to obtain.               */
+/*                         member - identifies the member to be      */
+/*                                  found.                           */
+/*                                                                   */
+/* The value of option2 is ONLY specified for the option of FIND,    */
+/* the following are valid values for option2:                       */
+/*   PARM                                                            */
+/*   MSTRJCL                                                         */
+/*   JESPROC                                                         */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+/* Change summary:                                                   */
+/*   2005/01/26 - CLF, changed ACP function to test returns of ACP   */
+/*   commands.  If unable to determine ACP version display possible  */
+/*   error messages and set ACPNAME to nulls.                        */
+/*   2005/04/06 - CLF, changed ACP function to correctly obtain      */
+/*   ACF2 version from the RUNNING line.                             */
+/*   2005/04/06 - CLF, added ACPDSNS to be collected when ALL        */
+/*   function is specified.  Process finds the ACP procedure and     */
+/*   obtains the data sets within this procedure.                    */
+/*   2005/10/21 - CLF, added function HOST to obtain the system      */
+/*   hostname and ip-address(s)                                      */
+/*   2005/11/01 - CLF, removed SYMDEF for SRRAUDI# system symbolic   */
+/*   variable.                                                       */
+/*   2005/11/08 - CLF, modified process to obtain MSTJCLxx member    */
+/*   added ability to obtain member from SYS1.LINKLIB if IPALFLAG    */
+/*   states MSTJCLxx did not come from parmlibs.  Added process to   */
+/*   collect data sets from IEFJOBS DD statement concatination.      */
+/*   Added FIND function to obtain data set that contains a          */
+/*   specific member.                                                */
+/*   2006/03/07 - CLF, added collection of information to obtain     */
+/*   the volume serial numbers for data set that may not be          */
+/*   catalogged.  The volumes are obtained for the options of PARM,  */
+/*   ALLPARM, MSTRJCL, JESPROC, and FIND.                            */
+/*   2006/03/07 - CLF, added collection of information Dynamic       */
+/*   PROCLIB data sets and volume serial numbers.  User will require */
+/*   TSOAUTH CONSOLE and OPERCMDS JES2.DISPLAY.PROCLIB.              */
+/*   2006/12/27 - CLF, changed process for handling console          */
+/*                commands.                                          */
+/*   2007/01/18 - CLF, chgd JES proc collection for dsn(s) that      */
+/*                are used for STC and TSO procedures.               */
+/*   2007/01/19 - CLF, chgd hostname options.                        */
+/*   2007/03/05 - CLF, chgs in symbol processing for proc members    */
+/*   2007/03/21 - CS , chgs in SRRRELS and PGNNAME date.             */
+/*   2007/05/17 - CS , chgs in SRRRELS and PGNNAME date.             */
+/*   2007/09/10 - CLF, added test of hostname error to obain hostname*/
+/*                using a different version of the command.          */
+/*   2007/10/23 - CLF, modified proc symbolic test to obtain symbolic*/
+/*                in PROC statement then system symbolics.           */
+/*   2007/11/14 - CS , chgs in SRRRELS and PGNNAME date.             */
+/*   2008/01/31 - CF , chgs in collecting ACF2 ACPVERS.  Also add    */
+/*                TERMSMGS test for null ACPVERS message.            */
+/*   2008/03/24 - CS , chgs in SRRRELS and PGNNAME date.             */
+/*   2008/03/31 - CF , chgs in collecting TSS ACPVERS.               */
+/*   2008/05/01 - CF , added acpvers' compare ACPCOMP                */
+/*   2008/07/14 - CS , chgs in SRRRELS and PGNNAME date.             */
+/*   2008/09/05 - CF , chgs made to fix_sym process for temp dsn.    */
+/*   2008/09/19 - CF , chgs made to fix_sym process for quoted dsn.  */
+/*   2009/03/09 - CF , added DD option to obtain dsns for proc       */
+/*                member.                                            */
+/*   2009/10/09 - CF , Removed LISTDSN when DD is requested.         */
+/*                Added vget for proc and procvol when dsn location  */
+/*                is known.                                          */
+/*   2010/02/04 - CF , chged fix_sym execution to evaluate all       */
+/*                proclib entries for symbolics in all jcl           */
+/*                statements.                                        */
+/*   2010/09/14 - CF , chgd collection of STC member when running    */
+/*                FIND and DD for JESPROC, to utilize the STC        */
+/*                JOBCLASS.                                          */
+/*                                                                   */
+/*********************************************************************/
+LASTUPD = '09/14/2010'                       /* date of last update  */
+/*********************************************************************/
+parse value "" with null
+arg OPTION OPTION2 IMEMBER .
+If OPTION = null ,
+  then do
+    "VGET (OPTION)"
+    parse var OPTION OPTION OPTION2 IMEMBER
+   end
+Numeric digits 20                           /* dflt of 9 not enough  */
+                                            /* 20 can handle 64-bit  */
+Call COMMON            /* control blocks needed by multiple routines */
+If OPTION = 'ALL' then do
+  Call ACP
+  dddsns = null
+  Call ALLPROC
+  if index(PARM,Strip(IPALPDSN,t)' ') = 0 then,
+    PARM    = Strip(IPALPDSN,t) PARM
+  "VPUT (PARM DDDSNS)"
+End
+Else interpret call OPTION
+If TERMMSGS = ON then,
+  say PGMNAME 'end of messages.'
+MSGLINE = PGMNAME 'finished.'
+/*********************************************************************/
+/* Done looking at all control blocks                                */
+/*********************************************************************/
+Exit 0                                       /* End CACC1000 - RC 0  */
+/*********************************************************************/
+/*  End of main CACC1000 code                                        */
+/*********************************************************************/
+/*  Start of sub-routines                                            */
+/*********************************************************************/
+COMMON:              /* Control blocks needed by multiple routines   */
+CVT      = C2d(Storage(10,4))                /* point to CVT         */
+JESCT    = C2d(Storage(D2x(CVT + 296),4))    /* point to JESCT       */
+PRODNAME = Storage(D2x(CVT - 40),7)          /* point to mvs version */
+If Substr(PRODNAME,3,1) > 3 then
+  ECVT     = C2d(Storage(D2x(CVT + 140),4))  /* point to CVTECVT     */
+FMIDNUM  = Storage(D2x(CVT - 32),7)          /* point to fmid        */
+If Substr(FMIDNUM,4,4) >= 6602 then do
+  ECVTIPA  = C2d(Storage(D2x(ECVT + 392),4)) /* point to IPA         */
+End
+/**************************************************/
+/* Central Processing Complex Node Descriptor     */
+/**************************************************/
+SERNR = null
+MODEL = null
+MANUF = null
+If Substr(PRODNAME,3,1) >= 5 then do
+  CVTHID   = C2d(Storage(D2x(CVT + 1068),4))   /* point to SHID      */
+  CPCND_FLAGS = Storage(D2x(CVTHID+22),1)      /* pnt to CPCND FLAGS */
+  If CPCND_FLAGS <> 0 then do                  /* Is there a CPC?    */
+    CPCND_VALID = Bitand(CPCND_FLAGS,'E0'x)    /* Valid flags        */
+    CPCND_INVALID = Bitand('40'x)              /* Invalid flag       */
+    If CPCND_VALID <> CPCND_INVALID then do    /* Is it valid?       */
+      CPCND_TYPE  = Storage(D2x(CVTHID+26),6)  /* Type               */
+      CPCND_MODEL = Storage(D2x(CVTHID+32),3)  /* Model              */
+      MODEL       = CPCND_TYPE"-"CPCND_MODEL
+      MANUF       = Storage(D2x(CVTHID+35),3)  /* Manufacturer       */
+      SERNR       = Storage(D2x(CVTHID+40),12) /* Sequence number    */
+    End /* if CPCND_VALID <> CPCND_INVALID */
+  End  /* if CPCND_FLAGS <>0  */
+End
+Return
+ 
+ALLPARM:             /* PARM    load and parmlib information sub-rtn */
+PARM:                /* PARM    information sub-routine              */
+/*********************************************************************/
+/* IPL parms from the IPA                                            */
+/*********************************************************************/
+PARM = null
+PARMVOL = null
+If Substr(FMIDNUM,4,4) >= 6602 then do
+  IPALOADS = Storage(D2x(ECVTIPA + 20),2)    /* ipl load parm mbr    */
+  IPALPDSN = Storage(D2x(ECVTIPA + 48),44)   /* ipl load parm dsn    */
+  IPALPDDV = Storage(D2x(ECVTIPA + 92),4)    /* ipl load parm dev    */
+  address TSO "Alloc f(dd1) dsn('"Strip(IPALPDSN,t)"') shr",
+    "unit(/"IPALPDDV")"
+  x = LISTDSI("dd1 file")
+  vol = SYSVOLUME
+  x = LISTDSI("'"Strip(IPALPDSN,t)"'")
+  if x = 0 & vol = SYSVOLUME then,
+    vol = '      '
+  if OPTION = 'ALLPARM' then do
+    PARM     = Strip(IPALPDSN,t)' '
+    PARMVOL  = vol
+    end
+  address TSO "Free f(dd1)"
+  if (OPTION = 'ALLPARM' | OPTION = 'PARM' | OPTION = 'ALL') & ,
+    TERMMSGS = ON then ,
+    say PGMNAME Strip(IPALPDSN)"(LOAD"IPALOADS||,
+      ") is used as the load for system."
+  MSGLINE = PGMNAME Strip(IPALPDSN)"(LOAD"IPALOADS||,
+    ") is used as the load for system."
+  IPAPLNUM = Storage(D2x(ECVTIPA + 2148),2)  /* number of PARM cards */
+  IPAPLNUM = C2x(IPAPLNUM)                   /* convert to EBCDIC    */
+  POFF = 0
+  Do P = 1 to IPAPLNUM
+    IPAPLDSN.P = Storage(D2x(ECVTIPA+416+POFF),44) /* PARM dsn        */
+    IPAPLVOL.P = Storage(D2x(ECVTIPA+461+POFF),6)  /* PARM vol        */
+    IPAPLFLG.P = Storage(D2x(ECVTIPA+479+POFF),1)  /* PARM flag       */
+    x = LISTDSI("'"Strip(IPAPLDSN.P,t)"'")
+    if OPTION = 'ALL' & TERMMSGS = ON then ,
+      say PGMNAME IPAPLDSN.P 'Volume =' IPAPLVOL.P,
+        'Flag =' C2X(IPAPLFLG.P) X2B(C2X(IPAPLFLG.P))
+    MSGLINE = PGMNAME IPAPLDSN.P 'Volume =' IPAPLVOL.P,
+        'Flag =' C2X(IPAPLFLG.P) X2B(C2X(IPAPLFLG.P))
+    If bitand(IPAPLFLG.P,'20'x) = '20'x then do   /* volser from cat? */
+      if index(PARM,Strip(IPAPLDSN.P,t)' ') = 0 then do
+        PARM    = PARM||Strip(IPAPLDSN.P,t)' '
+        PARMVOL = PARMVOL||'      '
+        end
+      if (OPTION = 'ALLPARM' | OPTION = 'PARM') &,
+        TERMMSGS = ON then ,
+        say PGMNAME Strip(IPAPLDSN.P,t),
+          'is a PARMLIB entry in the load member.'
+      MSGLINE = PGMNAME Strip(IPAPLDSN.P,t),
+        'is a PARMLIB entry in the load member.'
+      end
+    else
+      if x = 0 & SYSVOLUME = IPAPLVOL.P then do
+        if index(PARM,Strip(IPAPLDSN.P,t)' ') = 0 then do
+          PARM    = PARM||Strip(IPAPLDSN.P,t)' '
+          PARMVOL = PARMVOL||'      '
+          end
+        if (OPTION = 'ALLPARM' | OPTION = 'PARM') &,
+          TERMMSGS = ON then ,
+          say PGMNAME Strip(IPAPLDSN.P,t),
+            'with VOLUME='IPAPLVOL.P,
+            'is a PARMLIB entry in the load member.'
+        MSGLINE = PGMNAME Strip(IPAPLDSN.P,t),
+          'with VOLUME='IPAPLVOL.P,
+          'is a PARMLIB entry in the load member.'
+        end
+      else do
+        if index(PARM,Strip(IPAPLDSN.P,t)' ') = 0 then do
+          PARM    = PARM||Strip(IPAPLDSN.P,t)' '
+          PARMVOL = PARMVOL||IPAPLVOL.P
+          end
+        if (OPTION = 'ALLPARM' | OPTION = 'PARM') &,
+          TERMMSGS = ON then ,
+          say PGMNAME Strip(IPAPLDSN.P,t),
+            'with VOLUME='IPAPLVOL.P,
+            'volume is not from catalog.'
+        MSGLINE = PGMNAME Strip(IPAPLDSN.P,t),
+          'with VOLUME='IPAPLVOL.P,
+          'volume is not from catalog.'
+        end
+    POFF = POFF + 64
+  End
+End
+PARM = PARM
+if OPTION = 'ALLPARM' | OPTION = 'PARM' then,
+  "VPUT (PARM PARMVOL)"
+Return
+ 
+HOST:                /* Obtain ACP and HOST information sub-routine  */
+"VPUT (SERNR MODEL MANUF)"
+ACP:                 /* Obtain ACP information sub-routine           */
+/*                                                                   */
+SRRVERS   = substr(version,2,1)'.'substr(version,3)
+LPAR      = MVSVAR('SYSNAME')
+PLEX      = MVSVAR('SYSPLEX')
+SYSOPSYS  = MVSVAR('SYSOPSYS')
+parse var SYSOPSYS OPSNAME OPSVERS .
+CVTRAC   = C2d(Storage(D2x(CVT + 992),4))    /* point to RACF CVT    */
+RCVTID   = Storage(D2x(CVTRAC),4)            /* point to RCVTID      */
+                                             /* RCVT, ACF2, or RTSS  */
+ACPNAME = null
+ACPVERS = null
+x = OUTTRAP("LINE.",3,"NOCONCAT")
+If RCVTID = 'RCVT' then do
+  ACPNAME = 'RACF'                           /* RCVT is RACF         */
+  address TSO "SETROPTS LIST"
+  if RC = 0 then do
+    ACPVERS  = Storage(D2x(CVTRAC + 616),4)  /* RACF Ver/Rel/Mod     */
+    ACPVERS  = substr(ACPVERS,1,1)||"."||substr(ACPVERS,2)
+  end
+end
+If RCVTID = 'RTSS' then do                   /* RTSS is Top Secret   */
+  ACPNAME = 'TSS'
+  address TSO "TSS MODIFY(ST)"
+  do i = 1 to LINE.0
+    parse var LINE.i msg .
+    if msg = 'TSS9660I' then do
+      parse var LINE.i . '=' ACPVERS . . .
+    end
+  end
+end
+If RCVTID = 'ACF2' then do                   /* ACF2 is ACF2         */
+  ACPNAME = 'ACF2'
+  SSCVT    = C2d(Storage(D2x(JESCT+24),4))   /* point to SSCVT       */
+  Do while SSCVT <> 0
+    SSCTSNAM = Storage(D2x(SSCVT+8),4)       /* subsystem name       */
+    If SSCTSNAM = 'ACF2' then do
+      ACCVT    = C2d(Storage(D2x(SSCVT + 20),4)) /* ACF2 CVT         */
+      ACCPFXP  = C2d(Storage(D2x(ACCVT - 4),4))  /* ACCVT prefix     */
+      ACCPIDL  = C2d(Storage(D2x(ACCPFXP + 8),2))  /* Len ident area */
+      LEN_ID   = ACCPIDL-4 /* don't count ACCPIDL and ACCPIDO in len */
+      ACCPIDS  = Strip(Storage(D2x(ACCPFXP + 12),LEN_ID)) /*sys ident*/
+      parse var ACCPIDS . 'ACF2' ACPVERS .
+      Leave
+    End
+  SSCVT    = C2d(Storage(D2x(SSCVT+4),4))    /* next sscvt or zero   */
+  End  /*  Do while SSCVT <> 0 */
+/*QUEUE "SHOW STATE"
+  QUEUE "QUIT"
+  address TSO "ACF"
+  do i = 1 to LINE.0
+    text = substr(LINE.i,1,8)
+    if text = "RUNNING " then do
+      parse var LINE.i . 'ACF2' ACPVERS .
+    end
+  end */
+end
+if ACPVERS = '' & TERMMSGS = ON then do
+  say PGMNAME "An error occurred, process was unable to" ,
+    "determine version of" ACPNAME"."
+  ACPNAME = null
+  do i = 1 to LINE.0
+    say PGMNAME LINE.i
+  end
+  say " "
+end
+x = OUTTRAP("OFF")
+if TERMMSGS = ON then do
+  say PGMNAME "Security Readiness Review Self-Auditing Version",
+    SRRVERS "Released" SRRRELS
+  say PGMNAME "MVS System" OPSNAME "Version" substr(OPSVERS,2,4),
+    "Running on system" LPAR"/"PLEX
+  if ACPNAME = null then ,
+    say PGMNAME "Unable to determine security system."
+  else,
+    say PGMNAME ACPNAME "Version" ACPVERS ,
+      "is running on this system."
+end
+"VPUT (ACPNAME ACPVERS OPSNAME OPSVERS SRRVERS SRRRELS)"
+if OPTION = 'ACP' then Return
+username =,
+TRANSLATE(userid(),'abcdefghijklmnopqrstuvwxyz','ABCDEFGHIJKLMNOPQRSTUVWXYZ')
+if OPSNAME = 'OS/390' then do
+  address TSO
+  "ALLOCATE FILE(TEMP) LRECL(255) RECFM(F) NEW DELETE",
+  "TRACK SPACE(1,1) DSORG(PS)"
+  queue '#!/bin/sh'
+  queue 'HOSTNAME=`hostname -r`'
+  queue 'echo "HOSTNAME: ${HOSTNAME}"'
+  queue 'HOSTADDR=`host ${HOSTNAME}`'
+  queue 'echo "${HOSTADDR}"'
+  queue 'exit'
+  queue ''
+  "EXECIO * DISKW TEMP (FINIS"
+  delstack
+  "ALLOCATE FILE(HFS01)  PATH('/tmp/"username".IBMin') ",
+    "PATHDISP(KEEP,DELETE) PATHOPTS(OWRONLY,OCREAT) PATHMODE(SIRWXU)"
+  "OCOPY INDD(TEMP) OUTDD(HFS01) TEXT   CONVERT((BPXFX111))"
+  "FREE FILE(HFS01)"
+  "ALLOCATE FILE(STDOUT) PATH('/tmp/"username".IBM') ",
+  "PATHOPTS(OWRONLY,OCREAT,OEXCL,OTRUNC) PATHMODE(SIRWXU)",
+  "PATHDISP(DELETE,DELETE)"
+  "ALLOCATE FILE(STDIN)  PATH('/tmp/"username".IBMin') ",
+      "PATHDISP(DELETE,DELETE)  PATHOPTS(ORDONLY)"
+  "FREE FILE(TEMP)"
+  "BPXBATCH SH"
+  "ALLOCATE FILE(oshout1) LRECL(255) RECFM(F) NEW DELETE",
+  "TRACK SPACE(1,1) DSORG(PS)"
+  "Ocopy indd(STDOUT) outdd(oshout1)   TEXT PATHOPTS(OVERRIDE)"
+  "EXECIO * DISKR oshout1 (FINIS STEM out."
+  "FREE DDNAME(oshout1)"
+  "FREE DDNAME(STDOUT)"
+  "FREE DDNAME(STDIN)"
+  do i=1 to out.0
+    if word(out.i,1) = 'HOSTNAME:' then,
+      HOSTNAME = word(out.i,2)
+  end
+  y=x.0
+  end
+else
+  do
+  err.0 = 0
+  out.0 = 0
+  call bpxwunix 'hostname -r',,out.,err.
+  if err.0 <> 0 then,
+    call bpxwunix 'hostname -c',,out.,err.
+  HOSTNAME = out.1
+  cmd = 'host' HOSTNAME
+  call bpxwunix cmd,,out.
+  end
+HOSTADDR = null
+Address ISPEXEC
+do i=1 to out.0
+  out.i = translate(out.i,,',')
+  if word(out.i,1) = 'EZZ8321I' then,
+    do a=5 to words(out.i)
+      HOSTADDR = strip(HOSTADDR word(out.i,a))
+    end
+end
+if TERMMSGS = ON then do
+  say PGMNAME "The system has a HOST name of" HOSTNAME||"."
+  say PGMNAME "The system has the following IP Addresses assigned:"
+  do x = 1 to words(HOSTADDR)
+    say PGMNAME "     " word(HOSTADDR,x)
+  end
+end
+"VPUT (HOSTNAME HOSTADDR)"
+Return
+ 
+ACPCOMP:         /* Obtain all procedure data set sub-routine        */
+"VGET (ACPVERS)"
+if rc > 0 then do
+  "SELECT CMD(CACC1000 ACP)"
+  "VGET (ACPVERS)"
+  end
+if ACPVERS > OPTION2 then exit 3
+if ACPVERS = OPTION2 then exit 2
+if ACPVERS < OPTION2 then exit 1
+Exit 0
+ 
+ALLPROC:         /* Obtain all procedure data set sub-routine        */
+/*                                                                   */
+mPROC = null
+PROC  = null
+call JESPROC
+mPROC = strip(PROC) mPROC
+PROC  = null
+do until mPROC = ''
+  PARSE VAR mPROC DSN mPROC
+  if pos(DSN" ",PROC) = 0 then,
+    PROC = strip(PROC) DSN" "
+end
+PROC = strip(PROC)" "
+If TERMMSGS = ON then,
+  say PGMNAME OPTION PROC
+MSGLINE = PGMNAME OPTION PROC
+"VPUT (PROC)"
+Return
+ 
+MSTRJCL:         /* Obtain MSTRJCL information sub-routine           */
+/*                                                                   */
+IPALFLAG = Storage(D2x(ECVTIPA+2150),1)       /* flag bits           */
+IPASTOR = D2x(ECVTIPA + 2448)                /* point to PDE addr    */
+IPAPDE  = C2x(Storage((IPASTOR),8))          /* point to PDE MSTJCL  */
+If IPAPDE = 0 then return   /* parm not specified and has no default */
+IPAADDR = Substr(IPAPDE,1,8)                 /* PARM address         */
+IPALEN  = X2d(Substr(IPAPDE,9,4))            /* PARM length          */
+IPAPRM  = Storage((IPAADDR),IPALEN)          /* PARM                 */
+if substr(IPAPRM,1,1) = '(' then IPAPRM = substr(IPAPRM,2,2)
+member = "MSTJCL"IPAPRM
+call PARM
+If bitand(IPALFLAG,'80'x) = '80'x then do     /* MSTJCL from parmlib */
+  DSNS = PARM
+  DSNSvol = PARMVOL
+  end
+Else do
+  DSNS = "SYS1.LINKLIB"
+  DSNSvol = '      '
+  end
+call Find_member
+PROC = proclibs
+PROCVOL = procvol
+PARSE VAR dsn_mem dsn '(' .
+dsn = strip(dsn,,"'")
+if OPTION = 'MSTRJCL' & TERMMSGS = ON then ,
+  say PGMNAME dsn 'is location of' member'.'
+MSGLINE = PGMNAME dsn 'is location of' member'.'
+if OPTION = 'MSTRJCL' & TERMMSGS = ON then ,
+  say PGMNAME member 'Proc libraries' PROC
+MSGLINE = PGMNAME member 'Proc libraries' PROC
+if OPTION = 'ALLPROC' | OPTION = 'ALL' then ,
+  mPROC = PROC
+"VPUT (PROC PROCVOL)"
+if OPTION = 'ALL' then do
+  DSNS = proclibs
+  DSNSvol = PROCVOL
+  member = ACPNAME
+  call Find_member
+  ACPDSNS = proclibs
+  "VPUT (ACPDSNS)"
+  PROC = mPROC
+end
+Return
+ 
+JESPROC:         /* Obtain JES procedure inforation sub-routine      */
+/*                                                                   */
+JESPJESN = Storage(D2x(JESCT + 28),4)        /* name of primary JES  */
+call MSTRJCL
+member = JESPJESN
+DSNS = PROC
+DSNSvol = PROCVOL
+call Find_member
+PARSE VAR dsn_mem dsn '(' .
+dsn = strip(dsn,,"'")
+if OPTION = 'JESPROC' & TERMMSGS = ON then ,
+  say PGMNAME dsn 'is location of' member'.'
+MSGLINE = PGMNAME dsn 'is location of' member'.'
+if member = 'JES2' then do
+  call Dynamic_proc
+  if result > 0 & TERMMSGS = ON then ,
+    say PGMNAME 'Error occurred' result
+  end
+PROC = proclibs
+jPROC = strip(PROC)
+jPROCVOL = procvol
+PROC     = null
+PROCVOL  = null
+do until jPROC = ''
+  PARSE VAR jPROC DSN jPROC
+  PARSE VAR jPROCVOL vol 7 jPROCVOL
+  if pos(DSN" ",PROC) = 0 then do
+    PROC = strip(PROC) DSN" "
+    PROCVOL = PROCVOL||vol
+    end
+end
+Address ISPEXEC
+PROC = strip(PROC)" "
+PROCVOL = PROCVOL
+if OPTION = 'JESPROC' & TERMMSGS = ON then ,
+  say PGMNAME member 'Proc libraries' PROC
+MSGLINE = PGMNAME member 'Proc libraries' PROC
+"VPUT (PROC PROCVOL)"
+Return
+ 
+Dynamic_proc:    /* Used to obtain Dynamic proclibs. */
+msgst = msg('OFF')
+x = outtrap("out.")
+test = cacc1010('$d proc')
+x = outtrap(off)
+lnx = 0
+line = null
+if TERMMSGS = ON then do
+  say PGMNAME "output from CACC1010 routine:"
+  do a = 1 to out.0
+    say out.a
+    end
+  end
+DO indx = 1 TO out.0
+  if pos('$HASP003 RC=(52)',out.indx) > 0 then do
+    if TERMMSGS = ON then ,
+      say PGMNAME 'System has no JES2 Dynamic PROCLIBs.'
+    MSGLINE = PGMNAME 'System has no JES2 Dynamic PROCLIBs.'
+    return 0
+    end /* if pos('$HASP003' */
+  if pos('$HASP690',out.indx) > 0 then do
+    if TERMMSGS = ON then ,
+      say PGMNAME 'User' userid() 'does not have READ access',
+        'to JES2.DISPLAY.PROCLIB resource in the OPERCMDS resource class.'
+    MSGLINE = PGMNAME 'User' userid() 'does not have READ access',
+      'to JES2.DISPLAY.PROCLIB resource in the OPERCMDS resource class.'
+    return 36
+    end /* if pos('$HASP690' */
+  if length(out.indx) < 30 then iterate
+  if pos('$HASP319',out.indx) = 0 then iterate
+  if pos(' PROCLIB(',out.indx) > 0 then do
+    if length(line) > 0 then do
+      lnx = lnx + 1
+      line.lnx = line
+      line.0 = lnx
+      end /* length(line) > 0 */
+    line = out.indx
+    end /* if pos(' PROCLIB(',out.indx) > 0 */
+  else,
+    line = line||substr(out.indx,30)
+  end /* DO indx = 1 */
+lnx = lnx + 1
+line.lnx = line
+line.0 = lnx
+do a = 1 to line.0
+  if pos(' PROCLIB(',line.a) > 0 then ,
+    if pos('//'substr(line.a,19,6),dddsns) > 0 then do
+      ddn = '//'substr(line.a,19,6)
+      parse value dddsns with left (ddn) right
+      parse value right with . "//" right
+      if right <> null then right = "//"right
+      dddsns = strip(left) right
+      end
+    dddsns = strip(dddsns) '//'substr(line.a,19,6)
+  if line.a = '' then iterate
+  line = word(line.a,words(line.a))
+  do until line = ''
+    parse var line . '=(' data ')' . ',' line
+    if data <> '' then do
+      parse var data 'DSNAME=' dsn ',VOLSER=' vol
+      if vol = '' then ,
+        MSGLINE = PGMNAME 'JES2 Dynamic PROCLIB DSN' dsn'.'
+      else ,
+        MSGLINE = PGMNAME 'JES2 Dynamic PROCLIB DSN' dsn 'on volume' vol'.'
+      if TERMMSGS = ON then ,
+        say MSGLINE
+      vol = vol||'       '
+      parse var vol vol 7 .
+      dddsns = strip(dddsns) dsn
+      if index(proclibs' ',dsn' ') = 0 then do
+        proclibs = strip(proclibs) dsn
+        procvol = procvol||vol
+        end /* if index(proclibs' ',dsn' ') = 0 */
+      end /* if data <> '' */
+    end /* do until line = '' */
+  end /* do a = 1 to line.0 */
+if test = 8 & TERMMSGS = ON then ,
+  say PGMNAME 'User' userid() 'does not have READ access',
+    'to CONSOLE resource in the TSOAUTH resource class.'
+/*else if test > 0 then,
+  say PGMNAME 'The following messages occured with a return code of' test
+if test > 0 then do a = 1 to out.0
+  say out.a
+  end
+Return test*/
+Return test
+ 
+DD:              /* Used to obtain member ddnames.                   */
+FIND:            /* Used to find member for option2 sub-routine.     */
+/*                                                                   */
+if OPTION = 'FIND' then,
+  If OPTION2 <> 'PARM'    & OPTION2 <> 'MSTRJCL' & ,
+     OPTION2 <> 'JESPROC' then do
+    say PGMNAME OPTION2 'invalid for' OPTION 'on member' IMEMBER'.'
+    exit 20
+    end
+if OPTION = 'DD' then,
+  If OPTION2 <> 'MSTRJCL' & OPTION2 <> 'JESPROC' then do
+    say PGMNAME OPTION2 'invalid for' OPTION 'on member' IMEMBER'.'
+    exit 20
+    end
+ 
+if OPTION2 = 'JESPROC' then do
+  rc = 0
+  'VGET (STCPROC)'
+  if rc <> 0 then do
+    termmsgs_old = TERMMSGS
+    TERMMSGS = 'OFF'
+    'VPUT (TERMMSGS)'
+    'SELECT CMD(CACC1000 ALL)'
+    TERMMSGS = termmsgs_old
+    'VPUT (TERMMSGS)'
+    'VGET (DDDSNS)'
+    msgst = msg('OFF')
+    x = OUTTRAP("out.")
+    test = cacc1010('$D JOBCLASS(STC),PROCLIB')
+    x = OUTTRAP(off)
+    lnx = 0
+    say PGMNAME "output from CACC1010 routine:"
+    procnrs =
+    do a = 1 to out.0
+      say out.a
+      parse var out.a . 'JOBCLASS(' jc ')' 'PROCLIB=' pn
+      if index(procnrs' ',pn' ') = 0 then
+        procnrs = strip(procnrs) pn
+      end
+    x = wordpos('//PROC'strip(procnrs),DDDSNS) + 1
+    STCPROC =
+    do a = x to words(DDDSNS)
+      STCPROC = STCPROC""word(DDDSNS,a)" "
+      end
+    parse var STCPROC STCPROC '//' .
+    PROC = STCPROC
+    PROCVOL = ' '
+    'VPUT (STCPROC PROC PROCVOL)'
+    end
+  end
+old_opt = OPTION
+OPTION = OPTION2
+TERMMSGS = OFF
+'VGET (PROC PROCVOL) '
+if PROC = "" then ,
+  interpret call OPTION
+'VGET (TERMMSGS) '
+OPTION = old_opt
+if OPTION2 = 'PARM' then do
+  DSNS = PARM
+  DSNSvol = PARMVOL
+  end
+else do
+  DSNS = PROC
+  DSNSvol = PROCVOL
+  end
+ 
+dddsns = null
+member = IMEMBER
+call Find_member
+ 
+if RC = 0 & RESULT = 0 then,
+  if TERMMSGS = ON then ,
+    say PGMNAME OPTION 'member' member 'in' FOUND'.'
+  else nop
+else,
+  say PGMNAME OPTION 'Unable to find member' member'.'
+ 
+if OPTION = 'FIND' then,
+  "VPUT (FOUND FVOL)"
+if OPTION = 'DD' then,
+  "VPUT (FOUND FVOL DDDSNS)"
+Return
+ 
+Find_member:     /* Obtain proclib information sub-routine           */
+/*                                                                   */
+proclibs = null
+procvol = null
+joblibs = null
+jobvol = null
+FOUND = null
+DDDATA = null
+do i = 1 to words(DSNS)
+  parse var DSNSvol vol 7 DSNSvol
+  dsn_mem = "'"strip(word(DSNS,i))"("member")'"
+  address ISPEXEC
+  if vol = null then,
+    "LMINIT DATAID(DDN) DATASET('"strip(word(DSNS,i))"')"
+  else,
+    "LMINIT DATAID(DDN) DATASET('"strip(word(DSNS,i))"') VOLUME("vol")"
+  "LMOPEN DATAID("DDN")"
+  "LMMFIND DATAID("DDN") MEMBER("member")"
+  lastcc = RC
+  "LMFREE DATAID("DDN")"
+  if "OK" = sysdsn(dsn_mem) | lastcc = 0 then do
+    FOUND = word(DSNS,i)
+    FVOL  = vol
+    leave
+    end
+  end
+MSGLINE = PGMNAME dsn_mem sysdsn(dsn_mem) 'lastcc=' lastcc'.'
+if i > words(DSNS) then do
+  if TERMMSGS = ON then ,
+    say PGMNAME OPTION 'Unable to find' member 'in' DSNS
+  MSGLINE = PGMNAME OPTION 'Unable to find' member 'in' DSNS
+  return 20
+end
+if OPTION = 'FIND' then return 0
+if vol = null then,
+  Address TSO "Alloc f("ddn") ds("dsn_mem") shr reuse"
+else,
+  Address TSO "Alloc f("ddn") ds("dsn_mem") shr reuse volume("vol")"
+x = listdsi(ddn file)
+IF SYSRECFM <> 'U' then,
+  Address TSO "Execio * diskr" ddn "(finis stem in."
+else do
+  x = outtrap("in1.")
+  Address TSO "Print infile("ddn") char"
+  x = OUTTRAP("OFF")
+  var = null
+  do i = 1 to in1.0 - 1
+    if left(in1.i,1) = "/" then sw = ON
+    if sw = 'ON' then,
+      var = var||left(in1.i,120)
+  end
+  a = 1
+  do i = 1 to length(var) by 80
+    if substr(var,i,1) = null then leave
+    in.a = substr(var,i,80)
+    a = a + 1
+  end
+  in.0 = a - 1
+end
+ 
+Address TSO "Free  f("ddn")"
+ 
+hit = 0
+sym = "sym"
+syms = null
+proc = "proc"
+tdsn = null
+tvol = null
+dsn = null
+vol = null
+/* Process PROC and DD statements                                    */
+/*  hit values  1 = PROC statements to obtain variables.             */
+/*              2 = DD statements for ddnames of PROCxx and          */
+/*                  IEFPDSI.                                         */
+/*              3 = DD statements for ddname IEFJOBS.                */
+/*              4 = All other not covered statements.                */
+do i = 1 to in.0
+  if (left(in.i,9) = "//IEFPDSI" | left(in.i,6) = "//PROC" |,
+    left(in.i,9) = "//IEFJOBS") & hit = 4 then do
+    tdsn = null
+    tvol = null
+    end
+  if left(in.i,3) = "//*" then iterate
+  symtext  = in.i
+  call Fix_Sym
+  in.i = symtext
+  if OPTION = 'DD' & pos(" DD ",in.i) > 0 then ,
+    hit = 2
+  if left(in.i,9) = "//IEFPDSI" | left(in.i,6) = "//PROC" then,
+    hit = 2
+  else,
+    if left(in.i,9) = "//IEFJOBS" then hit = 3
+    else,
+      if pos(" EXEC ",in.i) > 0 then hit = 4
+  if pos(" PROC ",in.i) > 0 then hit = 1
+  if hit = 1 then do
+    If pos(" PROC ",in.i) > 0 then test = word(in.i,3)
+    else test = word(in.i,2)
+    test = translate(test," ",",")
+    if words(test) > 1 then
+      do j = 1 to words(test)
+        parse value word(test,j) with symb "=" dsn
+        sym.symb = strip(dsn)
+        syms = syms symb
+        end
+    else do
+      parse value test with  symb "=" dsn
+      sym.symb = strip(dsn)
+      syms = syms symb
+      end
+    iterate
+    end
+  in.i  = TRANSLATE(in.i," ",",")
+  if pos(" DD ",in.i) > 0 & tdsn <> " " then do
+    dsn = tdsn
+    vol = tvol
+    if ACPNAME <> member & ,
+      OPTION <> "DD" then do
+      x = LISTDSI("'"dsn"'")
+      if x = 0 & vol <> null & vol = SYSVOLUME then,
+        vol = null
+      end
+    tdsn = null
+    tvol = null
+    vol = vol||'       '
+    parse var vol vol 7 .
+    if hit = 2 then do
+      dddsns = strip(dddsns) dsn
+      if index(proclibs' ',dsn' ') = 0 then do
+        proclibs = strip(proclibs) dsn
+        procvol = procvol||vol
+        end
+      end
+    if hit = 3 then do
+      dddsns = strip(dddsns) dsn
+      if index(joblibs' ',dsn' ') = 0 then do
+        joblibs = strip(joblibs) dsn
+        jobvol = jobvol||vol
+        end
+      end
+    end
+  if pos(" DD ",in.i) > 0 & OPTION = "DD" then do
+    if word(in.i,1) <> "//" then,
+      dddsns = strip(dddsns) word(in.i,1)
+    dsn = tdsn
+    tdsn = null
+    if hit = 2 then ,
+      dddsns = strip(dddsns) dsn
+    if hit = 3 then ,
+      dddsns = strip(dddsns) dsn
+    end
+  if left(in.i,9) = "//IEFPDSI" | left(in.i,6) = "//PROC" |,
+    left(in.i,9) = "//IEFJOBS" then,
+    dddsns = strip(dddsns) word(in.i,1)
+  if hit > 1 then do
+    If pos(" DD ",in.i) > 0 & tdsn <> " " then do
+      dsn = tdsn
+      vol = tvol
+      if ACPNAME <> member & ,
+        OPTION <> "DD" then do
+        x = LISTDSI("'"dsn"'")
+        if x = 0 & vol <> null & vol = SYSVOLUME then,
+          vol = null
+        end
+      tdsn = null
+      tvol = null
+      vol = vol||'       '
+      parse var vol vol 7 .
+      end
+    if tdsn = " " then,
+      parse value in.i with . "DSN=" tdsn " " .
+    if tvol = " " then,
+      parse value in.i with . "VOL=SER=" tvol " " .
+    if ACPNAME = member then do
+      parse value in.i with . "DSN=" dsn " " .
+      parse value in.i with . "VOL=SER=" vol " " .
+      parse value dsn with dsn '(' .
+      if index(proclibs' ',dsn' ') = 0 then,
+        proclibs = strip(proclibs) dsn
+      end
+    end
+  if left(in.i,9) = "//IEFPDSI" | left(in.i,6) = "//PROC" |,
+    left(in.i,9) = "//IEFJOBS" | left(in.i,3) = "// " then nop
+    else hit = 4
+  end
+dsn = tdsn
+vol = tvol
+if dsn <> '' then,
+  if ACPNAME <> member & ,
+    OPTION <> "DD" then do
+    x = LISTDSI("'"dsn"'")
+    if x = 0 & vol <> null & vol = SYSVOLUME then,
+      vol = null
+    end
+tdsn = null
+tvol = null
+vol = vol||'       '
+parse var vol vol 7 .
+if hit = 2 then do
+  dddsns = strip(dddsns) dsn
+  if index(proclibs' ',dsn' ') = 0 then do
+    proclibs = strip(proclibs) dsn
+    procvol = procvol||vol
+    end
+  end
+if hit = 3 then do
+  if index(joblibs' ',dsn' ') = 0 then do
+    joblibs = strip(joblibs) dsn
+    jobvol = jobvol||vol
+    end
+  end
+if joblibs <> null then do
+  do a=1 to words(proclibs)
+    parse var procvol vol 7 procvol
+    if index(joblibs' ',word(proclibs,a)' ') = 0 then,
+      joblibs = strip(joblibs word(proclibs,a))
+      jobvol = jobvol||vol
+  end
+  proclibs = joblibs
+  procvol = jobvol
+end
+if OPTION = "DD" then ,
+  Return 0
+proclibs = strip(proclibs)' '
+Return
+ 
+Fix_Sym: procedure expose symtext syms sym. null
+symb.0 = words(syms)
+do i = 1 to symb.0
+  jj = word(syms,i)
+  symb.i.1 = word(syms,i)
+  symb.i.2 = sym.jj
+end
+fixstart = 1
+srchdone = "N"
+do until srchdone = "Y"
+  symtext = symtext
+  p1 = pos("&",symtext,fixstart)
+  if p1 > 0 then do
+    parse var symtext 1 junk =(fixstart) left"&"fixsymb
+    if junk = symtext then ,
+      junk = null
+    junk = junk
+    left = left
+    fixsymb = fixsymb
+    if left(fixsymb,1) = "&" then ,
+      p1 = p1 + 1        /* ignore "&&" */
+    else do
+      right = null
+      symdone = "N"
+      do r=1 to length(fixsymb) until symdone = "Y"
+        if datatype(substr(fixsymb,r,1),"ALPHA") = 0 then do
+          right = substr(fixsymb,r)
+          if left(right,1) = "." then ,
+            right = substr(right,2)
+          fixsymb = substr(fixsymb,1,r-1)
+          symdone = "Y"
+          end
+        end
+      if length(fixsymb) > 0 then do
+        syssym = null
+        do symidx = 1 to symb.0
+          if fixsymb = symb.symidx.1 then do
+            syssym = symb.symidx.2
+            leave
+            end
+          end
+        if syssym = null then ,
+          syssym = mvsvar("symdef",fixsymb)
+        if syssym <> null then do
+          if left(syssym,1) = "'" then ,
+            parse value syssym with "'" syssym "'"
+          symtext = junk""left""syssym""right
+          end /* if left(syssym,1) = "'" */
+        end /* if syssym <> null */
+      end
+    fixstart = p1 + 1
+    if fixstart > length(symtext) then ,
+      srchdone = "Y"
+    end
+  else
+    srchdone = "Y"
+  end
+return
+ 
+MSGwrite:
+x = outtrap(off)
+do x = 1 to msgs.0
+  say PGMNAME msgs.x
+  end
+x = outtrap("msgs.")
+return
+ 

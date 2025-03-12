@@ -1,0 +1,418 @@
+/* REXX */
+/* CLS2REXXed by UMLA01S on 20 Nov 2023 at 15:40:29  */
+/*trace ?r*/
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+Address ISREDIT
+ 
+"MACRO"               /* CARM0104 EDIT TEMP4(*)  */
+/*********************************************************************/
+/* 09/10/2007 CL Fenton Copied from CARM0004 to evaulate resources.  */
+/* 11/30/2007 CL Fenton Corrected sort RC cond.  Removed comment     */
+/*            commands.                                              */
+/* 03/08/2017 CL Fenton Added process to remove duplicate records.   */
+/* 05/23/2017 CL Fenton removed GROUPID user list processing         */
+/*            (CARM0005), STS-017060.                                */
+/* 02/27/2018 CL Fenton Copied writing sep30 and racfpro records for */
+/*            rectype 1 to rectype 4.                                */
+/* 10/29/2020 CL Fenton Chgs made to remove resources where there    */
+/*            is a more specific resource specified for the rule     */
+/*            specified, STS-025101.                                 */
+/* 11/20/2023 CL Fenton Converted script from CLIST to REXX.         */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname = "CARM0104 11/20/23"
+sysprompt = "OFF"                       /* CONTROL NOPROMPT          */
+sysflush = "OFF"                        /* CONTROL NOFLUSH           */
+sysasis = "ON"                          /* CONTROL ASIS - caps off   */
+syssymlist = 'OFF'
+sysconlist = 'OFF'
+syslist = 'OFF'
+sysmsg = 'ON'
+return_code = 0   /* SET RETURN CODE TO 0 */
+maxcc = 0
+ 
+/*******************************************/
+/* VARIABLES ARE PASSED TO THIS MACRO      */
+/* CONSLIST                                */
+/* COMLIST                                 */
+/* SYMLIST                                 */
+/* TERMMSGS                                */
+/* SORTPOS                                 */
+/*******************************************/
+Address ISPEXEC "VGET (CONSLIST COMLIST SYMLIST TERMMSGS CARM0005",
+  "TEMP5 RACFRPT TYPERUN LISTGRP ) ASIS"
+rm04vget = return_code
+If return_code <> 0 then do
+  Say pgmname "VGET RC =" return_code  zerrsm
+  Say pgmname "CONSLIST/"conslist "COMLIST/"comlist "SYMLIST/"symlist,
+    "TERMMSGS/"termmsgs
+  Say pgmname "CARM0005/"carm0005 "TEMP5/"temp5 "RACFRPT/"racfrpt,
+    "TYPERUN/"typerun "LISTGRP/"listgrp
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON",
+  then Trace ?r
+ 
+/*******************************************/
+/* TURN ON MESSAGES                        */
+/*******************************************/
+syssymlist = symlist          /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist         /* CONTROL CONLIST/NOCONLIST */
+syslist    = comlist          /* CONTROL LIST/NOLIST       */
+sysmsg     = termmsgs         /* CONTROL MSG/NOMSG         */
+Address ISPEXEC "CONTROL NONDISPL ENTER"
+Address ISPEXEC "CONTROL ERRORS RETURN"
+"(MEMBER) = MEMBER"
+"NULLS OFF"
+"CAPS OFF"
+member = member
+ind1 = "  "
+ind2 = "    "
+uzid_list = "#"
+sep30 = "- - - - - - - - - - - - - - -"
+sepline = sep30 sep30 sep30 sep30
+ 
+"(ENDER) = LINENUM .ZLAST"
+If ender < 1 then,
+  SIGNAL END_EDIT
+row = 0
+ 
+ 
+CHK_UZID:
+do forever
+  return_code = 0
+  row = row + 1
+ 
+  If row > ender then,
+    leave
+/*  SIGNAL SORT*/
+  "CURSOR =" row 0
+ 
+  "FIND 'GROUPID' 46"
+  If return_code <> 0 then,
+    leave
+/*  SIGNAL SORT*/
+ 
+  "(ROW,COL) = CURSOR"
+  "(DATA) = LINE" row
+  uzid = substr(data,54,8)
+  If pos("#"uzid,uzid_list) <> 0 then,
+    iterate
+/*  SIGNAL CHK_UZID*/
+  uzid_list = uzid_list""uzid"#"
+  "X ALL"
+  "FIND ALL '"uzid"' 54"
+ 
+  name = "NAME=Unknown"
+  return_code = 0
+  x = outtrap("out.",3)
+  cmd = "LISTUSER" uzid
+  Address TSO cmd
+  listu_rc = return_code
+  If return_code = 0 then do
+    name = ""
+    do x = 1 to 3
+      If "U" = left(out.x,1) then do
+        test1 = out.x
+        parse var out.x . "NAME=" name "OWNER=" .
+        name = left("NAME="strip(name,"T"),42)
+        cf = "'8GROUPID'"
+        ct = "'7 USERID'"
+        "CHANGE" cf ct "ALL NX 45"
+        cf = "'                                          '"
+        ct = "'"name"'"
+        "CHANGE" cf ct "ALL NX 83"
+        x = 3
+        end
+      end
+ 
+/*  SIGNAL CHK_UZID*/
+    end
+  else do
+    return_code = 0
+    x = outtrap("out.",3)
+    cmd = "LISTGRP" uzid
+    Address TSO cmd
+    listg_rc = return_code
+    If return_code <> 0 then do
+      name = left("NAME=Not found U="listu_rc" G="listg_rc,42)
+      cf = "'8GROUPID'"
+      ct = "'5NOT_DEF'"
+      "CHANGE" cf ct "ALL NX 45"
+      cf = "'                                          '"
+      ct = "'"name"'"
+      "CHANGE" cf ct "ALL NX 83"
+      end
+    end
+  "RESET"
+/*SIGNAL CHK_UZID*/
+  end
+ 
+ 
+SORT:
+"(ENDER) = LINENUM .ZLAST"
+return_code = 0
+If ender > 0 then do
+  "SORT 1 62"
+  If return_code > 4 then do
+    Say pgmname "SORT_RC =" return_code member zerrsm
+    end
+  end
+Else do
+  Say pgmname member "no record in member."
+  SIGNAL ERR_EXIT
+  end
+ 
+/*******************************************/
+/* Remove duplicate records                */
+/*******************************************/
+Do CNT = 1 to ender
+  "(XSTAT) = XSTATUS" cnt
+  If xstat = "NX" then do
+    "(DATA) = LINE" cnt
+    "EXCLUDE ALL """data""" 1"
+    "XSTATUS" cnt "= NX"
+    end
+  end
+"DELETE ALL X"
+"(ENDER) = LINENUM .ZLAST"
+return_code = 0
+ 
+/*******************************************/
+/* Remove unneeded type 4 entries          */
+/*******************************************/
+Do CNT = 1 to ender
+  "(XSTAT) = XSTATUS" cnt
+  If xstat = "NX" then do
+    "(DATA) = LINE" cnt
+    If substr(data,45,1) = "4" then do
+      Call check_user_recs
+      end
+    end
+  end
+"DELETE ALL X"
+"(ENDER) = LINENUM .ZLAST"
+return_code = 0
+ 
+/*******************************************/
+/* MAIN LOOP                               */
+/*******************************************/
+prevpro1 = ""
+prevpro2 = ""
+prevuid = ""
+group_list = "#"
+curline = 0
+ 
+ 
+LOOP_PROFILE:
+do curline = 1 to ender
+  return_code = 0
+  /*curline = curline + 1
+    If curline > ender then,
+      SIGNAL END_EDIT*/
+ 
+  "(DATA) = LINE" curline
+  racfpro = substr(data,1,44)
+  rectype = substr(data,45,1)
+ 
+  Select
+    When rectype = "1" then do
+      If prevpro1 <> racfpro &,
+         prevpro1 <> " " then do
+        ac = sepline
+        Address ISPEXEC "LMPUT DATAID("temp5") MODE(INVAR)",
+          "DATALOC(AC) DATALEN("length(ac)") MEMBER("member")"
+        end
+      prevpro1 = racfpro
+      prevuid = ""
+      univ = substr(data,46)
+      ac = left(racfpro,53)
+      ac = ac""univ
+      Address ISPEXEC "LMPUT DATAID("temp5") MODE(INVAR)",
+        "DATALOC(AC) DATALEN("length(ac)") MEMBER("member")"
+      end
+    When rectype = "4" then do
+      /* COPIED INFORMATION FROM RECTYPE 1 BELOW */
+      If prevpro1 <> racfpro &,
+         prevpro1 <> " " then do
+        ac = sepline
+        Address ISPEXEC "LMPUT DATAID("temp5") MODE(INVAR)",
+          "DATALOC(AC) DATALEN("length(ac)") MEMBER("member")"
+        prevpro1 = racfpro
+        prevuid = ""
+        ac = racfpro
+        Address ISPEXEC "LMPUT DATAID("temp5") MODE(INVAR)",
+          "DATALOC(AC) DATALEN("length(ac)") MEMBER("member")"
+        end
+      /* COPIED INFORMATION FROM RECTYPE 1 ABOVE */
+      dsn = substr(data,55,43)
+      If substr(data,1,4) <> "    " then do
+        ac = ind1""dsn
+        Address ISPEXEC "LMPUT DATAID("temp5") MODE(INVAR)",
+          "DATALOC(AC) DATALEN("length(ac)") MEMBER("member")"
+        end
+      Else do
+        ac = left(racfpro,53)dsn
+        Address ISPEXEC "LMPUT DATAID("temp5") MODE(INVAR)",
+          "DATALOC(AC) DATALEN("length(ac)") MEMBER("member")"
+        end
+      end
+    When rectype = "5" |,
+         rectype = "6" |,
+         rectype = "7" then do
+      uzid = substr(data,54,8)
+      If prevuid <> uzid then do
+        prevuid = uzid
+        grpusr = substr(data,46,17)
+        grpacc = substr(data,65,16)
+        name = substr(data,83)
+        ac = ind2""grpusr
+        ac = substr(ac,1,22)grpacc
+        Select
+          When rectype = "5" then do
+            ac = substr(ac,1,39)"USER=NOT_DEF*"
+            ac = substr(ac,1,53)name
+            ac = substr(ac,1,79)racfpro
+            end
+          When rectype = "6" then do
+            ac = substr(ac,1,79)racfpro
+            end
+          When rectype = "7" then do
+            ac = substr(ac,1,39)"USER="uzid
+            ac = substr(ac,1,53)name
+            ac = substr(ac,1,79)racfpro
+            end
+          Otherwise nop
+          end
+        Address ISPEXEC "LMPUT DATAID("temp5") MODE(INVAR)",
+          "DATALOC(AC) DATALEN("length(ac)") MEMBER("member")"
+        end
+      end
+    Otherwise nop
+    end
+ 
+  If rectype <> "8" then,
+    iterate
+/*  SIGNAL LOOP_PROFILE*/
+  uzid = substr(data,54,8)
+  If prevuid = uzid then,
+    iterate
+/*  SIGNAL LOOP_PROFILE*/
+  If uzid = " " then,
+    iterate
+/*  SIGNAL LOOP_PROFILE*/
+ 
+  prevuid = uzid
+  grpusr = substr(data,46,17)
+  grpacc = substr(data,65,16)
+  acc1 = strip(substr(data,72,8),"T")
+  group = "G"
+  name = "NAME="
+ 
+  return_code = 0
+  ac = ind2""grpusr
+  ac = substr(ac,1,22)grpacc
+  Address ISPEXEC "LMPUT DATAID("temp5") MODE(INVAR)",
+    "DATALOC(AC) DATALEN("length(ac)") MEMBER("member")"
+ 
+  If acc1 = "NONE" then,
+    iterate
+/*  SIGNAL LOOP_PROFILE*/
+ 
+  Address ISPEXEC "VPUT (MEMBER UZID GRPUSR GRPACC RACFPRO) ASIS"
+  return_code = 0
+  /*ISPEXEC EDIT DATAID(&RACFRPT) MACRO(&CARM0005) MEMBER(&LISTGRP)*/
+  If return_code > 4 then,
+    Say pgmname "EDIT RACFRPT" listgrp "RC =" return_code  zerrsm
+/*SIGNAL LOOP_PROFILE*/
+  end
+ 
+ 
+END_EDIT:
+return_code = 0
+Address ISPEXEC "LMMADD DATAID("temp5") MEMBER("member")"
+If return_code = 4 then do
+  return_code = 0
+  Address ISPEXEC "LMMREP DATAID("temp5") MEMBER("member")"
+  If return_code <> 0 then,
+    Say pgmname "LMMREP_TEMP5_RCODE =" return_code member zerrsm
+  end
+Else do
+  If return_code <> 0 then,
+    Say pgmname "LMMADD_TEMP5_RCODE =" return_code member   zerrsm
+  end
+ 
+return_code = 0
+/*******************************************/
+/* SAVE OUTPUT                             */
+/*******************************************/
+ 
+ 
+ERR_EXIT:
+If maxcc >= 16 | return_code > 0 then do
+  Address ISPEXEC "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then,
+    zispfrc = maxcc
+  Else,
+    zispfrc = return_code
+  Address ISPEXEC "VPUT (ZISPFRC) SHARED"
+  Say pgmname "ZISPFRC =" zispfrc
+  end
+rm004rc = return_code
+Address ISPEXEC "VPUT (RM04VGET RM004RC) ASIS"
+"END"
+Exit (0)
+ 
+ 
+/*******************************************/
+/*  SYSCALL SUBROUTINES                    */
+/*******************************************/
+CHECK_USER_RECS:
+return_code = 0
+key1 = substr(data,1,44)
+Do xx = 5 to 8
+  return_code = 0
+  "FIND FIRST '"key1""xx"' 1"
+  If return_code = 0 then leave
+/*If return_code = 0 then,
+    xx = 8*/
+  end
+ 
+If return_code = 0 then do
+  data = strip(data,"T")
+  "SEEK ALL '"data"' 1"
+  "(A,B) = SEEK_COUNTS"
+  If b > 1 then,
+    "XSTATUS" cnt "= X"
+  end
+return
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname "REXX error" rc "in line" sigl":" strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC >= 16 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname "REXX error" rc "in line" sigl":" ERRORTEXT(rc)
+  say SOURCELINE(sigl)
+  end
+if return_code > maxcc then,
+  maxcc = return_code
+return
+ 
+ 

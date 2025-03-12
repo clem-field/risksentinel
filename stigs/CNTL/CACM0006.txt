@@ -1,0 +1,214 @@
+/* REXX */
+/* CLS2REXXed by FSOX001 on 9 Sep 2016 at 15:45:33  */
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+Address ISREDIT
+ 
+"MACRO"               /* CACM0406 EDIT TEMP3 */
+/*********************************************************************/
+/* 06/15/2004 JL.NELSON ADDED EXIT CODE                              */
+/* 10/29/2004 JL.NELSON Added record counters                        */
+/* 11/18/2004 JL.NELSON Fixed sort by DSN errors                     */
+/* 02/14/2005 JL.NELSON Changed constants to variables before rename */
+/* 03/15/2005 JL.NELSON Added program name to output TEMP3           */
+/* 03/18/2005 JL.NELSON Added code from CATM0001 delete unused       */
+/*            entries.                                               */
+/* 06/09/2005 JL.NELSON Pass MAXCC in ZISPFRC variable               */
+/* 06/15/2005 JL.NELSON Reset return code to end job step            */
+/* 08/23/2005 JL.NELSON Drop &STR(*) EQ &SUBSTR(1,&OLD) check        */
+/*            Charles F.                                             */
+/* 03/03/2006 JL.NELSON Made changes to avoid SUBSTR abend 920/932.  */
+/* 03/20/2006 JL.NELSON Use NRSTR avoid abend 900 if ampersand in    */
+/*            data.                                                  */
+/* 03/29/2006 JL.NELSON Test for empty member LINENUM Rcode = 4.     */
+/* 06/02/2009 CL.FENTON Changes on how TBLMBR is processed.          */
+/* 09/13/2016 CL.FENTON Converted script from CLIST to REXX.         */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname = "CACM0006 09/13/16"
+sysprompt = "OFF"                /* CONTROL NOPROMPT          */
+sysflush = "OFF"                /* CONTROL NOFLUSH           */
+sysasis = "ON"                 /* CONTROL ASIS - caps off   */
+Address ISPEXEC "CONTROL NONDISPL ENTER"
+Address ISPEXEC "CONTROL ERRORS RETURN"
+/* *************************************** */
+/* VARIABLES ARE PASSED TO THIS MACRO      */
+/* CONSLIST                                */
+/* COMLIST                                 */
+/* SYMLIST                                 */
+/* TERMMSGS                                */
+/* TEMP                                    */
+/* *************************************** */
+return_code = 0
+Address ISPEXEC "VGET (CONSLIST COMLIST SYMLIST TERMMSGS TEMP1",
+  "TEMP2 TEMP3 SORTPOS TBLMBR) ASIS"
+cm06vget = return_code
+If return_code <> 0 then do
+  Say pgmname "VGET RC =" return_code zerrsm
+  Say pgmname "CONSLIST/"conslist "COMLIST/"comlist "SYMLIST/"symlist,
+    "TERMMSGS/"termmsgs
+  Say pgmname "TEMP1/"temp1 "TEMP2/"temp2 "TEMP3/"temp3,
+    "SORTPOS/"sortpos "TBLMBR/"tblmbr
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  End
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" ,
+  then Trace r
+ 
+maxcc = 0
+return_code = 0
+/*******************************************/
+/* TURN ON MESSAGES                        */
+/*******************************************/
+syssymlist = symlist          /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist         /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist          /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs         /* CONTROL MSG/NOMSG         */
+/*******************************************/
+/* MAIN PROCESS                            */
+/*******************************************/
+tblmbr = tblmbr
+"(MEMBER) = MEMBER"
+"(DSNAME) = DATASET"
+return_code = 0
+"(LASTLINE) = LINENUM .ZLAST"
+If return_code > 0 then do
+  If lastline = 0 then,
+    Say pgmname "Empty file RCode =" return_code "DSN="dsname,
+      "MEMBER="member zerrsm
+  Else
+    Say pgmname "LINENUM Error RCode =" return_code "DSN="dsname,
+      "MEMBER="member zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  End
+Say pgmname "TEMP3 records at start of program" lastline
+Say pgmname "SORT Paremeters" sortpos
+"EXCLUDE ' ' ALL 1 2"
+"DELETE ALL X"
+"RESET"
+/*******************************************/
+/* SORT TO ELIMINATE DUPS                  */
+/*******************************************/
+START_SORT:
+return_code = 0
+"SORT" sortpos
+cm06se = return_code
+If return_code > 4 then do /* SORT_RC = 8 No records to sort */
+  Say pgmname "SORT" sortpos "RC" return_code zerrsm
+  SIGNAL ERR_EXIT
+  End
+LOOP1:
+return_code = 0
+old = " "
+oprefix = " "
+"(ENDER) = LINENUM .ZL"
+/*******************************************/
+/* MAIN LOOP                               */
+/*******************************************/
+do counter = 1 to ender
+  "(DATA) = LINE" counter
+  new = substr(data,4,47)
+  nprefix = substr(data,1,3)
+  If " " = substr(new,1,1) then do
+    /* WRITE &PGMNAME Delete &DATA*/
+    "XSTATUS" counter "= X"
+    iterate
+    end
+/*******************************************/
+/* DELETE DUPS                             */
+/*******************************************/
+  If new = old then do
+    If nprefix <> oprefix & 1 = substr(sortpos,1,1) then do
+      old = new
+      oprefix = nprefix
+      counter = counter + 1
+      end
+    Else do
+      /* WRITE &PGMNAME Delete &DATA*/
+      "XSTATUS" counter "= X"
+      end
+    end
+  Else do
+    old = new
+    oprefix = nprefix
+    end
+  end
+"DELETE ALL X"
+/* *************************************** */
+/* PROCESS TABLE entries only              */
+/* *************************************** */
+TABLE_PROCESS:
+tlen = length(tblmbr)
+tabledata = "99 "
+TABLE_LOOP:
+return_code = 0
+do tcnt = 2 to tlen
+  ecnt = pos("#",tblmbr,tcnt)
+  If tcnt > 0 & tcnt <= ecnt then,
+    tabledata = substr(tblmbr,tcnt)
+  iter = substr(tabledata,1,3)
+  return_code = 0
+  "X ALL '"iter"' 1"
+  If return_code > 4 then,
+    Say pgmname "X ALL '"iter"' RC" return_code zerrsm
+  tcnt = ecnt
+  end
+"DELETE ALL NX"
+"RESET"
+/* *************************************** */
+/* END PROCESSES                           */
+/* *************************************** */
+END_EXIT:
+return_code = 0
+"SORT 1 50 A"
+cm06s2e = return_code
+If return_code > 4 then do
+  Say pgmname "SORT2 RC" return_code  zerrsm
+  end
+"(LASTLINE) = LINENUM .ZLAST"
+Say pgmname "TEMP3 records at end of program  " lastline
+ERR_EXIT:
+If maxcc >= 16 | return_code > 0 then do
+  Address ISPEXEC "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then,
+    zispfrc = maxcc
+  Else,
+    zispfrc = return_code
+  Address ISPEXEC "VPUT (ZISPFRC) SHARED"
+  Say pgmname "ZISPFRC =" zispfrc
+  end
+cm006rc = return_code
+Address ISPEXEC "VPUT (CM06VGET CM06SE CM06S2E CM006RC) ASIS"
+"SAVE"
+"END"
+Exit 0
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC > 4 & RC <> 8 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname 'REXX error' rc 'in line' sigl':' ERRORTEXT(rc)
+  say SOURCELINE(sigl)
+  end
+if return_code > maxcc then
+  maxcc = return_code
+return
+ 
+ 

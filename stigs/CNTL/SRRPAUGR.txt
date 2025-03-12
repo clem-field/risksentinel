@@ -1,0 +1,35 @@
+)ATTR
+ _ TYPE(INPUT)  INTENS(HIGH) CAPS(ON)
+ # TYPE(OUTPUT) INTENS(HIGH) SKIP(ON) CAPS(OFF)
+ @ TYPE(OUTPUT) INTENS(LOW)  SKIP(ON) CAPS(OFF)
+ * TYPE(TEXT)   INTENS(HIGH) SKIP(ON) COLOR(RED)
+)BODY WIDTH(80) EXPAND("")
+%"-" Security Readiness Review Self-Audit "-"+
+%" "Review Authorized Users and Provide Input to Pre-Population" "+
+@PGM8     %" "Version:@SRRVERS +
+%Option ===>_ZCMD
+%
+%
+%            A+- Browse list of all userids
+%
+%            B+- Enter selection choices for Pre-Population
+%
+%            C+- Verify and update Authorized user groups
+%
+*          The accuracy/validity of the user groups is the
+*          primary responsibility of the site SA.  Pre-population
+*          is only intended to populate the user groups based on
+*          Best Available Input Data and is never guaranteed to be
+*          100 percent accurate.
+%
+%EXIT +(PF3) to end.
+#SRRMSG
+)INIT
+  .CURSOR = ZCMD
+/*IF (&ZCMD EQ '')*/
+/*  &ZCMD = &OPT*/
+)PROC
+  &OPT = TRUNC (&ZCMD, '.')
+  &ZTRAIL = .TRAIL
+  VER (&OPT,NB,LIST,A,B,C)
+)END

@@ -1,0 +1,1432 @@
+/* REXX */
+/* CLS2REXXed by FSOX001 on 31 Aug 2017 at 15:42:07  */
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+Address ISREDIT
+ 
+"MACRO"               /* SRRMPDI VIEW PDI(*) */
+/*********************************************************************/
+/* 04/22/2005 CL.Fenton Created for dialog - for product             */
+/*            information.                                           */
+/* 06/28/2007 CL.Fenton Changes made for remove req for specific     */
+/*            products.                                              */
+/* 08/07/2007 CL.Fenton Added IAVM analysis.                         */
+/* 11/30/2007 CL.Fenton Changed DBMS text from NOT performed by      */
+/*            ACP to performed internally by DBMS and not by         */
+/*            ACP.                                                   */
+/* 04/08/2008 CL.Fenton Added title for IAVM panel.  Added D and S   */
+/*            REC_TYPEs for datasets and subsystem names.            */
+/* 02/28/2009 CL.Fenton Added Vulnerabily Question process.          */
+/* 06/02/2009 CL.Fenton Chgd TITLE entries and added ACP00110.       */
+/*            Added additional RECORD_TYPEs.                         */
+/* 09/16/2009 CL.Fenton Correct adding MQS ssid after previous       */
+/*            version.  Also corrected the deletion of MQS ssid      */
+/*            not deleting other record entries.                     */
+/* 10/09/2009 CL.Fenton Chgs made to set bounds in member.           */
+/* 02/26/2010 CL.Fenton Added FDR and NETVIEW tests.                 */
+/* 07/19/2010 CL.Fenton Added ICSF tests.                            */
+/* 10/08/2010 CL.Fenton Moved and chgd records entering to tables.   */
+/* 06/17/2011 CL.Fenton Added config request for CA1.                */
+/* 06/27/2011 CL.Fenton Added SSID chgs for CA VTAPE.  Added BMC     */
+/*            MAINVIEW.                                              */
+/* 06/27/2011 CL.Fenton Colleciton of additional info for SDSF.      */
+/* 12/13/2011 CL.Fenton Chgs for new products CA1, NC-Pass, SDSF,    */
+/*            and CA Common Services, CSD-AR003079950.               */
+/* 02/17/2012 CL.Fenton Chgs CA1 configration from TMOOPTxx to       */
+/*            TMOSYSxx, CSD-AR003275531.  Also removal of            */
+/*            TMOOPTxx entry from PRODUCTS member.                   */
+/* 06/14/2012 CL.Fenton Increased size of configuration dataset      */
+/*            prompt.                                                */
+/* 06/04/2013 CL.Fenton Added loadlib data set location to           */
+/*            RECTYPES to correct issue with CATSOL resources,       */
+/*            STS-002427.                                            */
+/* 03/14/2014 CL.Fenton Added configuration keyword/value            */
+/*            RECORD_TYPE to collect information for Netview,        */
+/*            STS-005268 and STS-00 5281.                            */
+/* 03/09/2015 CL.Fenton Chgd GET_RECORD process to delete records    */
+/*            that do not match RECORD_TYPE "1" for CICS, IDMS,      */
+/*            and ROSCOE for RECORD_TYPE of "2", "3", and "5",       */
+/*            STS-009650.                                            */
+/* 05/04/2015 CL.Fenton Removed DBMS and IDMS from automation,       */
+/*            STS-007219 and STS-007637.                             */
+/* 10/26/2015 CL.Fenton Removed IAVM process from script,            */
+/*            STS-012220.                                            */
+/* 05/02/2016 CL.Fenton Added vulnerabily question for ACP00270      */
+/*            to identify STCs/Userids/Datasets of authorized to     */
+/*            have CSVDYLPA.ADD and CSVDYLPA.DELETE resources,       */
+/*            STS-014370.                                            */
+/* 10/26/2016 CL.Fenton, Added requirements CA1 Started Tasks        */
+/*            datasets, STS-015909.                                  */
+/* 08/28/2017 CL.FENTON Converted script from CLIST to REXX.         */
+/* 10/24/2018 CL.Fenton, Changed process on MQS product by stripping */
+/*            trailing spaces from ssid, STS-020887.                 */
+/* 02/28/2019 CL.Fenton, Added additional field for CICS regions to  */
+/*            identify if STC is Production or Test/Developement,    */
+/*            STS-021044.                                            */
+/* 02/24/2023 CL.Fenton, Changes made for issue with VULQUES         */
+/*            processing.                                            */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname = "SRRMPROD 02/24/23"
+pgm8 = substr(pgmname,1,8)
+srrpprod = "SRRPPROD"
+jobinst = "CACJ051D"
+srrcntl = "CNTL"
+return_code = 0
+maxcc = 0
+"(MBR) = MEMBER"
+maxcc = 0
+Address ISPEXEC "CONTROL NONDISPL ENTER"
+Address ISPEXEC "CONTROL ERRORS RETURN"
+return_code = 0
+/*******************************************/
+/* VARIABLES ARE PASSED TO THIS MACRO      */
+/* CONSLIST                                */
+/* COMLIST                                 */
+/* SYMLIST                                 */
+/* TERMMSGS                                */
+/*******************************************/
+Address ISPEXEC "VGET (CONSLIST COMLIST SYMLIST TERMMSGS) ASIS"
+cm24vget = return_code
+If return_code <> 0 then do
+  Say pgmname "VGET RC =" return_code zerrsm
+  Say pgmname "CONSLIST/"conslist "COMLIST/"comlist,
+    "SYMLIST/"symlist "TERMMSGS/"termmsgs
+  end
+return_code = 0
+/*******************************************/
+/* TURN ON MESSAGES                        */
+/*******************************************/
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" then,
+  Trace r
+ 
+syssymlist = symlist           /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist          /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist              /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs              /* CONTROL MSG/NOMSG         */
+sysprompt = "OFF"              /* CONTROL NOPROMPT          */
+sysflush = "OFF"               /* CONTROL NOFLUSH           */
+sysasis = "ON"                 /* CONTROL ASIS - caps off   */
+Select
+  When mbr = "PRODUCTS" then,
+    cactprod = "CACTPROD"
+  When mbr = "VULQUES" then,
+    cactprod = "CACTQUES"
+  end
+return_code = 0
+/*******************************************/
+/* VARIABLES ARE PASSED TO THIS MACRO      */
+/* ACPNAME                                 */
+/*******************************************/
+"(DW) = DATA_WIDTH"
+"BOUNDS = 1" dw
+"NUMBER OFF"
+"STATS ON"
+"CAPS OFF"
+return_code = 0
+return_code = 0
+Address ISPEXEC "VGET (SRRINST SRRUSER) PROFILE"
+/*******************************************/
+/* VERFIY HLQ FOR CNTL AND CLIST LIBRARIES */
+/*******************************************/
+cntldsn = srrinst"."srrcntl
+return_code = 0
+Address ISPEXEC "LMINIT DATAID(CNTLID) DATASET('"cntldsn"')"
+lminit_cntlid_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT_CNTLID_RC" return_code zerrsm
+  Say pgmname "DSN="cntldsn "Data Set Error"
+  SIGNAL  ERR_EXIT
+  end
+Address ISPEXEC "LMOPEN DATAID("cntlid") OPTION(INPUT)"
+lmopen_cntlid_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMOPEN_CNTLID_RC" return_code zerrsm
+  Say pgmname "DSN="cntldsn "Data Set Error"
+  SIGNAL  ERR_EXIT
+  end
+return_code = 0
+Address ISPEXEC "LMMFIND DATAID("cntlid") MEMBER("cactprod")"
+lmmfind_cntl_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMMFIND_CNTL_RC =" return_code "MEMBER =",
+    cactprod zerrsm
+  SIGNAL  ERR_EXIT
+  end
+return_code = 0
+Address ISPEXEC "TBCREATE GRPTABLE REPLACE NOWRITE KEYS(PRODNAME)",
+  "NAMES(DESC DESC2 DESC3 INST RECTYPES MBRS)"
+If return_code > 4 then do
+  Say pgmname "TBCREATE  RC =" return_code zerrsm
+  SIGNAL  ERR_EXIT
+  end
+return_code = 0
+ 
+ 
+/*******************************************/
+/* MAIN PROCESS                            */
+/*******************************************/
+GET_NEXT_TBL:
+do until return_code > 0
+  return_code = 0
+  Address ISPEXEC "LMGET DATAID("cntlid") MODE(INVAR)",
+    "DATALOC(TRECORD) MAXLEN(80) DATALEN(LRECL)"
+  lmget_cntl_rc = return_code
+  If return_code = 8 then do
+    lmget_cntl_rc = 0               /* SET RETURN CODE TO 0 */
+    leave
+    end
+  If return_code <> 0 then do
+    Say pgmname "LMGET  CNTL  RC =" return_code zerrsm
+    SIGNAL  ERR_EXIT
+    end
+  If left(trecord,1) = "*" then,
+    iterate
+  prodname = ""
+  inst = ""
+  rectyp = ""
+  Select
+    When mbr = "PRODUCTS" then do
+      prodname = substr(trecord,1,8)
+      recnum = substr(trecord,9,1)
+      inst = substr(trecord,10,1)
+      If recnum = 1 then do
+        desc = substr(trecord,12)
+        desc = strip(desc,"T")
+        rectypes = ""
+        end
+      Else do
+        rectypes = substr(trecord,12)
+        rectypes = strip(rectypes,"T")
+        end
+      end
+    When mbr = "VULQUES" then do
+      prodname = substr(trecord,1,8)
+      rectyp = substr(trecord,10,1)
+      If rectyp = "1" then do
+        desc = substr(trecord,12,60)
+        desc = strip(desc,"T")
+        rectypes = substr(trecord,72)
+        rectypes = strip(rectypes,"T")
+        desc2 = ""
+        desc3 = ""
+        end
+      If rectyp = "2" then do
+        desc2 = substr(trecord,12)
+        desc2 = strip(desc2,"T")
+        end
+      If rectyp = "3" then do
+        desc3 = substr(trecord,12)
+        desc3 = strip(desc3,"T")
+        end
+      end
+    Otherwise nop
+    end
+  return_code = 0
+  "EXCLUDE ALL '"prodname"' 1"
+  Call product_status
+  Address ISPEXEC "TBMOD GRPTABLE ORDER"
+  return_code = 0
+  end
+ 
+ 
+END_NEXT_TBL:
+"DELETE ALL NX"
+"RESET"
+Select
+  When mbr = "PRODUCTS" | mbr = "VULQUES" then,
+    Address ISPEXEC "TBSORT GRPTABLE FIELDS(PRODNAME)"
+  Otherwise nop
+  end
+return_code = 0
+Address ISPEXEC "LMCLOSE DATAID("cntlid")"
+lmclose_cntlid_rc = return_code
+return_code = 0
+Address ISPEXEC "LMFREE DATAID("cntlid")"
+lmfree_cntlid_rc = return_code
+return_code = 0
+Address ISPEXEC "TBTOP GRPTABLE"
+curnr = 1
+ 
+ 
+TBDISPL:
+zcmd = ""
+rtyp = "X"
+prodname = "xxxxxxxx"
+do until return_code > 0
+  return_code = 0
+  Select
+    When mbr = "PRODUCTS" then,
+      Address ISPEXEC "TBDISPL GRPTABLE PANEL("srrpprod")",
+        "POSITION(ROW) AUTOSEL(NO)"
+    When mbr = "VULQUES" then do
+      title = "Vulnerability Questions"
+      x = " "
+      title = center(title,76)
+      lc1 = "  Line command:  Y - Yes"
+      lc2 = "                 N - No"
+      lc3 = "  Y/N column: Y=Yes, N=No, Y?=Yes Missing information."
+      header = "  STIG Id  Y/N  Vulnerability Question"
+      dline1 = "_Z@Z        @Z  @Z"
+      dline2 = "                @Z"
+      dline3 = "                @Z"
+      vars = "S PRODNAME INST DESC DESC2 DESC3"
+      Address ISPEXEC "TBDISPL GRPTABLE PANEL(SRRP0000)",
+        "POSITION(ROW) AUTOSEL(NO)"
+      end
+    Otherwise nop
+    end
+  If return_code = 8 | zcmd = "CANCEL" then,
+    leave
+  If return_code > 4 then do
+    Say pgmname "TBLDISPL  RC =" return_code zerrsm
+    SIGNAL  ERR_EXIT
+    end
+  curnr = ztdtop
+  Do while ztdsels > 0
+    return_code = 0
+    old_s = s
+    If s = "S" & mbr = "PRODUCTS" then do
+      s = "Y"
+      old_s = s
+      If rectypes <> " " then do
+        Call process_product
+        end
+      end
+    If s = "Y" & mbr = "VULQUES" then do
+      If rectypes <> " " then,
+        Call process_vulques
+      end
+    s = old_s
+    If s = "N" then do
+      If substr(inst,1,1) = "Y" then do
+        "EXCLUDE ALL '"prodname"' 1"
+        "FIND FIRST '"prodname 0"' 1"
+        "DELETE ALL X"
+        end
+      end
+    If s <> " " then do
+      inst = s
+      s = " "
+      end
+    return_code = 0
+    "SEEK FIRST '"prodname 0"' 1"
+    data = prodname "0" substr(inst,1,1)
+    If return_code > 0 then,
+      "LINE_AFTER .ZLAST = (DATA)"
+    Else,
+      "LINE .ZCSR = (DATA)"
+    Call product_status
+    return_code = 0
+    If ztdsels = 1 then
+      Address ISPEXEC "CONTROL DISPLAY LOCK"
+    Address ISPEXEC "TBMOD GRPTABLE ORDER"
+    Address ISPEXEC "TBDISPL GRPTABLE"
+    end
+  Address ISPEXEC "TBSKIP GRPTABLE ROW("curnr") NOREAD"
+  Address ISPEXEC "CONTROL DISPLAY REFRESH"
+  end
+ 
+ 
+/*******************************************/
+/* END PROCESSES                           */
+/*******************************************/
+END_EDIT:
+Address ISPEXEC "TBEND GRPTABLE"
+return_code = 0
+If zcmd = "CANCEL" then,
+  "AUTOSAVE OFF NOPROMPT"
+Else do
+  "AUTOSAVE ON"
+  "SORT"
+  end
+ 
+ 
+ERR_EXIT:
+If maxcc >= 16 | return_code > 0 then do
+  Address ISPEXEC "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then,
+    zispfrc = maxcc
+  Else,
+    zispfrc = return_code
+  Address ISPEXEC "VPUT (ZISPFRC) SHARED"
+  end
+Address ISPEXEC "VPUT (CM24VGET) ASIS"
+"END"
+Exit (0)
+ 
+ 
+PROCESS_PRODUCT:
+Address ISPEXEC "TBCREATE ADDTABLE REPLACE NOWRITE KEYS(MEMBER",
+  "USERID) NAMES(MBRDSN PROGRAM PGMDSN RESOURCE MUSASS MLID",
+  "GRPRES)"
+If return_code > 4 then do
+  Say pgmname "TBCREATE  RC =" return_code zerrsm
+  SIGNAL  ERR_EXIT
+  end
+Address ISPEXEC "TBSORT ADDTABLE FIELDS(MEMBER,C,A,USERID,C,A)"
+Address ISPEXEC "CONTROL DISPLAY SAVE"
+title = desc
+title = strip(title,"B")
+title = center(title,76)
+Do recx = 1 to length(rectypes)
+  record_type = substr(rectypes,recx,1)
+  Call get_record
+  Address ISPEXEC "TBTOP ADDTABLE"
+  Call display_table
+  If zcmd <> "CANCEL" then,
+    Call put_record
+  Else do
+    If inst = "N" then do
+      "EXCLUDE ALL '"prodname"' 1"
+      "FIND FIRST '"prodname 0"' 1"
+      "DELETE ALL X"
+      end
+    recx = length(rectypes)
+    old_s = ""
+    end
+  end
+ 
+ 
+PROCESS_BYPASS:
+zcmd = ""
+Address ISPEXEC "CONTROL DISPLAY RESTORE"
+Address ISPEXEC "TBEND ADDTABLE"
+return_code = 0
+Return
+ 
+ 
+PROCESS_VULQUES:
+Address ISPEXEC "TBCREATE ADDTABLE REPLACE NOWRITE KEYS(MEMBER",
+  "USERID) NAMES(MBRDSN PROGRAM PGMDSN RESOURCE MUSASS MLID",
+  "GRPRES)"
+If return_code > 4 then do
+  Say pgmname "TBCREATE  RC =" return_code zerrsm
+  SIGNAL  ERR_EXIT
+  end
+Address ISPEXEC "TBSORT ADDTABLE FIELDS(MEMBER,C,A)"
+Address ISPEXEC "CONTROL DISPLAY SAVE"
+Do recx = 1 to length(rectypes)
+  record_type = substr(rectypes,recx,1)
+  Call get_record
+  Address ISPEXEC "TBTOP ADDTABLE"
+  Call display_vulques
+  If zcmd <> "CANCEL" then
+    Call put_record
+  Else,
+    recx = length(rectypes)
+  end
+ 
+ 
+PROCESS_VUL_BYPASS:
+zcmd = ""
+Address ISPEXEC "CONTROL DISPLAY RESTORE"
+Address ISPEXEC "TBEND ADDTABLE"
+return_code = 0
+Return
+ 
+ 
+GET_RECORD:
+Address ISPEXEC "TBTOP ADDTABLE"
+Address ISPEXEC "TBSKIP ADDTABLE"
+if pos(record_type,"DEFG") > 0 then do until return_code > 0
+  Address ISPEXEC "TBDELETE ADDTABLE"
+  return_code = 0
+  Address ISPEXEC "TBSKIP ADDTABLE"
+  end
+return_code = 0
+get_rc = 0
+member = "        "
+program = "        "
+userid = "        "
+mbrdsn = ""
+pgmdsn = ""
+resource = ""
+musass = ""
+mlid = ""
+grpres = ""
+rtyp = record_type
+If record_type = 6 then,
+  member = prodname
+If pos(record_type,"16DEFGS") > 0 then,
+  Address ISPEXEC "TBADD ADDTABLE ORDER"
+Address ISPEXEC "TBSTATS ADDTABLE ROWCURR(ROWCURR)"
+Select
+  When prodname = "BMCMVZ" then do
+    If record_type = 5 then do
+      member = "BBMTSSxx"
+      Address ISPEXEC "TBADD ADDTABLE ORDER"
+      end
+    If record_type = 3 then do
+      member = "MAINVIEW"
+      Address ISPEXEC "TBADD ADDTABLE ORDER"
+      end
+    end
+  When prodname = "CA1" then do
+    If record_type = 2 then do
+      member = "TMSTMVT"
+      program = "TMSTMVT"
+      Address ISPEXEC "TBADD ADDTABLE ORDER"
+      member = "TMSSECAB"
+      program = "TMSSECAB"
+      Address ISPEXEC "TBADD ADDTABLE ORDER"
+      end
+    If record_type = 5 then do
+      member = "TMOSYSxx"
+      Address ISPEXEC "TBADD ADDTABLE ORDER"
+      end
+    end
+  When prodname = "FDR" then do
+    If record_type = 2 then do
+      member = "FDROPT"
+      program = "FDROPT"
+      Address ISPEXEC "TBADD ADDTABLE ORDER"
+      end
+    end
+  When prodname = "ICSF" then do
+    If record_type = 1 then do
+      If rowcurr > 1 then do
+        member = ""
+        userid = ""
+        Address ISPEXEC "TBDELETE ADDTABLE"
+        end
+      end
+    If record_type = 5 then do
+      member = "CSFPRMxx"
+      Address ISPEXEC "TBADD ADDTABLE ORDER"
+      end
+    end
+  When prodname = "BMCCTD" | prodname = "BMCCTM" | prodname = "BMCCTO" |,
+    prodname = "BMCCTR" | prodname = "BMCIOA" then do
+    If record_type = 3 then do
+      member = "IOA"
+      Address ISPEXEC "TBADD ADDTABLE ORDER"
+      end
+    If record_type = 5 then do
+      member = "SECPARM"
+      program = "SECPARM"
+      Address ISPEXEC "TBADD ADDTABLE ORDER"
+      If prodname = "BMCCTO" then do
+        member = "CTOPARM"
+        program = "CTOPARM"
+        Address ISPEXEC "TBADD ADDTABLE ORDER"
+        end
+      end
+    end
+  When prodname = "NETVIEW" then do
+    If record_type = 1 then do
+      Address ISPEXEC "TBDELETE ADDTABLE"
+      If rowcurr = 1 then do
+        member = "CNMPSSI"
+        Address ISPEXEC "TBADD ADDTABLE ORDER"
+        member = "CNMPROC"
+        Address ISPEXEC "TBADD ADDTABLE ORDER"
+        end
+      end
+    If record_type = 7 then do
+      member = "DOMAIN"
+      program = "DOMAIN"
+      Address ISPEXEC "TBADD ADDTABLE ORDER"
+      member = "NetID"
+      program = "NetID"
+      Address ISPEXEC "TBADD ADDTABLE ORDER"
+      end
+    If record_type = 5 then do
+      member = "CNMSTYLE"
+      Address ISPEXEC "TBADD ADDTABLE ORDER"
+      end
+    end
+  When prodname = "CLSUPER" | prodname = "ICSF" | prodname = "MQS" |,
+    prodname = "NCPASS" | prodname = "VTAM" then do
+    If get_rc > 0 & pos(record_type,"DEFG") = 0 then,
+      Address ISPEXEC "TBADD ADDTABLE ORDER"
+    If record_type = 1 & rowcurr > 1 then do
+      member = ""
+      userid = ""
+      Address ISPEXEC "TBDELETE ADDTABLE"
+      end
+    end
+  Otherwise nop
+  end
+get_rc = 4
+"CURSOR = 1 0"
+ 
+ 
+GET_DATA:
+do until return_code > 0
+  return_code = 0
+  "SEEK '"prodname record_type"' 1"
+  If return_code > 0 then leave
+  get_rc = 0
+  "(DATA) = LINE .ZCSR"
+  Select
+    When record_type = 1 then do
+      userid = ""
+      Select
+        When prodname = "AAMV0012" then do
+          parse var data . 12 member 35 mbrdsn 71 .
+          end
+        When prodname = "NETVIEW" then do
+          parse var data . 12 member 21 program 30 mbrdsn 72 userid 80 .
+          end
+        Otherwise do
+          parse var data . 12 member 21 mbrdsn 72 userid 80 resource
+          end
+        end
+      end
+    When pos(record_type,"257") > 0 then do
+      parse var data . 12 member 21 program 30 pgmdsn 71 .
+      If member = "TMOOPTxx" then leave
+      If prodname = "FDR" then,
+        member = program
+      end
+    When record_type = 3 then do
+      parse var data . 12 member 21 resource 30 grpres 39 musass,
+        48 mlid 56 .
+      end
+    When record_type = 4 then do
+      parse var data . 12 aa 14 cm 16 as 18 rv 20 ti 26 gp 35 ma,
+        37 at 39 mo 41 st 43 ps 44 .
+      leave
+      end
+    When record_type = 6 then do
+      parse var data . 12 member 21 mbrdsn 71 .
+      program = ""
+      end
+    When pos(record_type,"DEFG") > 0 then do
+      parse var data . 12 member 71 .
+      mbrdsn = ""
+      program = ""
+      end
+    When record_type = "S" then do
+      parse var data . 12 member 16 .
+      mbrdsn = ""
+      end
+    Otherwise nop
+    end
+  return_code = 0
+  If member <> " " then do
+    Address ISPEXEC "TBMOD ADDTABLE ORDER"
+    If (prodname = "CICS" | prodname = "ROSCOE") &,
+      pos(record_type,"235") > 0 &,
+      return_code = 8 then do
+      Address ISPEXEC "TBDELETE ADDTABLE"
+      end
+    If prodname = "MQS" & record_type = 1 & return_code > 0 then do
+      return_code = 0
+      ouserid = userid
+      userid = ""
+      Address ISPEXEC "TBDELETE ADDTABLE"
+      If return_code > 0 then do
+        userid = ouserid
+        Address ISPEXEC "TBDELETE ADDTABLE"
+        end
+      end
+    end
+  return_code = 0
+  end
+ 
+ 
+GET_DONE:
+return_code = 0
+omember = 999999999
+Address ISPEXEC "TBSORT ADDTABLE",
+  "FIELDS(MEMBER,C,A,PROGRAM,C,D,USERID,C,D)"
+Address ISPEXEC "TBTOP ADDTABLE"
+return_code = 0
+Address ISPEXEC "TBSKIP ADDTABLE"
+Do until return_code > 0
+  If member <> omember then,
+    omember = member
+  Else,
+    Address ISPEXEC "TBDELETE ADDTABLE"
+  return_code = 0
+  Address ISPEXEC "TBSKIP ADDTABLE"
+  end
+Address ISPEXEC "TBSORT ADDTABLE FIELDS(MEMBER,C,A,USERID,C,A)"
+Address ISPEXEC "TBSTATS ADDTABLE ROWCURR(ROWCURR)",
+  "ROWCREAT(ROWCREAT) ROWUPD(ROWUPD)"
+If record_type = 6 & rowcurr > 1 then do
+  member = ""
+  userid = ""
+  Address ISPEXEC "TBDELETE ADDTABLE"
+  end
+Return
+ 
+ 
+DISPLAY_TABLE:
+s = ""
+srrpnl = "SRRP0000"
+dline1 = "OMIT"
+dline2 = "OMIT"
+dline3 = "OMIT"
+lc1 = ""
+lc2 = ""
+lc3 = ""
+lc4 = ""
+Select
+  When record_type = 1 then do
+    Select
+    /* Add to the following WHEN statement for products that have */
+    /* only one STC/Batch job identified for the product.         */
+      When prodname = "CLSUPER" | prodname = "NCPASS" |,
+        prodname = "VTAM" then do
+        If rowcurr > 1 then do
+          member = ""
+          userid = ""
+          Address ISPEXEC "TBDELETE ADDTABLE"
+          end
+        header = "UserId   Member   Data set that contains the",
+          "member JCL"
+        dline1 = "_Z       _Z       _Z                    "
+        dline1 = dline1"                +"
+        vars = "(USERID MEMBER MBRDSN)"
+        lc2 = "  Enter the Userid of the STC or batch job for",
+          "this product."
+        lc3 = "  Enter the member and data set that contains the",
+          "JCL for this product."
+        end
+      When prodname = "MQS" then do
+        header = "UserId   Member   Data set that contains the",
+          "member JCL"
+        dline1 = "_Z       _Z       _Z                    "
+        dline1 = dline1"                +"
+        vars = "(USERID MEMBER MBRDSN)"
+        lc2 = "  Enter the Userid of the STC or batch job for",
+          "this product."
+        lc3 = "  Specify the data sets that contain the JCL for",
+          "the MSTR and CHIN procedures."
+         end
+      When prodname = "NETVIEW" then do
+        header = "Product   UserId   Member   Data set that",
+          "contains the member JCL"
+        dline1 = "@Z        _Z       _Z       _Z           "
+        dline1 = dline1"                        +"
+        vars = "(MEMBER USERID PROGRAM MBRDSN)"
+        lc2 = "  Enter the Userid of the STCs or batch jobs for",
+          "this product."
+        lc3 = "  Enter the member and data set for the",
+          "sub-products that are installed."
+        end
+      When prodname = "CICS" then do
+        header = "  UserId  P/T Member   Data set that contains the",
+          "member JCL"
+        dline1 = "_Z_Z       _Z+_Z       _Z                    "
+        dline1 = dline1"                +"
+        vars = "(S USERID RESOURCE MEMBER MBRDSN)"
+        lc1 = "  Line command:  D - Delete entry"
+        lc2 = "  Enter the Userid of the STCs or batch jobs for",
+          "this product."
+        lc3 = "  Enter the members and data sets that contain the",
+          "JCL for this product."
+        lc4 = "  P/T values - P or space = Production   T =",
+          "Test/Development"
+        srrpnl = "SRRP0002"
+        end
+      /* Use the OTHERWISE statement for products that can have     */
+      /* multiple STCs/Batch jobs identified for the product.       */
+      Otherwise do
+        header = "  UserId   Member   Data set that contains the",
+          "member JCL"
+        dline1 = "_Z_Z       _Z       _Z                    "
+        dline1 = dline1"                +"
+        vars = "(S USERID MEMBER MBRDSN)"
+        lc1 = "  Line command:  D - Delete entry"
+        lc2 = "  Enter the Userid of the STCs or batch jobs for",
+          "this product."
+        lc3 = "  Enter the members and data sets that contain the",
+          "JCL for this product."
+        end
+      end
+    end
+  When record_type = 2 then do
+    header = "Member   Program  Data set that contains the program"
+    dline1 = "@Z       _Z       _Z                  "
+    dline1 = dline1"                 +"
+    vars = "(MEMBER PROGRAM PGMDSN)"
+    If prodname = "CICS" then,
+      lc2 = "  Enter the DFHSIT program and data set for each",
+        "CICS region."
+    If prodname = "CA1" | prodname = "FDR" then do
+      header = "Program  Program Data set location"
+      dline1 = "@Z       _Z                             "
+      dline1 = dline1"          +"
+      vars = "(PROGRAM PGMDSN)"
+      lc2 = "  Enter the data set that contains the listed",
+        "programs."
+      end
+    end
+  When record_type = 3 then do
+    Address ISPEXEC "VGET (ACPNAME) ASIS"
+    If prodname = "ROSCOE" | prodname = "BMCMVZ" then do
+      vars = "(MEMBER RESOURCE)"
+      If acpname = "ACF2" then do
+        header = "Member   Resource Type"
+        dline1 = "@Z       +    _Z  +                "
+        dline1 = dline1"       +"
+        lc2 = "  Enter the Resource Type for the product."
+        end
+      Else do
+        header = "Member   Resource Class"
+        dline1 = "@Z       _Z       +"
+        lc2 = "  Enter the Resource Class for the product."
+        end
+      end
+    Else,
+      Select
+        When acpname = "ACF2" then do
+          header = "Member   Resource Type  MUSASS   MLID"
+          dline1 = "@Z       +    _Z  +     _Z       _Z"
+          dline1 = dline1"       +"
+          vars = "(MEMBER RESOURCE MUSASS MLID)"
+          lc2 = "  Enter the Resource Type and the MUSASS and",
+            "MLID pair for each region."
+          end
+        When acpname = "RACF" then do
+          header = "Member   Resource Classes (include Group",
+            "Resource class"
+          dline1 = "@Z       _Z       _Z       +"
+          vars = "(MEMBER RESOURCE GRPRES)"
+          lc1 = "  Enter the Resource Class and the Resource",
+            "Class Group."
+          lc2 = "     example: (TCICSTRN and GCICSTRN)"
+          end
+        When acpname = "TSS" then do
+          header = "Member   Resource Classes"
+          dline1 = "@Z       _Z       +"
+          vars = "(MEMBER RESOURCE)"
+          lc2 = "  Enter the Resource Class."
+          end
+        Otherwise nop
+        end
+    end
+  When record_type = 5 then do
+    Select
+      When prodname = "BMCCTD" | prodname = "BMCCTM" |,
+        prodname = "BMCCTO" | prodname = "BMCCTR" |,
+        prodname = "BMCIOA" then do
+        header = "Member   Data set that contains the",
+          "configuration member"
+        dline1 = "@Z       _Z                      "
+        dline1 = dline1"                          +"
+        vars = "(PROGRAM PGMDSN)"
+        end
+      When prodname = "NETVIEW" then do
+        header = "Member   Data set that contains the",
+          "configuration member"
+        dline1 = "_Z       _Z                      "
+        dline1 = dline1"                          +"
+        vars = "(PROGRAM PGMDSN)"
+        lc1 = "  Enter the information for CNMSTYLE."
+        lc1 = "  Enter data set name that contains CxxSTYLE",
+          "member for the Product"
+        lc2 = "  configuration."
+        end
+      When prodname = "CA1" | prodname = "ICSF" |,
+        prodname = "BMCMVZ" then do
+        header = "Prefix   Member   Data set that contains the",
+          "configuration member"
+        dline1 = "@Z       _Z       _Z                  "
+        dline1 = dline1"                              +"
+        vars = "(MEMBER PROGRAM PGMDSN)"
+        lc1 = "  Enter member and data set name that contains the",
+          "product configuration."
+        end
+      Otherwise do
+        header = "STC/JOB  Member   Data set that contains the",
+          "configuration member"
+        dline1 = "@Z       _Z       _Z                  "
+        dline1 = dline1"                              +"
+        vars = "(MEMBER PROGRAM PGMDSN)"
+        lc1 = "  Enter member and data set name that contains the",
+          "product configuration."
+        end
+      end
+    end
+  When record_type = 6 then do
+    header = "Loadlib data set name"
+    dline1 = "_Z                                      "
+    dline1 = dline1"         +"
+    vars = "(MBRDSN)"
+    lc2 = "  Enter the loadlib data set for the product."
+    end
+  When record_type = 7 then do
+    header = "Keyword  Value"
+    dline1 = "@Z       _Z                      "
+    dline1 = dline1"                          +"
+    vars = "(PROGRAM PGMDSN)"
+    lc1 = "  Enter the Value for each Keyword."
+    end
+  When record_type = "D" then do
+    header = "  Data set names and/or Data set prefixes "
+    header = header"          Volume"
+    dline1 = "_Z_Z                                      "
+    dline1 = dline1"         +@Z        +"
+    helpvar = "SRRHD000"
+    vars = "(S MEMBER PROGRAM)"
+    lc1 = "  Line command:  D - Delete entry"
+    lc2 = "  Enter the data sets and/or data set mask/prefix of",
+      "the product installation"
+    lc3 = "  data sets."
+    end
+  When record_type = "E" then do
+    header = "  Data set names and/or Data set prefixes "
+    header = header"          Volume"
+    dline1 = "_Z_Z                                      "
+    dline1 = dline1"         +@Z        +"
+    helpvar = "SRRHD000"
+    vars = "(S MEMBER PROGRAM)"
+    lc1 = "  Line command:  D - Delete entry"
+    Select
+      When prodname = "CA1" then do
+        lc2 = "  Enter the data sets and/or data set mask/prefix",
+          "of the TMC" "AUDIT, and"
+        lc3 = "  optional RDS and VPD data sets."
+        end
+      When prodname = "ICSF" then do
+        lc2 = "  Enter the data sets and/or data set mask/prefix",
+          "of product STC"
+        lc3 = "  data sets.  They are identified in the CSFPRMxx",
+          "member."
+        end
+      When prodname = "SDSF" then do
+        lc2 = "  Enter the data set identified by the INDEX",
+          "control statement in the"
+        lc3 = "  ISFPRMxx member of the SDSFPARM DD statement of",
+          "the STC proclib member."
+        end
+      Otherwise do
+        lc2 = "  Enter the data sets and/or data set mask/prefix",
+          "of the product STC"
+        lc3 = "  data sets."
+        end
+      end
+    end
+  When record_type = "F" then do
+    header = "  Data set names and/or Data set prefixes"
+    header = header"          Volume"
+    dline1 = "_Z_Z                                      "
+    dline1 = dline1"         +@Z        +"
+    helpvar = "SRRHD000"
+    vars = "(S MEMBER PROGRAM)"
+    lc1 = "  Line command:  D - Delete entry"
+    If prodname = "CA1" then do
+      lc2 = "  Enter the data sets and/or data set mask/prefix",
+        "of the product STC"
+      lc3 = "  data sets."
+      end
+    Else do
+      lc2 = "  Enter the data sets and/or data set mask/prefix",
+        "of the product user"
+      lc3 = "  data sets."
+      end
+    end
+  When record_type = "G" then do
+    header = "  Data set names and/or Data set prefixes"
+    header = header"          Volume"
+    dline1 = "_Z_Z                                      "
+    dline1 = dline1"         +@Z        +"
+    helpvar = "SRRHD000"
+    vars = "(S MEMBER PROGRAM)"
+    lc1 = "  Line command:  D - Delete entry"
+    If prodname = "BMCCTM" then do
+      lc2 = "  Enter the data sets and/or data set mask/prefix of",
+        "the user/application"
+      lc3 = "  JCL data sets."
+      end
+    Else do
+      lc2 = "  Enter the data sets and/or data set mask/prefix of",
+        "all of the product"
+      lc3 = "  data sets."
+      end
+    end
+  When record_type = "S" then do
+    header = "  SSID"
+    dline1 = "_Z_Z   +"
+    vars = "(S MEMBER)"
+    lc1 = "  Line command:  D - Delete entry"
+    lc2 = "  Enter the SubSystem Identifier for all occurrences",
+      "of this product."
+    end
+  Otherwise nop
+  end
+Address ISPEXEC "TBTOP ADDTABLE"
+ 
+ 
+DISPLAY_TABLEA:
+return_code = 0
+If prodname = "CLSUPER" & record_type = 4 then,
+  do until return_code > 0
+    Address ISPEXEC "DISPLAY PANEL(SRRP0004)"
+    display_rc = return_code
+    Address ISPEXEC "VGET (ZVERB)"
+    If zverb <> " " then,
+      zcmd = zverb
+    If zcmd = " " | zcmd = "CANCEL" then,
+      leave
+    end
+Else,
+  Call display_srrp0000
+ 
+ 
+DISPLAY_END:
+return_code = 0
+Address ISPEXEC "TBTOP ADDTABLE"
+Address ISPEXEC "TBSKIP ADDTABLE"
+If zcmd <> "CANCEL" then,
+  Do until return_code > 0
+    If member = " " then,
+      Address ISPEXEC "TBDELETE ADDTABLE"
+    return_code = 0
+    Address ISPEXEC "TBSKIP ADDTABLE"
+    end
+Return (display_rc)
+ 
+ 
+DISPLAY_SRRP0000:
+row = 0
+Do until return_code > 0
+  return_code = 0
+  Address ISPEXEC "TBDISPL ADDTABLE PANEL("srrpnl") POSITION(POS)",
+    "AUTOSEL(NO) ROWID(ROW)"
+  display_rc = return_code
+  Address ISPEXEC "VGET (ZVERB ZSCROLLN) ASIS"
+  If row > 0 then,
+    row = row - 1
+  If display_rc > 8 then,
+    leave
+  delete = 1
+  Do while ztdsels > 0
+    return_code = 0
+    If s = "D" then,
+      If member <> " " then do
+        Address ISPEXEC "TBDELETE ADDTABLE"
+        delete = delete + 1
+        end
+      Else,
+        nop
+    Else do
+      return_code = 0
+      Address ISPEXEC "TBMOD ADDTABLE ORDER"
+      If prodname <> "AAMV0012" & userid <> " " &,
+        record_type = 1 & return_code > 0 then do
+        userid = ""
+        Address ISPEXEC "TBDELETE ADDTABLE"
+        end
+      If record_type > 1 & return_code = 8 then do
+        return_code = 0
+        Address ISPEXEC "TBSKIP ADDTABLE"
+        If record_type = 6 then do
+          member = ""
+          userid = ""
+          Address ISPEXEC "TBDELETE ADDTABLE"
+          end
+        Address ISPEXEC "TBDELETE ADDTABLE"
+        return_code = 0
+        end
+      If pos(record_type,"DEFG") > 0 then do
+        if right(member,1) <> "." then do
+          Address ISPEXEC "TBDELETE ADDTABLE"
+          return_code = 0
+          lmdrc = 0
+          Address ISPEXEC "LMDINIT LISTID(TEMP1) LEVEL("member")"
+          Do until lmdrc > 0
+            return_code = 0
+            Address ISPEXEC "LMDLIST LISTID("temp1") OPTION(LIST)",
+              "DATASET(DSN) STATS(YES)"
+            lmdrc = return_code
+            If return_code > 0 then iterate
+            If pos(".ASSIST ",dsn" ") > 0 |,
+              pos(".ZIP ",dsn" ") > 0 then,
+              dsn = ""
+            If dsn > " " & zdlvol = "??????" then,
+              dsn = ""
+            If dsn > " " & zdlvol = "*ALIAS" then,
+              Call alias_str
+            If dsn > " " then do
+              member = dsn
+              program = zdlvol
+              Address ISPEXEC "TBMOD ADDTABLE ORDER"
+              end
+            dsn = ""
+            end
+          Address ISPEXEC "TBMOD ADDTABLE ORDER"
+          Address ISPEXEC "LMDFREE LISTID("temp1")"
+          end
+        end
+      end
+ 
+ 
+/*ZTDSELS_END:*/
+    If ztdsels = 1 then,
+      Address ISPEXEC "CONTROL DISPLAY LOCK"
+    return_code = 0
+    Address ISPEXEC "TBDISPL ADDTABLE"
+    If return_code > 4 then,
+      ztdsels = 0
+    end
+  If pos(record_type,"DEFG") = 0 then,
+    If prodname = "CLSUPER" | prodname = "NCPASS" |,
+      prodname = "NETVIEW" | prodname = "VTAM" then Return
+  If zcmd <> " " | display_rc = 8 then Return
+  return_code = 0
+  Select
+    When zverb = "UP" then,
+      Address ISPEXEC "TBSKIP ADDTABLE NUMBER("-zscrolln")"
+    When zverb = "DOWN" then,
+      Address ISPEXEC "TBSKIP ADDTABLE NUMBER("zscrolln")"
+    Otherwise do
+      If return_code = 8 & row > 0 then,
+        row = row - delete
+      return_code = 0
+      Address ISPEXEC "TBSKIP ADDTABLE ROW("row")"
+      end
+    end
+  return_code = 0
+  end
+row = 0
+Return
+ 
+ 
+DISPLAY_VULQUES:
+title = prodname
+s = ""
+dline1 = "OMIT"
+dline2 = "OMIT"
+dline3 = "OMIT"
+lc1 = ""
+lc2 = ""
+lc3 = ""
+lc4 = ""
+lc5 = ""
+Select
+  When prodname = "AAMV0012" then do
+    header = "  Product Name           Version"
+    dline1 = "_Z_Z                     _Z              +"
+    vars = "(S MEMBER MBRDSN)"
+    lc1 = "  Question:" desc
+    lc2 = "            "desc2
+    lc3 = "            "desc3
+    lc4 = "  Line command:  D - Delete entry"
+    lc5 = "  Enter the Product and Version of unsupported software."
+    end
+  When prodname = "ACP00110" then do
+    header = "  Data set names"
+    dline1 = "_Z_Z                                      "
+    dline1 = dline1"         +"
+    helpvar = "SRRHD000"
+    vars = "(S MEMBER)"
+    lc1 = "  Question:" desc
+    lc2 = "            "desc2
+    lc3 = "            "desc3
+    lc4 = "  Line command:  D - Delete entry"
+    lc5 = "  Enter the data set names of application and/or user",
+      "LINKLIST loadlibs."
+    end
+  When prodname = "ACP00270" then do
+    header = "  UserId   Member   Resource  Data set that",
+      "contains the member JCL"
+    dline1 = "_Z_Z       _Z       _Z+       _Z           "
+    dline1 = dline1"                         +"
+    vars = "(S USERID MEMBER RESOURCE MBRDSN)"
+    lc1 = "  Line command:  D - Delete entry"
+    lc2 = "  Enter the Userid of the STCs that require access to",
+      "the ACP00270 resource."
+    lc3 = "  Enter the members and data sets that contain the JCL."
+    lc4 = "  Resource values - A = CSVDYLPA.ADD" "D =",
+      "CSVDYLPA.DELETE, Space = Both)"
+    end
+  Otherwise,
+    If record_type = "D" then do
+      header = "  Data set names and/or Data set prefixes "
+      header = header"          Volume"
+      dline1 = "_Z_Z                                      "
+      dline1 = dline1"         +@Z        +"
+      helpvar = "SRRHD000"
+      vars = "(S MEMBER PROGRAM)"
+      lc1 = "  Request:" desc
+      lc2 = "           "desc2
+      lc3 = "           "desc3
+      lc4 = "  Line command:  D - Delete entry"
+      lc5 = "  Enter the data sets and/or data set mask/prefix",
+        "for this request."
+      end
+  end
+Address ISPEXEC "TBTOP ADDTABLE"
+ 
+ 
+DISPLAY_VULQUES_TABLEA:
+row = 0
+do until return_code > 0
+  return_code = 0
+  Address ISPEXEC "TBDISPL ADDTABLE PANEL(SRRP0001) POSITION(POS)",
+    "AUTOSEL(NO) ROWID(ROW)"
+  Address ISPEXEC "VGET (ZVERB ZSCROLLN) ASIS"
+  display_rc = return_code
+  If display_rc > 8 then leave
+  Do while ztdsels > 0
+    return_code = 0
+    If s = "D" then,
+      If member <> " " then do
+        Address ISPEXEC "TBDELETE ADDTABLE"
+        end
+      Else,
+        nop
+    Else do
+      Address ISPEXEC "TBMOD ADDTABLE ORDER"
+      If record_type > 1 & return_code = 8 then do
+        Address ISPEXEC "TBSKIP ADDTABLE"
+        Address ISPEXEC "TBDELETE ADDTABLE"
+        return_code = 0
+        end
+      If record_type = "D" then do
+        Address ISPEXEC "TBDELETE ADDTABLE"
+        return_code = 0
+        lmdrc = 0
+        Address ISPEXEC "LMDINIT LISTID(TEMP1) LEVEL("member")"
+        lmdrc = return_code
+        Do until lmdrc > 0
+          if lmdrc > 0 then leave
+          return_code = 0
+          Address ISPEXEC "LMDLIST LISTID("temp1") OPTION(LIST)",
+            "DATASET(DSN) STATS(YES)"
+          lmdrc = return_code
+          If pos(".ASSIST ",dsn" ") > 0 |,
+            pos(".ZIP ",dsn" ") > 0 then,
+            dsn = ""
+          If dsn > " " & zdlvol = "??????" then,
+            dsn = ""
+          If dsn > " " & zdlvol = "*ALIAS" then,
+            Call alias_str
+          If dsn > " " then do
+            member = dsn
+            program = zdlvol
+            Address ISPEXEC "TBMOD ADDTABLE ORDER"
+            end
+          dsn = ""
+          end
+        Address ISPEXEC "TBMOD ADDTABLE ORDER"
+        if lmdrc = 0 then,
+          Address ISPEXEC "LMDFREE LISTID("temp1")"
+        end
+      end
+    If ztdsels = 1 then,
+      Address ISPEXEC "CONTROL DISPLAY LOCK"
+    return_code = 0
+    Address ISPEXEC "TBDISPL ADDTABLE"
+    end
+  If zcmd <> " " | display_rc = 8 then leave
+  return_code = 0
+  Address ISPEXEC "TBSKIP ADDTABLE ROW("row")"
+  If return_code = 8 & row > 0 then,
+    row = row - 1
+  Address ISPEXEC "TBSKIP ADDTABLE ROW("row")"
+  return_code = 0
+  end
+ 
+ 
+DISPLAY_VULQUES_END:
+return_code = 0
+Address ISPEXEC "TBTOP ADDTABLE"
+Address ISPEXEC "TBSKIP ADDTABLE"
+If zcmd <> "CANCEL" then,
+  Do until return_code > 0
+    If member = " " then,
+      Address ISPEXEC "TBDELETE ADDTABLE"
+      return_code = 0
+      Address ISPEXEC "TBSKIP ADDTABLE"
+    end
+row = 0
+Return (display_rc)
+ 
+ 
+PUT_RECORD:
+rec_cnt = 0
+Address ISPEXEC "TBTOP ADDTABLE"
+Address ISPEXEC "TBSKIP ADDTABLE"
+"EXCLUDE ALL '"prodname record_type"' 1"
+"CURSOR = 1 0"
+return_code = 0
+If record_type = 4 then do
+  data = prodname record_type aa cm as rv ti left(gp,8) ma at,
+    mo st ps
+  "FIND '"data"' FIRST 1"
+  If return_code > 0 then do
+    "LINE_AFTER .ZLAST = (DATA)"
+    rec_cnt = rec_cnt + 1
+    end
+/*SIGNAL  PUT_END*/
+  end
+Else,
+  Do until return_code > 0
+    return_code = 0
+    Address ISPEXEC "TBGET ADDTABLE"
+    sp = "          "
+    sp = sp||sp||sp||sp||sp||sp
+    If pos(record_type,"DEFG") > 0 then do
+      member = left(member,44)
+      program = left(program,8)
+      end
+    Else do
+      If prodname = "AAMV0012" then do
+        member = left(member,22)
+        program = left(program,8)
+        end
+      Else do
+        member = left(member,8)
+        program = left(program,8)
+        userid = left(userid,8)
+        end
+      end
+    Select
+      When record_type = 1 then do
+        If prodname = "IOA" | prodname = "NETVIEW" then do
+          data = prodname record_type member program mbrdsn
+          data = left(data,70) userid
+          end
+        Else do
+          data = prodname record_type member mbrdsn
+          data = left(data,70) userid
+          data = left(data,79)resource
+          data = left(data,80)
+          resource = ""
+          Address ISPEXEC "TBMOD ADDTABLE ORDER"
+          end
+        Address ISPEXEC "TBDELETE ADDTABLE"
+        userid = ""
+        Address ISPEXEC "TBADD ADDTABLE ORDER"
+        end
+      When pos(record_type,"257") > 0 then,
+        data = prodname record_type member program pgmdsn
+      When record_type = 3 then,
+        data = prodname record_type member left(resource,8),
+          left(grpres,8) left(musass,8) mlid
+      When record_type = 6 then,
+        data = prodname record_type member mbrdsn
+      When pos(record_type,"DEFG") > 0 then,
+        data = prodname record_type member
+      When record_type = "S" then do
+        ssid = strip(member,"T")
+        data = prodname record_type ssid
+        Address ISPEXEC "TBDELETE ADDTABLE"
+        If length(ssid) <= 4 & length(ssid) > 0 &,
+          prodname = "MQS" then do
+          member = ssid"CHIN"
+          Address ISPEXEC "TBADD ADDTABLE ORDER"
+          member = ssid"MSTR"
+          Address ISPEXEC "TBADD ADDTABLE ORDER"
+          member = ssid
+          end
+        end
+      Otherwise nop
+      end
+    return_code = 0
+    If (member <> " " | program <> " ") &,
+      left(member,1) <> "_" then,
+      "FIND '"data"' FIRST 1"
+    If return_code > 0 then do
+      "LINE_AFTER .ZLAST = (DATA)"
+        rec_cnt = rec_cnt + 1
+      end
+    If prodname = "CA1" | prodname = "ICSF" |,
+      (prodname >= "BMCCT" & prodname <= "BMCIOA") |,
+      prodname = "BMCMVZ" | prodname = "NETVIEW" |,
+      prodname = "CLSUPER" | prodname = "NCPASS" then,
+      Address ISPEXEC "TBDELETE ADDTABLE"
+    return_code = 0
+    Address ISPEXEC "TBSKIP ADDTABLE"
+    end
+ 
+ 
+PUT_END:
+"DELETE ALL X"
+Return (rec_cnt)
+ 
+ 
+PRODUCT_STATUS:
+"SEEK ALL '"prodname "' 1"
+"(P1,P2) = SEEK_COUNTS"
+return_code = 0
+"SEEK FIRST '"prodname 0"' 1"
+If return_code > 0 then do
+  If inst = "S" then do
+    inst = "Y"
+    mbrs = "Missing"
+    end
+  Else,
+    mbrs = "Used?"
+  Return (0)
+  end
+Else do
+  "(DATA) = LINE .ZCSR"
+  inst = substr(data,12,1)
+  If inst = " " then do
+    mbrs = "Used?"
+    Return (0)
+    end
+  Else,
+    mbrs = " "
+  end
+If inst = "S" then do
+  mbrs = "Missing"
+  inst = "Y"
+  Return (0)
+  end
+If (inst = "N" | rectypes = " ") &,
+  P1 = 1 then,
+  Return (0)
+Do recx = 1 to length(rectypes)
+  rt = substr(rectypes,recx,1)
+  "SEEK FIRST '"prodname rt"' 1"
+  If return_code > 0 then do
+    mbrs = "Missing"
+    If mbr = "VULQUES" then,
+      inst = left(inst,1)"?"
+    recx = length(rectypes)
+    end
+  end
+Return (0)
+ 
+ 
+ALIAS_STR:
+return_code = 0
+x = outtrap("out.")
+Address TSO "LISTCAT ENTRY('"dsn"') ALIAS ALL"
+If return_code > 4 then Return
+dsn = ""
+Do X = 1 to out.0
+  line = out.x
+  If pos("RESOLVED-",line) > 0 then do
+    parse var line . "RESOLVED-" dsn .
+    parse var dsn sdsn "&" var "." edsn
+    syssym = mvsvar("symdef",var)
+    If syssym = "" & pos("&",dsn) > 0 then,
+      dsn = ""
+    Else,
+      dsn = sdsn""syssym""edsn
+    end
+  If pos("VSAM--",line) > 0 then,
+    parse var line . "VSAM--" dsn .
+  end
+Return (return_code)
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+Exit
+ 
+ 
+Error:
+return_code = RC
+if return_code > maxcc then,
+  maxcc = return_code
+return
+ 
+ 

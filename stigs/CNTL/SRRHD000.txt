@@ -1,0 +1,78 @@
+)ATTR
+   _ TYPE(OUTPUT) PAD('_') COLOR(RED)
+   + TYPE(TEXT) SKIP(ON) INTENS(LOW)
+   # TYPE(TEXT) SKIP(ON) INTENS(HIGH) COLOR(RED) PAD('_')
+   @ TYPE(OUTPUT) INTENS(LOW)  SKIP(ON)
+   $ AREA(SCRL) EXTEND(ON)
+)BODY WIDTH(80) EXPAND("")
+%"-" Security Readiness Review Self-Audit "-"+
+%" "Entering Data Sets and/or Data Set Mask/Prefix Help " "
+@PGM8     %       " "Version:@SRRVERS +
+%
+%ENTER +To scroll forward.  %PF3  +To Exit/Return.
+%PF11  +To scroll forward.  %PF10 +To scroll backward.
+$HELPSCR ----------------------------------------------------------------------$
++
++
++
+)AREA HELPSCR DEPTH(5)
+%Typing over a current data set line.
++
++1.  Current line before overtyping.
++
+_A_O1                                              +
++
++2.  Current line after overtyping.
++
+_B_O2                                              +
++
++3.  Lines after pressing enter key.
++
+_C_O3                                              +
+_D_O4                                              +
++
+%How to enter the data sets and/or data set mask/prefix.
++
+%1.  Specifying a data set name.
++
+_E_Z1                                              +
++
++   The above data set must be unique to return a specific data set.
++
+%2.  Specifying a data set mask, use one of the following examples.
++
+_F_Z2                                              +
++
++   The above will return all data sets with the first qualifier
++   of%SYS2+and a third qualifier of%CAILIB+upon pressing the enter
++   key.  The resulting list will contain data set with three or more
++   qualifiers.
++
+_G_Z3                                              +
++
++   The above will return all data sets that begin with%SYS2.CA1+as
++   the first and second qualifiers.  This will not retrieve
++   SYS2.CA1ABA.DATASET, for the second qualifier is not CA1.  To
++   obtain this data set specify#SYS2.CA1*+in the above prompt.
++
+%3.  Specifying a data set prefix, use the following examples.
++
+_H_Z4                                              +
++
++   The above will not return any data sets.  It can be used as a place
++   holder for several data sets.  Remember the period '.' at the end of
++   the prefix.  Also, do not specify this with any sort of mask.  (example:
++   SYS3.CA1.V*.)
++
+)INIT
+ &O1 = 'SYS2.TEST.DATA.SET.NAME'
+ &O2 = 'SYS2.TESTING.DATASET.NAME'
+ &O3 = 'SYS2.TEST.DATA.SET.NAME'
+ &O4 = 'SYS2.TESTING.DATASET.NAME'
+ &Z1 = 'SYS2.TEST.DATA.SET.NAME'
+ &Z2 = 'SYS2.*.CAILIB'
+ &Z3 = 'SYS2.CA1'
+ &Z4 = 'SYS2.CA1.'
+ &A  = ' '
+ &B  = ' '
+)END

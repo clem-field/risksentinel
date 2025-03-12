@@ -1,0 +1,333 @@
+/* REXX */
+/* CLS2REXXed by FSOX001 on 11 Apr 2017 at 13:25:47  */
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+Address ISREDIT
+ 
+"MACRO"               /* CACM042R EDIT TABLE OF RESOURCES(CACT0008) */
+/*********************************************************************/
+/* 09/10/2007 CL Fenton Created for resource process.  To collect    */
+/*            resource information from table.                       */
+/* 10/15/2007 CL Fenton Correct user being identified multiple       */
+/*            times in REC3TBL.                                      */
+/* 11/30/2007 CL Fenton Corrected rec 3 collection.                  */
+/* 03/31/2008 CL Fenton Corrected rec 1 for ACP without RESNAME.     */
+/* 04/14/2008 CL Fenton Closed/Freed file for rec 3 process.         */
+/* 10/23/2009 CL Fenton Added possible entry for a userid instead    */
+/*            of a user group.                                       */
+/* 12/01/2009 CL Fenton Added deletion of comment records.           */
+/* 10/13/2010 CL Fenton Chgd to bypass lmget when lmmfind rc > 0.    */
+/* 05/23/2012 CL Fenton Chgs to allow use of AUACCESS for            */
+/*            authorized users list to prevent the possible          */
+/*            "IKJ56548I INSUFFICIENT STORAGE FOR CLIST TO           */
+/*            CONTINUE" message from occurring when a DIALOG user    */
+/*            group contains an excessive number of user,            */
+/*            CSD-AR003400969.                                       */
+/* 09/18/2012 CL Fenton Corrected 860 errors on RESNAME in the       */
+/*            collection of REC3TBL entries with special             */
+/*            characters (+, -, *, and /).                           */
+/* 04/17/2017 CL Fenton Converted script from CLIST to REXX.         */
+/* 02/16/2018 CL Fenton Use of resname variable evaluation of        */
+/*            rec2tbl to avoid evaluation of invalid resource.       */
+/* 04/12/2018 CL Fenton Corrected issue with collecting information  */
+/*            in PROCESS_RECORD3, STS-019359.                        */
+/* 09/28/2020 CL Fenton Changed ERROR routine to provide additional  */
+/*            information for CC 20, STS-025321.                     */
+/* 05/27/2021 CL Fenton Changed made where LOG MSG statement is      */
+/*            done for RECTYPE 3 request is performed, STS-026455.   */
+/* 08/08/2022 CL Fenton Changed made to provide additional           */
+/*            information for REC2TBL getting RC of 20, STS-028485.  */
+/* 12/15/2022 CL Fenton Changes made to correct issue with REC2TBL   */
+/*            having too much information passed via a VPUT,         */
+/*            causing a RC of 20 error, STS-029346.                  */
+/* 04/26/2023 CL Fenton Changed rec2cnt from 1100 to 1000 to correct */
+/*            CC 20 error, SCTASK0043468.                            */
+/* 07/13/2023 CL Fenton Changed rec2cnt from 1000 to 750 to correct  */
+/*            CC 20 error, SCTASK0043468.                            */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname = "CACM042R 07/13/23"
+sysprompt = "OFF"                 /* CONTROL NOPROMPT                */
+sysflush = "OFF"                  /* CONTROL NOFLUSH                 */
+sysasis = "ON"                    /* CONTROL ASIS - caps off         */
+Numeric digits 10                 /* default of 9 not enough         */
+maxcc = 0
+/*******************************************/
+/* VARIABLES ARE PASSED TO THIS MACRO      */
+/*******************************************/
+Address ISPEXEC "CONTROL NONDISPL ENTER"
+Address ISPEXEC "CONTROL ERRORS RETURN"
+return_code = 0
+zerrmsg = ""
+zerrsm = ""
+zerrlm = ""
+Address ISPEXEC "VGET (CONSLIST COMLIST SYMLIST TERMMSGS RECTYPE",
+  "PDINAME RESNAME ACPNAME) ASIS"
+cm2rvget = return_code
+If return_code <> 0 then do
+  Say pgmname "VGET RC =" return_code zerrsm
+  Say pgmname "CONSLIST/"conslist "COMLIST/"comlist "SYMLIST/"symlist,
+    "TERMMSGS/"termmsgs
+  Say pgmname "RECTYPE/"rectype "PDINAME/"pdiname "RESNAME/"resname,
+    "ACPNAME/"acpname
+  return_code = return_code + 16
+  SIGNAL  ERR_EXIT
+  end
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" ,
+  then Trace ?r
+ 
+return_code = 0
+ 
+/*******************************************/
+/* TURN ON MESSAGES                        */
+/*******************************************/
+syssymlist = symlist           /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist          /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist              /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs              /* CONTROL MSG/NOMSG         */
+ 
+/*******************************************/
+/* MAIN PROCESS                            */
+/*******************************************/
+"(MEMBER) = MEMBER"
+"(DSNAME) = DATASET"
+"EXCLUDE '*' 1 ALL"
+"DELETE ALL X"
+"CURSOR = 1 0"
+return_code = 0
+ 
+"(LASTLINE) = LINENUM .ZLAST"
+If return_code > 0 then do
+  If lastline = 0 then,
+    Say pgmname "Empty file RCode =" return_code "DSN="dsname,
+      "MEMBER="member zerrsm
+  Else
+    Say pgmname "LINENUM Error RCode =" return_code "DSN="dsname,
+      "MEMBER="member zerrsm
+  SIGNAL  ERR_EXIT
+  end
+ 
+/*******************************************/
+/* GET TABLE VALUES                        */
+/*******************************************/
+tbl = "#"
+ocnt = 0
+return_code = 0
+Select
+  When rectype = 1 then,
+    Call process_record1
+  When rectype = 2 then,
+    Call process_record2
+  When rectype = 3 then,
+    Call process_record3
+  Otherwise say pgmname "Invalid RECTYPE =" rectype"."
+  end
+ 
+return_code = 0
+ 
+ERR_EXIT:
+If maxcc >= 16 | return_code > 0 then do
+  Address ISPEXEC "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then,
+    zispfrc = maxcc
+  Else,
+    zispfrc = return_code
+  Address ISPEXEC "VPUT (ZISPFRC) SHARED"
+  Say pgmname "ZISPFRC =" zispfrc
+  end
+ 
+cm42rrc = return_code
+ 
+Address ISPEXEC "VPUT (CM2RVGET CM42RRC) ASIS"
+ 
+"CANCEL"
+Exit (0)
+ 
+ 
+PROCESS_RECORD1:
+rec1tbl = ""
+Select
+  When acpname = "ACF2" then,
+    acp = 12
+  When acpname = "RACF" then,
+    acp = 21
+  When acpname = "TSS" then,
+    acp = 30
+  Otherwise nop
+  end
+ 
+return_code = 0
+Do until return_code > 0
+  "FIND '1' 10 NX"
+  If return_code = 0 then do
+    "(DATA) = LINE .ZCSR"
+    parse var data pdiname 9 . =(acp) resname +8 .
+    If resname <> " " then,
+      rec1tbl = rec1tbl""pdiname" "resname" "
+    end
+  end
+Address ISPEXEC "VPUT (REC1TBL) ASIS"
+Return
+ 
+ 
+PROCESS_RECORD2:
+return_code = 0
+rec2cnt = 0
+Address ISPEXEC "VGET (REC2LN) ASIS"
+if return_code > 0 then do
+  rec2ln = 1
+  maxcc = 0
+  end
+"CURSOR = "rec2ln" 1"
+rec2ln  = 0
+rec2tbl = ""
+return_code = 0
+Do until return_code > 0
+  "FIND '"left(pdiname,8)" 2' 1 NX"
+  If return_code = 0 then do
+    rec2cnt = rec2cnt + 1
+    "(DATA) = LINE .ZCSR"
+    parse var data . 12 resname
+    resname = strip(resname,"t")
+    rec2tbl = rec2tbl""resname"  "
+    if rec2cnt = 750 then do
+      "(LINE) = CURSOR"
+      rec2ln = line + 1
+      leave
+      end
+    end
+  Else rec2ln = 1
+  end
+Address ISPEXEC "VPUT (REC2TBL REC2LN) ASIS"
+Return
+ 
+ 
+PROCESS_RECORD3:
+resname = resname
+aulistdd = "AULIST"
+rec3tbl = "#"
+Address ISPEXEC "VGET (DIALOG REC2TBL AUACCESS",
+  "CACM0422) ASIS" /* to be deleted */
+/*Address ISPEXEC "VGET (DIALOG AUACCESS",
+  "CACM0422 RESA) ASIS" /* chg added */ */
+ 
+rec2tbl = rec2tbl
+ 
+resname = resname" "
+parse var rec2tbl . (resname) -9 resacc +8 . /* to be deleted */
+/*parse var resa . (resname) -9 resacc +8 . /* chg added */ */
+ 
+resacc = left(resacc,8)
+ 
+tblinfo = ""
+return_code = 0
+fstr = left(pdiname,8) "2" resacc  resname" "
+"FIND '"fstr"' 1 NX"
+"(CURLN) = LINENUM .ZCSR"
+"(LLN) = LINENUM .ZLAST"
+curln = curln + 1
+If curln > lln then
+  SIGNAL  ERR3_EXIT
+Do curln = curln to lln
+  "(DATA) = LINE" curln
+  data = data
+  If substr(data,10,1) <> 3 then,
+    leave
+  aumbr = substr(data,12,8)
+  auacc = substr(data,21,8)
+  tblinfo = tblinfo""left(pdiname,9)aumbr auacc "#"
+  lvl = 0
+  Select
+    When auacc = "NONE" then,
+      lvl = 0
+    When auacc = "EXECUTE" then,
+      lvl = 1
+    When auacc = "FETCH" then,
+      lvl = 1
+    When auacc = "EXEC" then,
+      lvl = 1
+    When auacc = "NOCREATE" then,
+      lvl = 2
+    When auacc = "READ" then,
+      lvl = 3
+    When auacc = "INQUIRE" then,
+      lvl = 3
+    When auacc = "WRITE" then,
+      lvl = 4
+    When auacc = "UPDATE" then,
+      lvl = 5
+    When auacc = "CONTROL" then,
+      lvl = 6
+    When auacc = "CREATE" then,
+      lvl = 7
+    When auacc = "SCRATCH" then,
+      lvl = 8
+    When auacc = "ALTER" then,
+      lvl = 9
+    When auacc = "ALL" then,
+      lvl = 9
+    When auacc = "ALLOC" then,
+      lvl = 9
+    Otherwise do
+      Say pgmname "Invalid access" auacc "was found for report",
+        pdiname "in table" member"."
+      iterate
+      end
+    end
+ 
+  If aumbr = "*" then do
+    ac = left(aumbr,8)
+    ac = left(ac""lvl,9)
+    rec3tbl = rec3tbl""ac"#"
+    end
+ 
+  return_code = 0
+  end
+ 
+restype = resname
+cact0000 = "NONE"
+Address ISPEXEC "VPUT (CACT0000 TBLINFO RESTYPE) ASIS"
+Address ISPEXEC "EDIT DATAID("auaccess") MACRO("cacm0422")",
+  "MEMBER("pdiname")"
+ 
+ERR3_EXIT:
+Address ISPEXEC "VPUT (REC3TBL) ASIS"
+ZEDSMSG = "Finished"
+ZEDLMSG = "Finished CACM042R RC="return_code,
+  "PDINAME="PDINAME "RESNAME="RESNAME
+Address ISPEXEC "LOG MSG(ISRZ000)"
+ 
+Return
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL err_exit
+ 
+ 
+Error:
+return_code = RC
+if RC > 4 & RC <> 8 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname 'REXX error' rc 'in line' sigl':' ERRORTEXT(rc)
+  say SOURCELINE(sigl)
+  end
+if RC = 20 then do
+  say pgmname strip(zerrmsg)":"strip(zerrsm)
+  if strip(zerrmsg) = "ISPV013" &,
+     pos("REC2TBL",SOURCELINE(sigl)) > 0 then,
+    say pgmname "REC2CNT:" rec2cnt
+  end
+if return_code > maxcc then
+  maxcc = return_code
+return
+ 
+ 

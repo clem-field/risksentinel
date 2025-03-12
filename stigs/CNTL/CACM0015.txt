@@ -1,0 +1,1058 @@
+/* REXX */
+/* CLS2REXXed by UMLA01S on 11 Jul 2019 at 13:20:04  */
+/*trace ?r*/
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+Address ISREDIT
+ 
+"MACRO"               /* CACM0015 EDIT TCPPARMS(FTPSDATA) */
+/*********************************************************************/
+/* This EDIT macro provides the finding details for IFTP0030,        */
+/* IFTP0031, IFTP0032, IFTP0050, and IFTP0060.                       */
+/*********************************************************************/
+/* 08/05/2004 JL Nelson ADDED EXIT CODE                              */
+/* 08/18/2004 JL Nelson ADDED comments for PDI checks                */
+/* 08/26/2004 JL Nelson ADDED changes for ZFTP0050 Banner checks.    */
+/* 09/27/2004 JL Nelson ADDED changes for ZFTP0050 Manual review.    */
+/* 10/13/2004 JL Nelson ADDED Manual Review per Charles on Banner.   */
+/* 02/11/2005 JL Nelson Changed constants to variables before        */
+/*            rename.                                                */
+/* 04/28/2005 JL Nelson Modified ZFTP?030 and ZFTP?050 per Charles.  */
+/* 06/09/2005 JL Nelson Pass MAXCC in ZISPFRC variable.              */
+/* 06/10/2005 JL Nelson Fixed 804 error IF ZFTP0050_BANNER.          */
+/* 06/29/2005 JL Nelson Incremented line number for BANNER not       */
+/*            config.                                                */
+/* 07/08/2005 JL Nelson Modified zftp050 only write one BANNER msg.  */
+/* 10/24/2005 JL Nelson Modified for v511 PDI name changes.          */
+/* 03/07/2006 JL Nelson Made changes to avoid SUBSTR abend 920/932.  */
+/* 03/13/2006 JL Nelson Set/test RCode for critical ISREDIT          */
+/*            commands.                                              */
+/* 03/20/2006 JL Nelson Use NRSTR avoid abend 900 if ampersand       */
+/*            in data.                                               */
+/* 03/29/2006 JL Nelson Test for empty member LINENUM Rcode = 4.     */
+/* 04/03/2006 JL Nelson Added TRUNC_DATA routine to drop blanks      */
+/*            RC=864                                                 */
+/* 04/06/2006 JL Nelson Pass PARMLIB dataset name for INCLUDE stmts. */
+/* 05/09/2006 JL Nelson Avoid RC 20 on ISREDIT LINE when " or '      */
+/*            in data.                                               */
+/* 06/12/2006 JL Nelson FIND parameters in any order.                */
+/* 06/28/2007 CL Fenton Moved location of Manual Review to top       */
+/*            of member.                                             */
+/* 10/09/2008 CL Fenton Added contents of banner to PDI member.      */
+/* 10/09/2008 CL Fenton Added IUTN0030 PDI member for /etc/banner.   */
+/* 03/13/2009 CL Fenton Added SMFEXIT check to PDI ITNT0060.         */
+/*            Corrected possible alloc error on banner process.      */
+/* 07/16/2009 CL Fenton Added collection of tables and dsnlist       */
+/*            members.                                               */
+/* 11/25/2009 CL Fenton Corrected problem with generation of         */
+/*            FTPBANNER.                                             */
+/* 06/10/2013 CL Fenton Changed SMF STD to SMF TYPE119 for           */
+/*            IFTP0060, STS-002452.                                  */
+/* 12/05/2013 CL Fenton Changed process that evailuates SMF          */
+/*            IFTP0060, STS-004292 and STS-004487.                   */
+/* 05/05/2015 CL Fenton Removed "Manual Review" from IFTP0050.       */
+/* 05/17/2018 CL Fenton Added "Not Reviewed" to IFTP0050 and         */
+/*            IUTN0030 for vuls that require additional analysis,    */
+/*            STS-019713.                                            */
+/* 07/11/2019 CL Fenton Converted script from CLIST to REXX.         */
+/* 04/09/2020 CL Fenton Corrected error cause by not initializing    */
+/*            zerrlm when processing ftp banner, STS-024122.         */
+/* 04/19/2020 CL Fenton Corrected error in get_banner when the       */
+/*            banner is not available, STS-024122.                   */
+/* 05/18/2021 CL Fenton Corrected error in SMFJES process for        */
+/*            IFTP0060, STS-026201.                                  */
+/* 02/09/2022 CL Fenton Changed automation for IFTP0030, splitting   */
+/*            automation into IFTP0030, IFTP0031, and IFTP0032.      */
+/*            Change in automation for BANNER, INACTIVE, and UMASK   */
+/*            statements in SYSFTPD DD statement in the FTP started  */
+/*            task JCL, STS-027928, STS-027929, and STS-027930.      */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname = "CACM0015 02/09/22"
+sysprompt = "OFF"                /* CONTROL NOPROMPT          */
+sysflush = "OFF"                /* CONTROL NOFLUSH           */
+sysasis = "ON"                 /* CONTROL ASIS - caps off   */
+return_code = 0
+maxcc = 0
+max_rc = 0
+zerrlm = ""
+Address ISPEXEC "CONTROL NONDISPL ENTER"
+Address ISPEXEC "CONTROL ERRORS RETURN"
+return_code = 0   /* SET RETURN CODE TO 0 */
+/*******************************************/
+/* VARIABLES ARE PASSED TO THIS MACRO      */
+/* CONSLIST                                */
+/* COMLIST                                 */
+/* SYMLIST                                 */
+/* TERMMSGS                                */
+/* PDIDD                                   */
+/* ACP                                     */
+/* TYPERUN                                 */
+/* OPSNAME   Operating system name         */
+/* OPSVERS   Operating system version      */
+/* PARMDSN                                 */
+/* DSNLIST                                 */
+/* CACM000D                                */
+/* TBLID                                   */
+/*******************************************/
+Address ISPEXEC "VGET (CONSLIST COMLIST SYMLIST TERMMSGS PDIDD",
+  "ACP TYPERUN OPSNAME OPSVERS PARMDSN DSNLIST CACM000D TBLID)",
+  "ASIS"
+cm15vget = return_code
+If return_code <> 0 then do
+  Say pgmname "VGET RC =" return_code zerrsm
+  Say pgmname "CONSLIST/"conslist "COMLIST/"comlist,
+    "SYMLIST/"symlist "TERMMSGS/"termmsgs
+  Say pgmname "PDIDD/"pdidd "ACP/"acp "TYPERUN/"typerun,
+    "OPSNAME/"opsname "OPSVER/"opsvers
+  Say pgmname "PARMDSN/"parmdsn "DSNLIST/"dsnlist,
+    "CACM000D/"cacm000d "TBLID/"tblid
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" ,
+  then Trace r
+ 
+/*******************************************/
+/* TURN ON MESSAGES                        */
+/*******************************************/
+syssymlist = symlist          /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist         /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist             /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs             /* CONTROL MSG/NOMSG         */
+/*******************************************/
+/* MAIN PROCESS                            */
+/*******************************************/
+"(MEMBER) = MEMBER"
+"(DSNAME) = DATASET"
+return_code = 0
+"(LASTLINE) = LINENUM .ZLAST"
+If return_code > 0 then do
+  If lastline = 0 then,
+    Say pgmname "Empty file RCode ="return_code "DSN="dsname,
+      "MEMBER="member zerrsm
+  Else,
+    Say pgmname "LINENUM Error RCode ="return_code "DSN="dsname,
+      "MEMBER="member zerrsm
+  SIGNAL ERR_EXIT
+  end
+ 
+Call REMOVE_5E_FIRST
+ 
+ 
+FIND_INCL:
+return_code = 0
+do until return_code > 0
+  return_code = 0
+  "FIND 'INCLUDE' WORD"
+  If return_code > 0 then leave
+  "(ROW,COL) = CURSOR"
+  "(DATA) = LINE" row
+  "DELETE" row
+  parse data . "INCLUDE" data .
+  If data <> " " then do
+    data = strip(data,"B")
+    incdsn = translate(data)
+    Say pgmname member "<INCLUDE>" incdsn
+    locate = sysdsn("'"incdsn"'")
+    If locate <> "OK" &,
+       length(incdsn) < 9 &,
+       pos("(",incdsn) = 0 then do
+      dsnmbr = parmdsn"("incdsn")"
+      locate2 = sysdsn("'"dsnmbr"'")
+      If locate2 = "OK" then do
+        incdsn = dsnmbr
+        locate = locate2
+        end
+      end
+    If locate = "OK" then do
+      return_code = 0
+      "COPY '"incdsn"' AFTER" row
+      If return_code <> 0 then,
+        Say pgmname "COPY" incdsn "Failed" return_code zerrsm
+      end
+    Else,
+      Say pgmname "LOCATE" incdsn "Failed" locate
+    end
+  Call REMOVE_5E_FIRST
+  end
+ 
+"EXCLUDE ALL '"left(" ",80)"' 1 80"
+"DELETE ALL X"
+return_code = 0
+"(LASTLINE) = LINENUM .ZLAST"
+If return_code > 0 then do
+  If lastline = 0 then,
+    Say pgmname "Empty file RCode ="return_code "DSN="dsname,
+      "MEMBER="member zerrsm
+  Else,
+    Say pgmname "LINENUM Error RCode ="return_code "DSN="dsname,
+      "MEMBER="member zerrsm
+  SIGNAL ERR_EXIT
+  end
+ 
+pdimbr = "JUNK"
+Call add_member
+ 
+return_code = 0
+Address ISPEXEC "LMMDEL DATAID("pdidd") MEMBER("pdimbr")"
+If return_code <> 0 then,
+  Say pgmname "LMMDEL PDI RCODE =" return_code pdimbr zerrsm
+ 
+ 
+return_code = 0
+pdimbr = "IFTP0031"
+"FIND FIRST WORD 'INACTIVE'"
+If return_code <> 0 then do
+  ac = "The INACTIVE statement is not configured to enable the",
+    "inactive timer check."
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER("pdimbr")"
+  ac = "The INACTIVE statement does not specify a value between 1",
+    "and 900 seconds."
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER("pdimbr")"
+  end
+Else do
+  "(ROW,COL) = CURSOR"
+  "(DATA) = LINE" row
+  parse var data . "INACTIVE" inacttime .
+  If inacttime = 0 then do
+    ac = "The INACTIVE statement is configured to disable the",
+      "inactive timer check."
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)") MEMBER("pdimbr")"
+    ac = "    " strip(data,"B")
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)") MEMBER("pdimbr")"
+    end
+  Else do
+    If inacttime > 900 then do
+      ac = "The INACTIVE statement specifies a value greater than",
+        "900 seconds."
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)") MEMBER("pdimbr")"
+      ac = "    " strip(data,"B")
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)") MEMBER("pdimbr")"
+      end
+    Else do
+      ac = "Not a Finding"
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)") MEMBER("pdimbr")"
+      ac = "The INACTIVE statement specifies a value between 1 and",
+        "900 seconds."
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)") MEMBER("pdimbr")"
+      ac = "    " strip(data,"B")
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)") MEMBER("pdimbr")"
+      end
+    end
+  end
+Call add_member
+ 
+return_code = 0
+pdimbr = "IFTP0032"
+"FIND FIRST WORD 'UMASK'"
+If return_code <> 0 then do
+  ac = "The UMASK statement is not configured."
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER("pdimbr")"
+  ac = "The UMASK statement must specify a value of 077."
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER("pdimbr")"
+  end
+Else do
+  "(ROW,COL) = CURSOR"
+  "(DATA) = LINE" row
+  parse var data . "UMASK" umask .
+  If umask <> "077" then do
+    ac = "The UMASK statement does not specify the value 077."
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)") MEMBER("pdimbr")"
+    ac = "    " strip(data,"B")
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)") MEMBER("pdimbr")"
+    end
+  Else do
+    ac = "Not a Finding"
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)") MEMBER("pdimbr")"
+    ac = "The UMASK statement specifies the value 077."
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)") MEMBER("pdimbr")"
+    ac = "    " strip(data,"B")
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)") MEMBER("pdimbr")"
+    end
+  end
+Call add_member
+ 
+zftp0050_banner = ""
+pdimbr = "IFTP0030"
+return_code = 0
+"FIND FIRST WORD 'BANNER'"
+zftp0050_banner_rc = return_code
+If return_code = 0 then do
+  "(ROW,COL) = CURSOR"
+  "(DATA) = LINE" row
+  parse var data . "BANNER" banner .
+  stigtxt1_ft50 = "The BANNER statement is specified in the FTP",
+    "Data configuration file resulting in a logon banner being",
+    "displayed."
+  ac = "Not a Finding"
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER("pdimbr")"
+  ac = "The BANNER statement is configured."
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER("pdimbr")"
+  ac = "    " strip(data,"B")
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER("pdimbr")"
+  stigtxt2_ft50 = "The file specified on the BANNER statement in",
+    "the FTP Data configuration file does not contain the required",
+    "notification and consent information."
+  If pos("/",banner) = 0 &,
+     pos("\",banner) = 0 then do
+    tstdsn = sysdsn("'"banner"'")
+    Say pgmname"    FTPRPT" banner
+    dsns = "FTPRPT" banner
+    Address ISPEXEC "VPUT (DSNS) ASIS"
+    Address ISPEXEC "EDIT DATAID("tblid") MEMBER("dsnlist")",
+      "MACRO("cacm000d")"
+    dsns = "FTPBANNER="
+    end
+  Else do
+    Say pgmname "Specifying" banner "for the FTPBANNER= entry of",
+      "the STDENV DD input in USS20 step as follows:"
+    Say pgmname"     FTPBANNER="banner
+    dsns = "FTPBANNER="banner
+    tstdsn = "OK"
+    end
+  zftp0050_banner = banner
+  end
+Else do
+  ac = "The BANNER statement is not configured."
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER("pdimbr")"
+  stigtxt1_ft50 = "The BANNER statement is not specified in the",
+    "FTP Data configuration file resulting in no logon banner",
+    "being displayed."
+  stigtxt2_ft50 = " "
+  dsns = "FTPBANNER="
+  end
+Call add_member
+ 
+otyperun = typerun
+typerun = "TEXT"
+Address ISPEXEC "VPUT (DSNS TYPERUN) ASIS"
+Address ISPEXEC "EDIT DATAID("tblid") MEMBER(STDENV) MACRO("cacm000d")"
+typerun = otyperun
+Address ISPEXEC "VPUT (TYPERUN) ASIS"
+zftp0060_stigtxt = ""
+"CURSOR = 1 0"
+tempdata = ""
+zftp0060_smf = 0
+ 
+ 
+ZFTP0060_SMF_CHK:
+return_code = 0
+do until return_code > 0
+  "FIND WORD 'SMF'"
+  If return_code > 0 then leave
+  "(DATA) = LINE .ZCSR"
+  tempdata = tempdata" "data
+  end
+ 
+If pos(" SMF ",tempdata) > 0 then do
+  stigtxt = "The SMF statement is configured."
+  zftp0060_stigtxt = zftp0060_stigtxt""stigtxt"#"
+  If pos(" TYPE119 ",tempdata) = 0 then do
+    zftp0060_smf = 1
+    stigtxt = "The SMF statement does not specify the TYPE119",
+      "value."
+    zftp0060_stigtxt = zftp0060_stigtxt""stigtxt"#"
+    end
+  Else do
+    stigtxt = "The SMF statement does specify the TYPE119 value."
+    zftp0060_stigtxt = zftp0060_stigtxt""stigtxt"#"
+    end
+  end
+Else do
+  zftp0060_smf = 4
+  stigtxt = "The SMF statement is not configured."
+  zftp0060_stigtxt = zftp0060_stigtxt""stigtxt"#"
+  stigtxt = "The SMF statement does not specify the TYPE119",
+    "value."
+  zftp0060_stigtxt = zftp0060_stigtxt""stigtxt"#"
+  end
+ 
+ 
+ZFTP0060_SMFJES_LOOP:
+"CURSOR = 1 0"
+tempdata = ""
+zftp0060_smfjes = 0
+ 
+ 
+ZFTP0060_SMFJES_CHK:
+return_code = 0
+do until return_code > 0
+  "FIND WORD 'SMFJES'"
+  If return_code > 0 then leave
+  "(DATA) = LINE .ZCSR"
+  tempdata = tempdata" "data
+  end
+ 
+If pos(" SMFJES ",tempdata) > 0 then do
+  stigtxt = "The SMFJES statement is configured."
+  zftp0060_stigtxt = zftp0060_stigtxt""stigtxt"#"
+  If pos(" TYPE119 ",tempdata) = 0 then do
+    zftp0060_smfjes = 1
+    stigtxt = "The SMFJES statement does not specify the",
+      "TYPE119 value."
+    zftp0060_stigtxt = zftp0060_stigtxt""stigtxt"#"
+    end
+  Else do
+    stigtxt = "The SMFJES statement does specify the TYPE119",
+      "value."
+    zftp0060_stigtxt = zftp0060_stigtxt""stigtxt"#"
+    end
+  end
+Else do
+  zftp0060_smfjes = 4
+  stigtxt = "The SMFJES statement is not configured."
+  zftp0060_stigtxt = zftp0060_stigtxt""stigtxt"#"
+  stigtxt = "The SMFJES statement does not specify the TYPE119",
+    "value."
+  zftp0060_stigtxt = zftp0060_stigtxt""stigtxt"#"
+  end
+ 
+ 
+ZFTP0060_SMFSQL_LOOP:
+"CURSOR = 1 0"
+tempdata = ""
+zftp0060_smfsql = 0
+ 
+ 
+ZFTP0060_SMFSQL_CHK:
+return_code = 0
+do until return_code > 0
+  "FIND WORD 'SMFSQL'"
+  If return_code > 0 then leave
+  "(DATA) = LINE .ZCSR"
+  tempdata = tempdata" "data
+  end
+ 
+If pos(" SMFSQL" ,tempdata) > 0 then do
+  stigtxt = "The SMFSQL statement is configured."
+  zftp0060_stigtxt = zftp0060_stigtxt""stigtxt"#"
+  If pos(" TYPE119 ",tempdata) = 0 then do
+    zftp0060_smfsql = 1
+    stigtxt = "The SMFSQL statement does not specify the TYPE119",
+      "value."
+    zftp0060_stigtxt = zftp0060_stigtxt""stigtxt"#"
+    end
+  Else do
+    stigtxt = "The SMFSQL statement does specify the TYPE119",
+      "value."
+    zftp0060_stigtxt = zftp0060_stigtxt""stigtxt"#"
+    end
+  end
+Else do
+  zftp0060_smfsql = 4
+  stigtxt = "The SMFSQL statement is not configured."
+  zftp0060_stigtxt = zftp0060_stigtxt""stigtxt"#"
+  stigtxt = "The SMFSQL statement does not specify the TYPE119",
+    "value."
+  zftp0060_stigtxt = zftp0060_stigtxt""stigtxt"#"
+  end
+ 
+ 
+ZFTP0060_SMF_NEXT:
+return_code = 0
+"FIND WORD 'SMFAPPE'"
+zftp0060_smfappe = return_code
+If return_code = 0 then,
+  stigtxt = "The SMFAPPE statement is configured."
+Else,
+  stigtxt = "The SMFAPPE statement is not configured."
+zftp0060_stigtxt = zftp0060_stigtxt""stigtxt"#"
+ 
+return_code = 0
+"FIND WORD 'SMFDEL'"
+zftp0060_smfdel = return_code
+If return_code = 0 then,
+  stigtxt = "The SMFDEL statement is configured."
+Else,
+  stigtxt = "The SMFDEL statement is not configured."
+zftp0060_stigtxt = zftp0060_stigtxt""stigtxt"#"
+ 
+return_code = 0
+"FIND WORD 'SMFEXIT'"
+zftp0060_smfexit = return_code
+If return_code = 0 then,
+  stigtxt = "The SMFEXIT statement is configured."
+Else,
+  stigtxt = "The SMFEXIT statement is not configured."
+zftp0060_stigtxt = zftp0060_stigtxt""stigtxt"#"
+ 
+return_code = 0
+"FIND WORD 'SMFLOGN'"
+zftp0060_smflogn = return_code
+If return_code = 0 then,
+  stigtxt = "The SMFLOGN statement is configured."
+Else,
+  stigtxt = "The SMFLOGN statement is not configured."
+zftp0060_stigtxt = zftp0060_stigtxt""stigtxt"#"
+ 
+return_code = 0
+"FIND WORD 'SMFREN'"
+zftp0060_smfren = return_code
+If return_code = 0 then,
+  stigtxt = "The SMFREN statement is configured."
+Else,
+  stigtxt = "The SMFREN statement is not configured."
+zftp0060_stigtxt = zftp0060_stigtxt""stigtxt"#"
+ 
+return_code = 0
+"FIND WORD 'SMFRETR'"
+zftp0060_smfretr = return_code
+If return_code = 0 then,
+  stigtxt = "The SMFRETR statement is configured."
+Else,
+  stigtxt = "The SMFRETR statement is not configured."
+zftp0060_stigtxt = zftp0060_stigtxt""stigtxt"#"
+ 
+return_code = 0
+"FIND WORD 'SMFSTOR'"
+zftp0060_smfstor = return_code
+If return_code = 0 then,
+  stigtxt = "The SMFSTOR statement is configured."
+Else,
+  stigtxt = "The SMFSTOR statement is not configured."
+zftp0060_stigtxt = zftp0060_stigtxt""stigtxt"#"
+ 
+return_code = 0
+ 
+/* Removal of old IFTP0030 scripts
+FINISH_ZFTP0030:
+If zftp0030_sw > 0 then do
+  ac = "The FTP Data configuration file is coded improperly."
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(IFTP0030)"
+  ac = " "
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(IFTP0030)"
+  a = 1
+  end
+Else do
+  ac = "Not a Finding"
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(IFTP0030)"
+  ac = " "
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(IFTP0030)"
+/*!*/SIGNAL  REP_ZFTP030
+  end
+ 
+If zftp0030_sw > 1 then,
+  pd = a") "
+Else,
+  pd = ""
+If zftp0030_anoymous = 0 then do
+  ac = pd"The ANONYMOUS statement is in use enabling the FTP",
+    "Server to accept anonymous logins."
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(IFTP0030)"
+  a = a + 1
+  end
+ 
+If zftp0030_sw > 1 then,
+  pd = a") "
+Else,
+  pd = ""
+If zftp0030_inactive = 4 then do
+  ac = pd"The INACTIVE statement is not configured."
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(IFTP0030)"
+  a = a + 1
+  end
+ 
+If zftp0030_sw > 1 then,
+  pd = a") "
+Else,
+  pd = ""
+If zftp0030_inactive = 1 then do
+  ac = pd"The INACTIVE statement is configured to disable the",
+    "inactivity timer check."
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(IFTP0030)"
+  ac = " "
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(IFTP0030)"
+  ac = "     "zftp0030_inact
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(IFTP0030)"
+  ac = " "
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(IFTP0030)"
+  a = a + 1
+  end
+ 
+If zftp0030_sw > 1 then,
+  pd = a") "
+Else,
+  pd = ""
+If zftp0030_inactive = 2 then do
+  ac = pd"The INACTIVE statement specifies a value greater than",
+    "15 minute."
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(IFTP0030)"
+  ac = " "
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(IFTP0030)"
+  ac = "     "zftp0030_inact
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(IFTP0030)"
+  ac = " "
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(IFTP0030)"
+  a = a + 1
+  end
+ 
+If zftp0030_sw > 1 then,
+  pd = a") "
+Else,
+  pd = ""
+If iftp0032_umask = "X" then do
+  ac = pd"The UMASK statement is not configured."
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(IFTP0030)"
+  a = a + 1
+  end
+ 
+If zftp0030_sw > 1 then,
+  pd = a") "
+Else,
+  pd = ""
+If iftp0032_umask <> "X" &,
+   iftp0032_umask <> " " then do
+  ac = pd"The UMASK statement does not specify the value 077."
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(IFTP0030)"
+  ac = " "
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(IFTP0030)"
+  ac = "     "iftp0032_umask
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(IFTP0030)"
+  a = a + 1
+  end
+ 
+If zftp0030_sw > 1 then,
+  pd = a") "
+Else,
+  pd = ""
+ 
+Finish scripts for removal of IFTP0030 */
+ 
+ 
+FINISH_ZFTP0050:
+return_code = 0
+pdimbr = "IFTP0050"
+If zftp0050_banner_rc = 0 then do
+  txt = stigtxt2_ft50
+  banner = zftp0050_banner
+  Call get_banner zftp0050_banner stigtxt2_ft50
+  end
+Else do
+  ac = stigtxt1_ft50
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR)",
+    "DATALOC(AC) DATALEN("length(ac)") MEMBER("pdimbr")"
+  ac = stigtxt2_ft50
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR)",
+    "DATALOC(AC) DATALEN("length(ac)") MEMBER("pdimbr")"
+  end
+ 
+ 
+REP_ZFTP050:
+return_code = 0
+Call add_member
+ 
+pdimbr = "IUTN0030"
+banner = "/etc/banner"
+stigtxt2_ut30 = "The" banner "file does not contain the required",
+  "notification and consent information."
+Call get_banner banner stigtxt2_ut30
+return_code = 0
+Call add_member
+ 
+ 
+FINISH_ZFTP0060:
+pdimbr = "IFTP0060"
+zftp0060_sw = 0
+If zftp0060_smf <> 0 then,
+  zftp0060_sw = zftp0060_sw + 1
+If zftp0060_smfjes <> 0 then,
+  zftp0060_sw = zftp0060_sw + 1
+If zftp0060_smfsql <> 0 then,
+  zftp0060_sw = zftp0060_sw + 1
+If zftp0060_smfappe = 0 then,
+  zftp0060_sw = zftp0060_sw + 1
+If zftp0060_smfdel = 0 then,
+  zftp0060_sw = zftp0060_sw + 1
+If zftp0060_smfexit = 0 then,
+  zftp0060_sw = zftp0060_sw + 1
+If zftp0060_smflogn = 0 then,
+  zftp0060_sw = zftp0060_sw + 1
+If zftp0060_smfren = 0 then,
+  zftp0060_sw = zftp0060_sw + 1
+If zftp0060_smfretr = 0 then,
+  zftp0060_sw = zftp0060_sw + 1
+If zftp0060_smfstor = 0 then,
+  zftp0060_sw = zftp0060_sw + 1
+If zftp0060_sw = 0 then do
+  ac = "Not a Finding"
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR)",
+    "DATALOC(AC) DATALEN("length(ac)") MEMBER("pdimbr")"
+  ac = " "
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR)",
+    "DATALOC(AC) DATALEN("length(ac)") MEMBER("pdimbr")"
+  a = 1
+  Do X = 1 to length(zftp0060_stigtxt)
+    y = pos("#",zftp0060_stigtxt,x) -1
+    y = pos("#",zftp0060_stigtxt,x)
+    parse var zftp0060_stigtxt .=(x) stigtxt "#" .
+    ac = a")" stigtxt
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR)",
+      "DATALOC(AC) DATALEN("length(ac)") MEMBER("pdimbr")"
+    a = a + 1
+    x = y
+    end
+  end
+Else do
+  ac = "The FTP Data configuration file is coded improperly."
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR)",
+    "DATALOC(AC) DATALEN("length(ac)") MEMBER("pdimbr")"
+  ac = " "
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR)",
+    "DATALOC(AC) DATALEN("length(ac)") MEMBER("pdimbr")"
+  a = 1
+ 
+  If zftp0060_sw > 1 then,
+    pd = a") "
+  Else
+    pd = ""
+  If zftp0060_smf = 4 then do
+    ac = pd"The SMF statement is not configured."
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR)",
+      "DATALOC(AC) DATALEN("length(ac)") MEMBER("pdimbr")"
+    a = a + 1
+    end
+ 
+  If zftp0060_sw > 1 then,
+      pd = a") "
+  Else
+    pd = ""
+  If zftp0060_smf = 1 then do
+    ac = pd"The SMF statement does not specify the TYPE119 value."
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR)",
+      "DATALOC(AC) DATALEN("length(ac)") MEMBER("pdimbr")"
+    a = a + 1
+    end
+ 
+  If zftp0060_sw > 1 then,
+      pd = a") "
+  Else
+    pd = ""
+  If zftp0060_smfjes <> 0 then do
+    ac = pd"The SMFJES statement is not configured."
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR)",
+      "DATALOC(AC) DATALEN("length(ac)") MEMBER("pdimbr")"
+    a = a + 1
+    end
+ 
+  If zftp0060_sw > 1 then,
+      pd = a") "
+  Else
+    pd = ""
+  If zftp0060_smfsql <> 0 then do
+    ac = pd"The SMFSQL statement is not configured."
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR)",
+      "DATALOC(AC) DATALEN("length(ac)") MEMBER("pdimbr")"
+    a = a + 1
+    end
+ 
+  If zftp0060_sw > 1 then,
+      pd = a") "
+  Else
+    pd = ""
+  If zftp0060_smfappe = 0 then do
+    ac = pd"The SMFAPPE statement is in use."
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR)",
+      "DATALOC(AC) DATALEN("length(ac)") MEMBER("pdimbr")"
+    a = a + 1
+    end
+ 
+  If zftp0060_sw > 1 then,
+      pd = a") "
+  Else
+    pd = ""
+  If zftp0060_smfdel = 0 then do
+    ac = pd"The SMFDEL statement is in use."
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR)",
+      "DATALOC(AC) DATALEN("length(ac)") MEMBER("pdimbr")"
+    a = a + 1
+    end
+ 
+  If zftp0060_sw > 1 then,
+      pd = a") "
+  Else
+    pd = ""
+  If zftp0060_smfexit = 0 then do
+    ac = pd"The SMFEXIT statement is in use."
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR)",
+      "DATALOC(AC) DATALEN("length(ac)") MEMBER("pdimbr")"
+    a = a + 1
+    end
+ 
+  If zftp0060_sw > 1 then,
+      pd = a") "
+  Else
+    pd = ""
+  If zftp0060_smflogn = 0 then do
+    ac = pd"The SMFLOGN statement is in use."
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR)",
+      "DATALOC(AC) DATALEN("length(ac)") MEMBER("pdimbr")"
+    a = a + 1
+    end
+ 
+  If zftp0060_sw > 1 then,
+      pd = a") "
+  Else
+    pd = ""
+  If zftp0060_smfren = 0 then do
+    ac = pd"The SMFREN statement is in use."
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR)",
+      "DATALOC(AC) DATALEN("length(ac)") MEMBER("pdimbr")"
+    a = a + 1
+    end
+ 
+  If zftp0060_sw > 1 then,
+      pd = a") "
+  Else
+    pd = ""
+  If zftp0060_smfretr = 0 then do
+    ac = pd"The SMFRETR statement is in use."
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR)",
+      "DATALOC(AC) DATALEN("length(ac)") MEMBER("pdimbr")"
+    a = a + 1
+    end
+ 
+  If zftp0060_sw > 1 then,
+      pd = a") "
+  Else
+    pd = ""
+  If zftp0060_smfstor = 0 then do
+    ac = pd"The SMFSTOR statement is in use."
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR)",
+      "DATALOC(AC) DATALEN("length(ac)") MEMBER("pdimbr")"
+    a = a + 1
+    end
+  end
+ 
+ 
+REP_ZFTP060:
+return_code = 0
+Call add_member
+ 
+ 
+END_EXIT:
+return_code = 0
+ 
+ 
+ERR_EXIT:
+If maxcc >= 16 | return_code > 0 then do
+  Address ISPEXEC "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then,
+    zispfrc = maxcc
+  Else,
+    zispfrc = return_code
+  Address ISPEXEC "VPUT (ZISPFRC) SHARED"
+  Say pgmname "ZISPFRC =" zispfrc
+  end
+cm015rc = return_code
+Address ISPEXEC "VPUT (CM15VGET CM015RC) ASIS"
+"END"
+Exit
+ 
+ 
+/*******************************************/
+/*  SYSCALL SUBROUTINES                    */
+/*******************************************/
+ADD_MEMBER:
+return_code = 0
+Address ISPEXEC "LMMADD DATAID("pdidd") MEMBER("pdimbr")"
+If return_code = 4 then do
+  return_code = 0
+  Address ISPEXEC "LMMREP DATAID("pdidd") MEMBER("pdimbr")"
+  If return_code <> 0 then,
+    Say pgmname "LMMREP PDI RCODE =" return_code pdimbr zerrsm
+  end
+Else do
+  If return_code <> 0 then,
+    Say pgmname "LMMADD PDI RCODE =" return_code pdimbr zerrsm
+  end
+Return
+ 
+ 
+GET_BANNER:
+parse arg banner txt
+/*say banner "=" txt*/
+msg = msg('OFF')
+out.0 = 0
+banner_found = ""
+nrtext = "Not Reviewed"
+trash = outtrap("trash.")
+sysouttrap = 9
+return_code = 0
+"(DSN) = DATASET"
+x = lastpos(".",dsn)
+parse var dsn pref =(x) .
+If pos("/",banner) = 0 &,
+   pos("\",banner) = 0 then do
+  tst = sysdsn("'"banner"'")
+  If sysdsn("'"banner"'") = "OK" then do
+    Address TSO "ALLOC DDNAME(DATAID) DSNAME('"banner"') SHR"
+    banner_found = "Y"
+    end
+  end
+Else do
+  dsn = "'"pref".BANNER.DATA'"
+  x = SYSDSN(dsn)
+  if x = "OK" then,
+    Address TSO "DELETE ('"pref".BANNER.DATA')"
+  return_code = 0
+  Address TSO "OGET '"banner"' '"pref".BANNER.DATA' TEXT",
+    "CONVERT((BPXFX111))"
+  If return_code = 0 then do
+    Address TSO "ALLOC DDNAME(DATAID)",
+      "DSNAME('"pref".BANNER.DATA') SHR DELETE"
+    banner_found = "Y"
+    end
+  end
+ 
+If banner_found = "" then do
+  nrtext = " "
+  Select
+    When pdimbr = "IUTN0030" then,
+      txt = "The" banner "file does not exist or is",
+        "inaccessible resulting in no logon banner being",
+        "displayed."
+    When pdimbr = "IFTP0050" then,
+      txt = "The file specified on the BANNER statement in the",
+        "FTP Data configuration file does not exist or is",
+        "inaccessible resulting in no logon banner being",
+        "displayed."
+    Otherwise nop
+    end
+  return_code = 0
+  end
+Else do
+  Address TSO "EXECIO * DISKR DATAID (FINIS STEM out."
+/*If return_code > 0 | left(return_code,1) = "S" then,
+  nrtext = " "*/
+  end
+ 
+If nrtext <> " " then,
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR)",
+    "DATALOC(NRTEXT) DATALEN("length(nrtext)") MEMBER("pdimbr")"
+ac = txt
+Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR)",
+  "DATALOC(AC) DATALEN("length(ac)") MEMBER("pdimbr")"
+ac = " "
+Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR)",
+  "DATALOC(AC) DATALEN("length(ac)") MEMBER("pdimbr")"
+ 
+If banner_found = "" then do
+/*If return_code > 0 | left(return_code,1) = "S" then do*/
+  ac = "     Refer to" banner
+  If banner <> " " then,
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR)",
+      "DATALOC(AC) DATALEN("length(ac)") MEMBER("pdimbr")"
+  Address TSO "FREE DDNAME(DATAID)"
+/*sysouttrap = 0*/
+  maxcc = 0
+  Return
+  end
+ac = "     Contents of" banner "are as follows:"
+Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+  "DATALEN("length(ac)") MEMBER("pdimbr")"
+ac = " "
+Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+  "DATALEN("length(ac)") MEMBER("pdimbr")"
+ 
+do xx = 1 to out.0
+  ac = "          "out.xx
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER("pdimbr")"
+  end
+ 
+maxcc = 0
+Address TSO "FREE DDNAME(DATAID)"
+/*sysouttrap = 0*/
+Return
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname "REXX error" rc "in line" sigl":" strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC >= 16 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname "REXX error" rc "in line" sigl":" ERRORTEXT(rc)
+  say SOURCELINE(sigl)
+  end
+if return_code > maxcc then
+  maxcc = return_code
+return
+ 
+ 
+REMOVE_5E_FIRST:
+return_code = 0
+"EXCLUDE ALL X'5E' 1 1"
+"DELETE ALL X"
+"CURSOR = 1 0"
+ 
+ 
+REMOVE_5E:
+do until return_code > 0
+  return_code = 0
+  "FIND X'5E' 2 80"
+  If return_code > 0 then do
+    "CURSOR = 1 0"
+    leave
+    end
+  "(ROW,COL) = CURSOR"
+  "(DATA) = LINE" row
+  data = data":" row col
+  data = left(data,col-1)
+  "LINE" row "= (DATA)"
+  end
+Return
+ 
+ 

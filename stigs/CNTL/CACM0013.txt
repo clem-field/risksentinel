@@ -1,0 +1,1877 @@
+/* REXX */
+/* CLS2REXXed by FSOX001 on 26 Oct 2018 at 15:40:08  */
+/*trace r?*/
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+Address ISREDIT
+ 
+"MACRO"               /* CACM0013 EDIT TCPPARMS(PROFILE) */
+/*********************************************************************/
+/* This EDIT MACRO provide the finding details for ITCP0030,         */
+/* ITNT0010, ITNT0020, ITNT0050, and ITNT0060.                       */
+/*********************************************************************/
+/* 08/05/2004 JL.NELSON ADDED EXIT CODE.                             */
+/* 08/09/2004 JL.NELSON ADDED comments for PDI checks.               */
+/* 02/11/2005 JL.NELSON Changed constants to variables before        */
+/*            rename.                                                */
+/* 03/31/2005 JL.NELSON Added Manual Review ZTNT0020 per Charles.    */
+/* 06/02/2005 JL.NELSON Split out FTPCLIENT and TN3270CLIENT msgs.   */
+/* 06/09/2005 JL.NELSON Pass MAXCC in ZISPFRC variable.              */
+/* 07/06/2005 JL.NELSON Correct FTPCLIENT and TN3270CLIENT msgs.     */
+/* 07/07/2005 JL.NELSON Correct free form operands on multiple       */
+/*            lines.                                                 */
+/* 07/13/2005 JL.NELSON Correct ZTNT messages for Keyring.           */
+/* 07/15/2005 JL.NELSON Correct abend lastcc=912.                    */
+/* 07/29/2005 JL.NELSON Correct ZTNT member names.                   */
+/* 10/24/2005 JL.NELSON Modified for v511 PDI name changes.          */
+/* 03/03/2006 JL.NELSON Test for ampersand in data.                  */
+/* 03/06/2006 JL.NELSON Made changes to avoid SUBSTR abend 920/932.  */
+/* 03/13/2006 JL.NELSON Set/test RCode for critical ISREDIT          */
+/*            commands.                                              */
+/* 03/20/2006 JL.NELSON Use NRSTR avoid abend 900 if ampersand in    */
+/*            data.                                                  */
+/* 03/29/2006 JL.NELSON Test for empty member LINENUM Rcode = 4.     */
+/* 03/31/2006 JL.NELSON Added TRUNC_DATA routine to drop blanks      */
+/*            RC=864.                                                */
+/* 04/06/2006 JL.NELSON Pass PARMLIB dataset name for INCLUDE stmts. */
+/* 05/09/2006 JL.NELSON Avoid RC 20 on ISREDIT LINE when " or ' in   */
+/*            data.                                                  */
+/* 07/07/2006 JL.NELSON Missing blocks have undefined variables in   */
+/*            msg.                                                   */
+/* 07/07/2006 JL.NELSON Added TYPE to SMFCONFIG options.             */
+/* 06/28/2007 CL.FENTON Moved location of Manual Review to top of    */
+/*            member.                                                */
+/* 02/07/2008 C.STERN Changed to support TKOSPECLURECON in           */
+/*            TELNETGLOBALS for z/OS 1.4 and higher in PDI ITNT0010. */
+/*            Changed value in TELNETPARMS from TKOSPECLU to         */
+/*            TKOSPECLURECON per CF.                                 */
+/* 03/03/2008 C.STERN Changed to support INACTIVE in TELNETGLOBALS   */
+/*            for z/OS 1.4 and higher in PDI ITNT0010.               */
+/* 06/30/2008 C.STERN Fix for TELNETGLOBALS not in use statement for */
+/*            ITNT0010.                                              */
+/* 10/09/2008 CL.Fenton Added analysis for TN3270 and corrected      */
+/*            errors in the ITNTxxxx PDIs with TELNETGLOBALS and     */
+/*            TELNETPARMS.                                           */
+/* 10/09/2008 CL.Fenton Changed allowed entries on ENCRYPTION entry. */
+/* 07/16/2009 CL.Fenton Added collection of tables and dsnlist       */
+/*            members.                                               */
+/* 02/26/2010 CL.Fenton Correct problem with ZTNT0050 912 error.     */
+/* 08/06/2010 CL.Fenton Correct problem ITNT0020 having additional   */
+/*            record written for PORT with no client identifier.     */
+/* 03/04/2013 CL.Fenton Correct problem ITNT0050 to specify only     */
+/*            invalid encryption options, CSD-AR003013011.           */
+/* 12/09/2013 CL.Fenton Changed ITNT0060 to review TYPE119 for both  */
+/*            SMFINIT and SMFTERM, STS-004329.                       */
+/* 05/29/2014 CL.Fenton Chgs made to add DIALOG information for      */
+/*            CSFTP, CSTCP, and CSTNT, STS-000653.                   */
+/* 07/10/2014 CL.Fenton Chgs made to collect all SMFINIT and SMFTERM */
+/*            entries for evaluation for TYPE119, STS-006990.        */
+/* 11/21/2014 CL.Fenton Added ISPEXEC CONTROL statements for error   */
+/*            that may occur in ISREDIT COPY statements, STS-008269. */
+/* 05/05/2015 CL.Fenton Removed "Manual Review" from ITNT0020,       */
+/*            STS-007282.                                            */
+/* 07/25/2017 CL.Fenton Commented LMMREP in ADD_MEMBER proceedure to */
+/*            avoid overwritting 'Not Applicable' entries.           */
+/* 05/18/2018 CL.Fenton Added "Not Reviewed" to ITNT0010 and         */
+/*            ITNT0020 for vuls that require additional analysis,    */
+/*            STS-019713.                                            */
+/* 10/26/2018 CL.FENTON Converted script from CLIST to REXX.         */
+/* 03/20/2019 CL.Fenton Changes to initialize ztnt0010_new variable. */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname = "CACM0013 03/20/19"
+sysprompt = "OFF"                /* CONTROL NOPROMPT          */
+sysflush = "OFF"                /* CONTROL NOFLUSH           */
+sysasis = "ON"                 /* CONTROL ASIS - caps off   */
+return_code = 0
+maxcc = 0
+Address ISPEXEC "CONTROL NONDISPL ENTER"
+Address ISPEXEC "CONTROL ERRORS RETURN"
+/*******************************************/
+/* VARIABLES ARE PASSED TO THIS MACRO      */
+/* CONSLIST                                */
+/* COMLIST                                 */
+/* SYMLIST                                 */
+/* TERMMSGS                                */
+/* OPSNAME   OS/390 system name            */
+/* OPSVERS   OS/390 system version         */
+/*******************************************/
+return_code = 0
+Address ISPEXEC "VGET (CONSLIST COMLIST SYMLIST TERMMSGS PDIDD ACP",
+  "OPSNAME OPSVERS PARMDSN TNPROF TBLID DSNLIST CACM000D) ASIS"
+cm13vget = return_code
+If return_code <> 0 then do
+  Say pgmname "VGET RC =" return_code zerrsm
+  Say pgmname "CONSLIST/"conslist "COMLIST/"comlist,
+    "SYMLIST/"symlist "TERMMSGS/"termmsgs
+  Say pgmname "PDIDD/"pdidd "ACP/"acp "OPSNAME/"opsname,
+    "OPSVERS/"opsvers "PARMDSN/"parmdsn "TNPROF/"tnprof
+  Say pgmname "TBLID/"tblid "TCPMBR/"tcpmbr "TNMBR/"tnmbr,
+    "DSNLIST/"dsnlist "CACM000D/"cacm000d
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" ,
+  then Trace r
+ 
+return_code = 0
+/*******************************************/
+/* TURN ON MESSAGES                        */
+/*******************************************/
+syssymlist = symlist          /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist         /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist             /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs             /* CONTROL MSG/NOMSG         */
+/*******************************************/
+/* MAIN PROCESS                            */
+/*******************************************/
+"(MEMBER) = MEMBER"
+"(DSNAME) = DATASET"
+Call remove_comment
+return_code = 0
+"(LASTLINE) = LINENUM .ZLAST"
+ 
+If return_code > 0 then do
+  If lastline = 0 then,
+    Say pgmname "Empty file RCode =" return_code "DSN="dsname,
+      "MEMBER="member zerrsm
+  Else,
+    Say pgmname "LINENUM Error RCode =" return_code "DSN="dsname,
+      "MEMBER="member zerrsm
+  SIGNAL ERR_EXIT
+  end
+lp = "("
+rp = ")"
+ztnt0010_data = ""
+ztnt0010_new  = ""
+ztnt0010_txt1 = ""
+ztnt0010_txt2 = ""
+ztnt0010_txt3 = ""
+ztnt0010_txt4 = ""
+ztnt0010_txt5 = ""
+ztnt0010_txt6 = ""
+ztnt0010_txt7 = ""
+ztnt0010_txt8 = ""
+ztnt0010_txt9 = ""
+ztnt0020_data = ""
+ztnt0020_txt1 = ""
+ztnt0020_txt2 = ""
+ztnt0020_txt3 = ""
+ztnt0020_txt4 = ""
+ztnt0020_txt5 = ""
+ztnt0020_txt6 = ""
+ztnt0020_txt7 = ""
+ztnt0020_txt8 = ""
+ztnt0020_txt9 = ""
+ztnt0050_data = ""
+ztnt0050_txt1 = ""
+ztnt0050_txt2 = ""
+ztnt0050_txt3 = ""
+ztnt0050_txt4 = ""
+ztnt0050_txt5 = ""
+ztnt0050_txt6 = ""
+ztnt0050_txt7 = ""
+ztnt0050_txt8 = ""
+ztnt0050_txt9 = ""
+ztnt0060_data = ""
+ztnt0060_txt1 = ""
+ztnt0060_txt2 = ""
+ztnt0060_txt3 = ""
+ztnt0060_txt4 = ""
+ztnt0060_txt5 = ""
+ztnt0060_txt6 = ""
+ztnt0060_txt7 = ""
+ztnt0060_txt8 = ""
+ztnt0060_txt9 = ""
+ztnt0050_encrypt = ""
+ 
+"CURSOR = 1 0"
+return_code = 0
+"FIND FIRST WORD 'SMFPARMS'"
+ztcp0030_smfparms = return_code
+If return_code = 0 then do
+  "(ROW,COL) = CURSOR"
+  "(DATA) = LINE" row
+  stigtxt1 = "The SMFPARMS statement is in use. ",
+    substr(data,col)
+  end
+Else,
+  stigtxt1 = "The SMFPARMS statement is not in use."
+ 
+"CURSOR = 1 0"
+return_code = 0
+"FIND FIRST WORD 'DELETE'"
+ztcp0030_delete = return_code
+If return_code = 0 then do
+  "(ROW,COL) = CURSOR"
+  "(DATA) = LINE" row
+  stigtxt2 = "The DELETE statement is in use for production systems. ",
+    substr(data,col)
+  end
+Else,
+  stigtxt2 = "The DELETE statement is not in use for production",
+    "systems."
+ 
+"CURSOR = 1 0"
+return_code = 0
+smf_data = ""
+"FIND FIRST WORD 'SMFCONFIG'"
+ztcp0030_smfc = return_code
+If ztcp0030_smfc = 0 then do
+  "(ROW,COL) = CURSOR"
+  do i = row to lastline
+    "(DATA) = LINE" i
+    data = strip(data,"B")
+    If pos("SMFCONFIG",data)    > 0 |,
+       pos("TYPE11",data)       > 0 |,
+       pos("FTPCLIENT",data)    > 0 |,
+       pos("TCPINIT",data)      > 0 |,
+       pos("TCPIPS",data)       > 0 |,
+       pos("TCPTERM",data)      > 0 |,
+       pos("TN3270CLIENT",data) > 0 |,
+       pos("IFS",data)          > 0 |,
+       pos("PORTS",data)        > 0 |,
+       pos("TCPSTACK",data)     > 0 |,
+       pos("UDPT",data)         > 0 then do
+      smf_data = smf_data""data" "
+      end
+    end /* do i = row ... */
+  end
+If ztcp0030_smfc = 0 then,
+  stigtxt3 = "The SMFCONFIG statement is configured.  "smf_data
+Else,
+  stigtxt3 = "The SMFCONFIG statement is not configured."
+ 
+ztcp0030_smfcf = 0
+ztcp0030_smfct = 0
+If ztcp0030_smfc = 0 then do
+  ztcp0030_smfcf = pos(" FTPCLIENT ",smf_data)
+  ztcp0030_smfct = pos(" TN3270CLIENT ",smf_data)
+  If ztcp0030_smfcf = 0 then,
+    stigtxt4 = "The SMFCONFIG statement does not specify the",
+      "FTPCLIENT operand.  "smf_data
+  If ztcp0030_smfct = 0 then,
+    stigtxt4 = "The SMFCONFIG statement does not specify the",
+      "TN3270CLIENT operand.  "smf_data
+  If ztcp0030_smfcf > 0 & ztcp0030_smfct > 0 then,
+    stigtxt4 = "The SMFCONFIG statement specifies both the FTPCLIENT",
+      "and the TN3270CLIENT operands."
+  If ztcp0030_smfcf = 0 & ztcp0030_smfct = 0 then,
+    stigtxt4 = "The SMFCONFIG statement does not specify the",
+      "FTPCLIENT and the TN3270CLIENT operands.  "smf_data
+  end
+ 
+"CURSOR = 1 0"
+return_code = 0
+tcp_data = ""
+"FIND FIRST WORD 'TCPCONFIG'"
+ztcp0030_tcpc = return_code
+If ztcp0030_tcpc = 0 then do
+  "(ROW,COL) = CURSOR"
+  do i = row to lastline
+    "(DATA) = LINE" i
+    data = strip(data,"B")
+    If pos("TCPCONFIG",data)  > 0 |,
+       pos("DELAYA",data)     > 0 |,
+       pos("FINW",data)       > 0 |,
+       pos("INT",data)        > 0 |,
+       pos("SENDG",data)      > 0 |,
+       pos("TCPMAXRCVB",data) > 0 |,
+       pos("TCPRCVB",data)    > 0 |,
+       pos("TCPSENDB",data)   > 0 |,
+       pos("TCPTIME",data)    > 0 |,
+       pos("RESTRICTL",data)  > 0 then do
+      tcp_data = tcp_data""data" "
+      end
+    If pos("UDPCONFIG",data)  > 0 then leave
+    end
+  end
+If ztcp0030_tcpc = 0 then,
+  stigtxt5 = "The TCPCONFIG statement is configured.  "tcp_data
+Else,
+  stigtxt5 = "The TCPCONFIG statement is not configured."
+return_code = 0
+ztcp0030_tcpcr = 0
+If ztcp0030_tcpc = 0 then do
+  ztcp0030_tcpcr = pos(" RESTRICTL",tcp_data" ")
+  If ztcp0030_tcpcr > 0 then,
+    stigtxt6 = "The TCPCONFIG statement does specify the",
+      "RESTICTLOWPORTS operand."
+  If ztcp0030_tcpcr = 0 then,
+    stigtxt6 = "The TCPCONFIG statement does not specify the",
+      "RESTICTLOWPORTS operand."  tcp_data
+  end
+ 
+"CURSOR = 1 0"
+return_code = 0
+udp_data = ""
+"FIND FIRST WORD 'UDPCONFIG'"
+ztcp0030_udpc = return_code
+If ztcp0030_udpc = 0 then do
+  "(ROW,COL) = CURSOR"
+  do i = row to lastline
+    "(DATA) = LINE" i
+    data = strip(data,"B")
+    If pos("UDPCONFIG",data) > 0 |,
+       pos("UDPCHK",data)    > 0 |,
+       pos("UDPQ",data)      > 0 |,
+       pos("UDPRCVB",data)   > 0 |,
+       pos("UDPSENDB",data)  > 0 |,
+       pos("RESTRICTL",data) > 0 then do
+      udp_data = udp_data""data" "
+      end
+    If pos("TCPCONFIG",data) > 0 then leave
+    end
+  end
+If ztcp0030_udpc = 0 then,
+  stigtxt7 = "The UDPCONFIG statement is configured.  "udp_data
+Else,
+  stigtxt7 = "The UDPCONFIG statement is not configured."
+return_code = 0
+ztcp0030_udpcr = 0
+If ztcp0030_udpc = 0 then do
+  ztcp0030_udpcr = pos(" RESTRICTL",udp_data" ")
+  If ztcp0030_udpcr > 0 then,
+    stigtxt8 = "The UDPCONFIG statement does specify the",
+      "RESTICTLOWPORTS operand."
+  If ztcp0030_udpcr = 0 then,
+    stigtxt8 = "The UDPCONFIG statement does not specify the",
+      "RESTICTLOWPORTS operand.  "udp_data
+  end
+ 
+ 
+CHK_ZTCP0030:
+return_code = 0
+ztcp0030_cnt = ztcp0030_smfc + ztcp0030_tcpc + ztcp0030_udpc
+ztcp0030_cnt = ztcp0030_cnt / 4
+If ztcp0030_smfparms = 0 then,
+  ztcp0030_cnt = ztcp0030_cnt + 1
+If ztcp0030_delete = 0 then,
+  ztcp0030_cnt = ztcp0030_cnt + 1
+If ztcp0030_smfc  = 0  &,
+  (ztcp0030_smfcf = 0  |,
+   ztcp0030_smfct = 0) then,
+  ztcp0030_cnt = ztcp0030_cnt + 1
+If ztcp0030_tcpc  = 0 &,
+   ztcp0030_tcpcr = 0 then,
+  ztcp0030_cnt = ztcp0030_cnt + 1
+If ztcp0030_udpc  = 0 &,
+   ztcp0030_udpcr = 0 then,
+  ztcp0030_cnt = ztcp0030_cnt + 1
+If ztcp0030_cnt = 0 then do
+  ac = "Not a Finding"
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(ITCP0030)"
+  ac = " "
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(ITCP0030)"
+  ac = "1)" stigtxt1
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(ITCP0030)"
+  ac = "2)" stigtxt2
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(ITCP0030)"
+  ac = "3)" stigtxt3
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(ITCP0030)"
+  ac = "4)" stigtxt4
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(ITCP0030)"
+  ac = "5)" stigtxt5
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(ITCP0030)"
+  ac = "6)" stigtxt6
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(ITCP0030)"
+  ac = "7)" stigtxt7
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(ITCP0030)"
+  ac = "8)" stigtxt8
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(ITCP0030)"
+  end
+Else do
+  ac = "The TCP/IP Profile configuration file is coded improperly."
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(ITCP0030)"
+  ac = " "
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(ITCP0030)"
+  a = 1
+  If ztcp0030_cnt > 1 then,
+    pd = a") "
+  Else,
+    pd = ""
+  If ztcp0030_smfparms = 0 then do
+    ac = pd""stigtxt1
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)") MEMBER(ITCP0030)"
+    a = a + 1
+    If ztcp0030_cnt > 1 then,
+      pd = a") "
+    end
+  If ztcp0030_delete = 0 then do
+    ac = pd""stigtxt2
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)") MEMBER(ITCP0030)"
+    a = a + 1
+    If ztcp0030_cnt > 1 then,
+      pd = a") "
+    end
+  If ztcp0030_smfc > 0 then do
+    ac = pd""stigtxt3
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)") MEMBER(ITCP0030)"
+    a = a + 1
+    If ztcp0030_cnt > 1 then,
+      pd = a") "
+    end
+  Else do
+    If ztcp0030_smfcf = 0 |,
+       ztcp0030_smfct = 0 then do
+      ac = pd""stigtxt4
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)") MEMBER(ITCP0030)"
+      a = a + 1
+      If ztcp0030_cnt > 1 then,
+        pd = a") "
+      end
+    end
+  If ztcp0030_tcpc > 0 then do
+    ac = pd""stigtxt5
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)") MEMBER(ITCP0030)"
+    a = a + 1
+    If ztcp0030_cnt > 1 then,
+      pd = a") "
+    end
+  Else do
+    If ztcp0030_tcpcr = 0 then do
+      ac = pd""stigtxt6
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)") MEMBER(ITCP0030)"
+      a = a + 1
+      If ztcp0030_cnt > 1 then,
+        pd = a") "
+      end
+    end
+  If ztcp0030_udpc > 0 then do
+    ac = pd""stigtxt7
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)") MEMBER(ITCP0030)"
+    a = a + 1
+    If ztcp0030_cnt > 1 then,
+      pd = a") "
+    end
+  Else do
+    If ztcp0030_udpcr = 0 then do
+      ac = pd""stigtxt8
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)") MEMBER(ITCP0030)"
+      a = a + 1
+      If ztcp0030_cnt > 1 then,
+        pd = a") "
+      end
+    end
+  end
+ 
+ 
+REP_ZTCP0030:
+return_code = 0
+pdimbr = "ITCP0030"
+Call add_member
+ 
+ 
+CHK_ZTNT0010:
+return_code = 0
+/*******************************************************/
+/* Save profile dataset/member from TCPIP procedured.  */
+/*******************************************************/
+"SAVE"
+/*******************************************************/
+/* If TN3270 procedure is found use the profile that   */
+/* is used in the procedure and save it in TEMP9.      */
+/*******************************************************/
+If tnprof <> " " then do
+  member = "TNPROF"
+  "DELETE .ZF .ZL"
+  "COPY '"tnprof"' AFTER .ZL"
+  If return_code > 0 then,
+    Say pgmname "COPY" tnprof "Failed" return_code zerrsm
+  Else do
+    Call remove_comment
+    "REPLACE TNPROF .ZF .ZL"
+    end
+  end
+return_code = 0
+"(LASTLINE) = LINENUM .ZLAST"
+If return_code > 0 then do
+  If lastline = 0 then,
+    Say pgmname "Empty file RCode =" return_code "DSN="dsname,
+      "MEMBER="member zerrsm
+  Else,
+    Say pgmname "LINENUM Error RCode =" return_code "DSN="dsname,
+      "MEMBER="member zerrsm
+  SIGNAL ERR_EXIT
+  end
+return_code = 0
+ztnt0010_sw = 0
+ztnt0010_tng_key = " "
+ztnt0010_tng_saf = " "
+ztnt0010_txt2 = "The KEYRING statement was not specified."
+/* Keyring with SAF - Recommened with MVS 2.10 and above.*/
+/* Keyring with MVS - Recommened with MVS 2.8  only.*/
+fscnt = 0
+"CURSOR = 1 0"
+return_code = 0
+"FIND ALL WORD 'SECUREPORT'"
+If return_code = 0 then,
+  "(FSCNT,FSLNS) = FIND_COUNTS"
+tngl = 0
+etngl = 0
+keyr = 0
+If fscnt > 0 then,
+  ztnt0010_txt3 = "The TELNETPARMS SECUREPORT statement is specified."
+Else,
+  ztnt0010_txt3 = "The TELNETPARMS SECUREPORT statement was not",
+    "specified."
+/*fscnt = 1*/
+/*If fscnt > 0 &,
+   opsys <> "O08" then do*/
+If fscnt > 0 then do
+  "CURSOR = 1 0"
+  return_code = 0
+  "FIND FIRST WORD 'TELNETGLOBALS'"
+  If return_code = 0 then do
+    ztnt0010_txt1 = "The TELNETGLOBALS statement block is specified."
+    "(TNGL,COL) = CURSOR"
+    return_code = 0
+    "FIND WORD 'ENDTELNETGLOBALS'"
+    If return_code = 0 then,
+      "(ETNGL,COL) = CURSOR"
+    Else,
+      "(ETNGL) = LINENUM .ZLAST"
+    "LABEL" tngl "= .X"
+    "LABEL" etngl "= .Y"
+    Call TG_Encryption_process
+    return_code = 0
+    "FIND 'INACTIVE' .X .Y FIRST WORD" /* TELNETGLOBALS */
+    If return_code <> 0 then do
+      ztnt0010_data = ztnt0010_data"@4TNG#INACTIVE is not defined.#"
+      ztnt0010_txt4 = "The TELNETGLOBALS INACTIVE statement is not",
+        "configured."
+      end
+    Else do
+      "(ROW,COL) = CURSOR"
+      "(DATA) = LINE" row
+      parse var data . =(col) data
+      data = strip(data,"B")
+      dl = length(data)
+      If 9 <= dl then,
+        inacttime = substr(data,9)
+      Else,
+        inacttime = 0
+      If datatype(inacttime) = "NUM" then,
+        inacttime = inacttime
+      Else,
+        inacttime = 0
+      If inacttime < 1 | inacttime > 900 then do
+        telnetparms_inactive_sw = "Y"
+        end
+      inact_data = data
+      If inacttime = 0 then do
+        ztnt0010_data = ztnt0010_data"@5TNG#"inact_data"#"
+        ztnt0010_txt4 = "The TELNETGLOBALS INACTIVE statement is",
+          "configured to disable the inactivity timer check."
+        end
+      Else,
+        If inacttime > 900 then do
+          ztnt0010_data = ztnt0010_data"@6TNG#"inact_data"#"
+          ztnt0010_txt4 = "The TELNETGLOBALS INACTIVE statement",
+            "specifies a value greater than 15 minutes.  "inacttime
+          end
+        Else,
+          ztnt0010_txt4 = "The TELNETGLOBALS INACTIVE statement is",
+            "configured.  "inact_data
+      end
+    return_code = 0
+    "FIND 'SMFINIT' .X .Y FIRST WORD" /* TELNETGLOBALS */
+    If return_code <> 0 then do
+      ztnt0060_data = ztnt0060_data"@1TNG#SMFINIT not defined.#"
+      ztnt0060_txt1 = "The TELNETGLOBALS SMFINIT statement is not",
+        "specified."
+      end
+    Else do
+      smfinit = ""
+      Do until return_code > 0
+        "(ROW,COL) = CURSOR"
+        "(DATA) = LINE" row
+        parse var data . =(col) data
+        data = strip(data,"B")
+        smfinit = smfinit""translate(data)"#"
+        "FIND 'SMFINIT' .X .Y NEXT WORD" /* TELNETGLOBALS */
+        end
+      If pos(" TYPE119",smfinit) = 0 then do
+        ztnt0060_data = ztnt0060_data"@2TNG#"smfinit
+        ztnt0060_txt1 = "The TELNETGLOBALS SMFINIT statement is not",
+          "coded with the TYPE119 operand."
+        end
+      Else,
+        ztnt0060_txt1 = "The TELNETGLOBALS SMFINIT statement is",
+          "coded with the TYPE119 operand."
+      end
+    return_code = 0
+    "FIND 'SMFTERM' .X .Y FIRST WORD" /* TELNETGLOBALS */
+    If return_code <> 0 then do
+      ztnt0060_data = ztnt0060_data"@3TNG#SMFTERM not defined.#"
+      ztnt0060_txt2 = "The TELNETGLOBALS SMFTERM statement is not",
+        "specified."
+      end
+    Else do
+      smfterm = ""
+      Do until return_code > 0
+        "(ROW,COL) = CURSOR"
+        "(DATA) = LINE" row
+        parse var data . =(col) data
+        data = strip(data,"B")
+        smfterm = smfterm""translate(data)"#"
+        "FIND 'SMFTERM' .X .Y NEXT WORD" /* TELNETGLOBALS */
+        end
+      If pos(" TYPE119",smfterm) = 0 then do
+        ztnt0060_data = ztnt0060_data"@4TNG#"smfterm
+        ztnt0060_txt2 = "The TELNETGLOBALS SMFTERM statement is not",
+          "coded with the TYPE119 operand."
+        end
+      Else,
+        ztnt0060_txt2 = "The TELNETGLOBALS SMFTERM statement is",
+          "coded with the TYPE119 operand."
+      end
+    return_code = 0
+    "FIND 'TKOSPECLURECON' .X .Y ALL" /* TELNETGLOBALS */
+    If return_code = 0 then do
+      "(ROW,COL) = CURSOR"
+      "(DATA) = LINE" row
+      parse var data . =(col) data
+      data = strip(data,"B")
+      gtkospec = data
+      ztnt0010_data = ztnt0010_data"@7TNG#"gtkospec"#"
+      ztnt0010_txt7 = "The TELNETGLOBALS TKOSPECLURECON statement is",
+        "in use."
+      end
+    Else,
+      ztnt0010_txt7 = "The TELNETGLOBALS TKOSPECLURECON statement is",
+        "not in use."
+    return_code = 0
+    "FIND 'KEYRING' .X .Y ALL WORD" /* TELNETGLOBALS */
+    If return_code = 0 then do
+      "(ROW,COL) = CURSOR"
+      "(DATA) = LINE" row
+      parse var data . =(col) data
+      data = strip(data,"B")
+      keydata = translate(data)
+      If pos(" SAF" ,keydata) = 0 then do
+        ztnt0010_data = ztnt0010_data"@1TNG#"keydata"#"
+        ztnt0010_txt2 = "The TELNETGLOBALS KEYRING statement does",
+          "not specify the SAF parameter.  "data
+        end
+      Else,
+        ztnt0010_txt2 = "The TELNETGLOBALS KEYRING statement does",
+          "specify the SAF parameter.  "data
+      end
+    "LABEL" tngl "= ' '"
+    "LABEL" etngl "= ' '"
+    end
+  end
+ztnt0050_txt2 = "The TELNETPARMS SECUREPORT is not specified",
+  "(therefore TELNETPARMS ENCRYPTION is not required.)"
+ztnt0050_txt3 = ""
+tnpl = 0
+etnpl = 1
+ztnt0060_txt3 = "The TELNETPARMS statement block was not specified."
+ztnt0060_txt4 = "Therefore the SMFINIT and SMFTERM statement is not",
+  "required."
+ 
+ 
+FIND_TELNETPARMS:
+do until return_code <> 0
+  return_code = 0
+  "CURSOR =" etnpl 0
+  return_code = 0
+  "FIND WORD 'TELNETPARMS'"
+  If return_code <> 0 then leave
+  "(TNPL,COL) = CURSOR"
+  return_code = 0
+  "FIND WORD 'ENDTELNETPARMS'"
+  If return_code = 0 then,
+    "(ETNPL,COL) = CURSOR"
+  Else,
+    "(ETNPL) = LINENUM .ZLAST"
+  "LABEL" tnpl "= .X"
+  "LABEL" etnpl "= .Y"
+  port = ""
+  "CURSOR =" tnpl 0
+  return_code = 0
+  "FIND 'PORT' .X .Y ALL WORD" /* TELNETPARMS */
+  If return_code = 0 then do
+    "(ROW,COL) = CURSOR"
+    "(DATA) = LINE" row
+    parse var data . =(col) data
+    data = strip(data,"B")
+    port = data
+    end
+  "CURSOR =" tnpl 0
+  return_code = 0
+  "FIND 'SECUREPORT' .X .Y ALL WORD" /* TELNETPARMS */
+  secp = return_code
+  If secp = 0 then do
+    "(ROW,COL) = CURSOR"
+    "(DATA) = LINE" row
+    parse var data . =(col) data
+    data = strip(data,"B")
+    port = data
+    "CURSOR =" tnpl 0
+    return_code = 0
+    "FIND 'KEYRING' .X .Y FIRST WORD" /* TELNETPARMS */
+    If return_code = 0 then do
+      "(ROW,COL) = CURSOR"
+      "(DATA) = LINE" row
+      parse var data . =(col) data
+      data = strip(data,"B")
+      keydata = translate(data)
+      keydsn = ""
+      ztnt0010_data = ztnt0010_data"@2"port"#"keydata"#"
+      ztnt0010_txt2 = "The KEYRING statement is specified outside the",
+        "TELNETGLOBALS statement block."
+      end
+    Call TP_Encryption_process
+    end
+ 
+ 
+  TKOSPECLURECON_CHK:
+  "CURSOR =" tnpl 0
+  return_code = 0
+  "FIND ' TKOSPECLURECON' .X .Y" /* TELNETPARMS */
+  If return_code = 0 then do
+    "(ROW,COL) = CURSOR"
+    "(DATA) = LINE" row
+    parse var data . =(col) data
+    data = strip(data,"B")
+    tkospec = data
+    ztnt0010_data = ztnt0010_data"@7"port"#"tkospec"#"
+    ztnt0010_txt8 = "The TELNETPARMS TKOSPECLURECON statement is in",
+      "use."
+    end
+  Else,
+    ztnt0010_txt8 = "The TELNETPARMS TKOSPECLURECON statement is not",
+      "in use."
+  "CURSOR =" tnpl 0
+  return_code = 0
+  "FIND 'INACTIVE' .X .Y FIRST WORD" /* TELNETPARMS */
+  If return_code <> 0 then,
+    If pos("@4TNG#",ztnt0010_data) > 0 then do
+      ztnt0010_data = ztnt0010_data"@4"port"#INACTIVE is not",
+        "defined.#"
+      ztnt0010_txt5 = "The TELNETPARMS INACTIVE statement is not",
+        "configured."
+      end
+    Else,
+      ztnt0010_txt5 = "The TELNETPARMS INACTIVE statement is not",
+        "configured using TELNETGLOBALS INACTIVE setting."
+  Else do
+    "(ROW,COL) = CURSOR"
+    "(DATA) = LINE" row
+    parse var data . =(col) data
+    data = strip(data,"B")
+    dl = length(data)
+    If 9 <= dl then,
+      inacttime = substr(data,9)
+    Else,
+      inacttime = 0
+    If datatype(inacttime) = "NUM" then,
+      inacttime = inacttime
+    Else,
+      inacttime = 0
+    If inacttime < 1 | inacttime > 900 then,
+      telnetparms_inactive_sw = "Y"
+    inact_data = data
+    If inacttime = 0 then do
+      ztnt0010_data = ztnt0010_data"@5"port"#"inact_data"#"
+      ztnt0010_txt5 = "The TELNETPARMS INACTIVE statement is",
+        "configured to disable the inactivity timer check."
+      end
+    Else,
+      If inacttime > 900 then do
+        ztnt0010_data = ztnt0010_data"@6"port"#"inact_data"#"
+        ztnt0010_txt5 = "The TELNETPARMS INACTIVE statement specifies",
+          "a value greater than 15 minutes.  "inacttime
+              End
+      Else,
+        ztnt0010_txt5 = "The TELNETPARMS INACTIVE statement is",
+          "configured.  "inact_data
+    end
+  "CURSOR =" tnpl 0
+  return_code = 0
+  "FIND 'SMFINIT' .X .Y FIRST WORD" /* TELNETPARMS */
+  If return_code <> 0 then do
+    If pos("@1TNG#",ztnt0060_data) > 0 then do
+      ztnt0060_data = ztnt0060_data"@1"port"#SMFINIT is not defined.#"
+      ztnt0060_txt3 = "The TELNETPARMS SMFINIT statement is not",
+        "specified."
+      end
+    Else,
+      ztnt0060_txt3 = "The TELNETPARMS SMFINIT statement is not",
+        "configured using TELNETGLOBALS SMFINIT setting."
+    end
+  Else do
+    smfinit = ""
+    Do until return_code > 0
+      "(ROW,COL) = CURSOR"
+      "(DATA) = LINE" row
+      parse var data . =(col) data
+      data = strip(data,"B")
+      smfinit = smfinit""translate(data)"#"
+      "FIND 'SMFINIT' .X .Y NEXT WORD" /* TELNETPARMS */
+      end
+    If smfinit = " " then do
+      If pos("@2TNG#",ztnt0060_data) = 0 then do
+        ztnt0060_data = ztnt0060_data"@2"port"#"smfinit
+        ztnt0060_txt3 = "The TELNETPARMS SMFINIT statement is not",
+          "coded with the TYPE119 operand."
+        end
+      Else,
+        ztnt0060_txt3 = "The TELNETPARMS SMFINIT statement is not",
+          "coded with the TYPE119 operand using TELNETGLOBALS."
+      end
+    Else,
+      If pos(" TYPE119",smfinit) = 0 then do
+        ztnt0060_data = ztnt0060_data"@2"port"#"smfinit
+        ztnt0060_txt3 = "The TELNETPARMS SMFINIT statement is not",
+          "coded with the TYPE119 operand."
+        end
+      Else,
+        ztnt0060_txt3 = "The TELNETPARMS SMFINIT statement is coded",
+          "with the TYPE119 operand."
+    end
+  "CURSOR =" tnpl 0
+  return_code = 0
+  "FIND 'SMFTERM' .X .Y FIRST WORD" /* TELNETPARMS */
+  If return_code <> 0 then do
+    If pos("@3TNG#",ztnt0060_data) > 0 then do
+      ztnt0060_data = ztnt0060_data"@3"port"#SMFTERM is not defined.#"
+      ztnt0060_txt4 = "The TELNETPARMS SMFTERM statement is not",
+        "specified."
+      end
+    Else,
+      ztnt0060_txt4 = "The TELNETPARMS SMFTERM statement is not",
+        "configured using TELNETGLOBALS SMFTERM setting."
+    end
+  Else do
+    smfterm = ""
+    Do until return_code > 0
+      "(ROW,COL) = CURSOR"
+      "(DATA) = LINE" row
+      parse var data . =(col) data
+      data = strip(data,"B")
+      smfterm = smfterm""translate(data)"#"
+      "FIND 'SMFTERM' .X .Y NEXT WORD" /* TELNETPARMS */
+      end
+    If smfterm = "" then do
+      If pos("@4TNG#",ztnt0060_data) = 0 then do
+        ztnt0060_data = ztnt0060_data"@4"port"#"smfterm
+        ztnt0060_txt4 = "The TELNETPARMS SMFTERM statement is not",
+          "coded with the TYPE119 operand."
+        end
+      Else,
+        ztnt0060_txt4 = "The TELNETPARMS SMFTERM statement is not",
+          "coded with the TYPE119 operand using TELNETGLOBALS."
+      end
+    Else,
+      If pos(" TYPE119",smfterm) = 0 then do
+        ztnt0060_data = ztnt0060_data"@4"port"#"smfterm
+        ztnt0060_txt4 = "The TELNETPARMS SMFTERM statement is not",
+          "coded with the TYPE119 operand."
+        end
+      Else,
+        ztnt0060_txt4 = "The TELNETPARMS SMFTERM statement is coded",
+          "with the TYPE119 operand."
+    end
+  return_code = 0
+  "LABEL" tnpl "= ' '"
+  "LABEL" etnpl "= ' '"
+  end
+ 
+ 
+STRT_BEGINVTAM:
+return_code = 0
+ztnt0020_data = ""
+ztnt0010_txt9 = "The BEGINVTAM statement is not used."
+ztnt0020_txt1 = "The BEGINVTAM statement is not used."
+ztnt0020_txt2 = "The USSTCP statement is not specified."
+ztnt0020_txt3 = "The default USS table is not specified."
+ztnt0020_txt4 = "The USS table and client identifier is not",
+  "specified on the USSTCP statement."
+ztnt0020_txt5 = "The BEGINVTAM DEFAULTAPPL statement is not used."
+ztnt0020_txt6 = "The BEGINVTAM LUMAP statement is not used."
+tnpl = 0
+etnpl = 1
+ 
+ 
+FIND_BEGINVTAM:
+do until return_code <> 0
+  "CURSOR =" etnpl 0
+  return_code = 0
+  "FIND WORD 'BEGINVTAM'"
+  If return_code <> 0 then leave
+  ztnt0010_txt9 = "The BEGINVTAM RESTRICTAPPL statement is not used."
+  "(TNPL,COL) = CURSOR"
+  return_code = 0
+  "FIND WORD 'ENDVTAM'"
+  If return_code = 0 then,
+    "(ETNPL,COL) = CURSOR"
+  Else,
+    "(ETNPL) = LINENUM .ZLAST"
+  "LABEL" tnpl "= .X"
+  "LABEL" etnpl "= .Y"
+  port = ""
+  "CURSOR =" tnpl 0
+  return_code = 0
+  "FIND 'PORT' .X .Y ALL WORD"
+  If return_code = 0 then do
+    "(ROW,COL) = CURSOR"
+    "(DATA) = LINE" row
+    parse var data . =(col) data
+    data = strip(data,"B")
+    port = data
+    end
+  return_code = 0
+  "FIND 'RESTRICTAPPL' .X .Y ALL WORD"
+  If return_code = 0 then do
+    "(ROW,COL) = CURSOR"
+    "(DATA) = LINE" row
+    parse var data . =(col) data
+    data = strip(data,"B")
+    restrict_data = data
+    ztnt0010_data = ztnt0010_data"@8"port"#"restrict_data"#"
+    ztnt0010_txt9 = "The BEGINVTAM RESTRICTAPPL statement is used. ",
+      restrict_data
+    end
+  usstcp_clnt_data = ""
+  usstcp_def_data = ""
+  "CURSOR =" tnpl 0
+  return_code = 0
+  "FIND 'USSTCP' .X .Y FIRST WORD"
+  If return_code <> 0 then do
+    ztnt0020_data = ztnt0020_data"@1"port"#"
+    ztnt0020_txt1 = "The BEGINVTAM USSTCP statement is not specified."
+    end
+  Else,
+    Do until return_code > 0
+      "(ROW,COL) = CURSOR"
+      "(DATA) = LINE" row
+      parse var data . =(col) data
+      data = strip(data,"B")
+      usstcp_data = data
+      parse var usstcp_data "USSTCP" ussdata
+      ussdata = strip(ussdata,"B")
+      If pos(" ",ussdata) > 0 then,
+        usstcp_clnt_data = usstcp_clnt_data""usstcp_data"#"
+      Else,
+        usstcp_def_data = usstcp_def_data""usstcp_data"#"
+      ztnt0020_txt1 = "The BEGINVTAM USSTCP statement is specified. ",
+        usstcp_data
+      return_code = 0
+      "FIND 'USSTCP' .X .Y NEXT WORD"
+      end
+  If pos("@1"port,ztnt0020_data) = 0 then do
+    If usstcp_def_data = " " then do
+      ztnt0020_data = ztnt0020_data"@2"port"#"
+      ztnt0020_txt2 = "The BEGINVTAM USSTCP statement does not specify",
+        "a default USS table with no client identifiers.  "port
+        end
+    Else do
+      ztnt0020_txt2 = "The BEGINVTAM USSTCP statement does specify a",
+        "default USS table with no client identifiers."  usstcp_def_data" "
+      ztnt0020_data = ztnt0020_data"@3"port"#"usstcp_def_data
+      ztnt0020_txt3 = "The BEGINVTAM USSTCP default USS table allows",
+        "access to applications other than session manager and NC-PASS",
+        "applications.  "usstcp_def_data
+      end
+    If usstcp_clnt_data <> " " then do
+      ztnt0020_txt3 = "The BEGINVTAM USSTCP default USS table allows a",
+        "access to the session manager and NC-PASS applications. ",
+        usstcp_clnt_data
+      ztnt0020_data = ztnt0020_data"@4"port"#"usstcp_clnt_data
+      ztnt0020_txt4 = "The BEGINVTAM USSTCP USS table and client",
+        "identifier allows unsecured terminals access to applications",
+        "other than session managers and NC-PASS applications. ",
+        usstcp_clnt_data
+      end
+    Else,
+      ztnt0020_txt4 = "The BEGINVTAM USSTCP USS table and client",
+        "identifier allows unsecured terminals access to the session",
+        "managers and NC-PASS applications.  "usstcp_def_data
+    end
+  defl = 1
+  defcol = 0
+  ztnt0020_txt6 = "The BEGINVTAM LUMAP statement was not used."
+  lumap_data = ""
+ 
+ 
+FIND_DEFAPPL:
+  do until return_code <> 0
+    "CURSOR =" defl defcol
+    return_code = 0
+    "FIND 'DEFAPPL' .X .Y WORD"
+    If return_code <> 0 then do
+      If lumap_data <> " " then do
+        ztnt0020_data = ztnt0020_data"@6"port"#"lumap_data
+        ztnt0020_txt6 = "The BEGINVTAM LUMAP statement allows unsecured",
+          "terminals access to applications other than session managers",
+          "and NC-PASS applications.  "lumap_data
+        end
+      Else,
+        ztnt0020_txt6 = "The BEGINVTAM LUMAP statement allow unsecured",
+          "terminals access to the session managers and NC-PASS",
+          "applications.  "lumap_data
+      leave
+      end
+    "(DEFL,DEFCOL) = CURSOR"
+    return_code = 0
+    "FIND 'LUMAP' .X .Y PREV WORD"
+    If return_code <> 0 then do
+      return_code = 0
+      iterate
+      end
+    "(LUML,LUMCOL) = CURSOR"
+    If defl = luml then do
+      "(DATA) = LINE" luml
+      If data <> " " then,
+        data = strip(data,"B")
+      Else,
+        data = " "
+      datalum = data
+      lumap = datalum"#"
+      end
+    Else do
+      "(DATA) = LINE" defl
+      If data <> " " then,
+        data = strip(data,"B")
+      Else,
+        data = " "
+      datadef = data
+      "(DATA) = LINE" luml
+      If data <> " " then,
+        data = strip(data,"B")
+      Else,
+        data = " "
+      datalum = data
+      lumap = datalum"#   "datadef"#"
+      end
+    lumap_data = lumap_data""lumap
+    end
+ 
+ 
+FIND_DEFAULTAPPL:
+  "CURSOR = 1 0"
+  defaultappl_data = ""
+  do until return_code <> 0
+    return_code = 0
+    "FIND 'DEFAULTAPPL' .X .Y WORD"
+    If return_code <> 0 then leave
+    "(ROW,COL) = CURSOR"
+    "(DATA) = LINE" row
+    parse var data . =(col) data
+    data = strip(data,"B")
+    defaultappl = data
+    defaultappl_data = defaultappl_data""defaultappl"#"
+    end
+  If defaultappl_data <> "" then do
+    ztnt0020_data = ztnt0020_data"@5"port"#"defaultappl_data
+    ztnt0020_txt5 = "The BEGINVTAM DEFAULTAPPL statement allows",
+      "unsecured terminals access to applications other than session",
+      "managers and NC-PASS applications.  "defaultappl_data
+    end
+  Else,
+    ztnt0020_txt5 = "The BEGINVTAM DEFAULTAPPL statement allows",
+      "unsecured terminals access to the session managers and NC-PASS",
+      "applications.  "defaultappl_data
+  return_code = 0
+  "LABEL" tnpl "= ' '"
+  "LABEL" etnpl "= ' '"
+  end
+ 
+ 
+FINISH_ZTNT0010:
+return_code = 0
+If pos("@4TNG",ztnt0010_data) > 0 then,
+  ztnt0010_sw = -1
+Else,
+  ztnt0010_sw = 0
+Do xx = 1 to 9
+  If pos("@"xx,ztnt0010_data) > 0 then,
+    ztnt0010_sw = ztnt0010_sw + 1
+  end
+If ztnt0010_sw = 0 then do
+  ac = "Not a Finding"
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(ITNT0010)"
+  ac = " "
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(ITNT0010)"
+  a = 1
+  Do xx = 1 to 9
+    pd = a") "
+    ac = value("ZTNT0010_TXT"xx)
+    If ac <> " " then do
+      ac = pd""ac
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)") MEMBER(ITNT0010)"
+      a = a + 1
+      end
+    end
+  end
+Else do
+  ac = "Not Reviewed"
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(ITNT0010)"
+  ac = "The TCP/IP Profile configuration file is coded improperly."
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(ITNT0010)"
+  ac = " "
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(ITNT0010)"
+  a = 1
+  If ztnt0010_sw > 1 then,
+    pd = a") "
+  Else,
+    pd = ""
+  y = 1
+  ztnt0010_new = ztnt0010_data
+  Do Z = 1 to 8
+    x = pos("@"z"TNG",ztnt0010_new)
+    If x = 0 then iterate
+    y = pos("@",ztnt0010_new,x+1)
+    If y = 0 then,
+      y = length(ztnt0010_new)+1
+    ye = length(ztnt0010_new"  ")
+    If x = 1 then,
+      parse var ztnt0010_new text_data =(y) ztnt0010_new
+    Else do
+      parse var ztnt0010_new a =(x) text_data =(y) b
+      ztnt0010_new = a""b
+      end
+    Select
+      When z = "1" then,
+        ac = pd"The TELNETGLOBALS KEYRING statement does not specify",
+          "the SAF parameter."
+      When z = "5" then,
+        ac = pd"The TELNETGLOBALS INACTIVE statement is configured to",
+          "disable the inactivity timer check."
+      When z = "6" then,
+        ac = pd"The TELNETGLOBALS INACTIVE statement specifies a value",
+          "greater than 15 minutes."
+      When z = "7" then,
+        ac = pd"The TELNETGLOBALS TKOSPECLURECON statement is in use."
+      Otherwise iterate
+      end
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)") MEMBER(ITNT0010)"
+    a = a + 1
+    If ztnt0010_sw > 1 then,
+      pd = a") "
+    ac = " "
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)") MEMBER(ITNT0010)"
+    y = pos("#",text_data)
+    ye = length(text_data)
+    parse var text_data . "#" tdata "#" .
+    ac = "     "tdata
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)") MEMBER(ITNT0010)"
+    ac = " "
+    Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)") MEMBER(ITNT0010)"
+    end
+  Do Z = 1 to 8
+    If pos("@"z,ztnt0010_new) > 0 then do
+      Select
+        When z = "2" then,
+          ac = pd"The KEYRING statement is specified outside the",
+            "TELNETGLOBALS statement block."
+        When z = "3" then,
+          ac = pd"The TELNETPARMS KEYRING operand on the SECUREPORT",
+            "statement does not specify an MVS data set."
+        When z = "4" then,
+          ac = pd"The TELNETPARMS INACTIVE statement is not",
+            "configured."
+        When z = "5" then,
+          ac = pd"The TELNETPARMS INACTIVE statement is configured to",
+            "disable the inactivity timer check."
+        When z = "6" then,
+          ac = pd"The TELNETPARMS INACTIVE statement",
+            "specifies a value greater than 15 minutes."
+        When z = "7" then,
+          ac = pd"The TELNETPARMS TKOSPECLURECON statement is in use."
+        When z = "8" then,
+          ac = pd"The BEGINVTAM RESTRICTAPPL statement is in use."
+        Otherwise nop
+        end
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)") MEMBER(ITNT0010)"
+      a = a + 1
+      If ztnt0010_sw > 1 then,
+        pd = a") "
+      ac = " "
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)") MEMBER(ITNT0010)"
+      x = pos("@"z,ztnt0010_new) + 2
+      sp5 = ""
+      Do until x >= length(ztnt0010_new)
+ZTNT0010_TNP_FINDING_LOOP:
+        y = pos("#",ztnt0010_new,x)
+        If y = 0 then,
+          y = length(ztnt0010_new)
+        If y > x then do
+          parse var ztnt0010_new . =(x) tdata "#" .
+          ac = "     "sp5""tdata
+          Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+            "DATALEN("length(ac)") MEMBER(ITNT0010)"
+          end
+        If pos("@"z,ztnt0010_new) + 2 = x then do
+          sp5 = "     "
+          x = y + 1
+          iterate
+          end
+        sp5 = ""
+        x = pos("@"z,ztnt0010_new,y) + 2
+        If x = 2 then,
+          x = length(ztnt0010_new) + 2
+        end
+      ac = " "
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)") MEMBER(ITNT0010)"
+      end
+    end
+  end
+ 
+ 
+REP_ZTNT0010:
+return_code = 0
+pdimbr = "ITNT0010"
+Call add_member
+ 
+ 
+FINISH_ZTNT0020:
+ztnt0020_sw = 0
+ztnt0020_mr = ""
+Do xx = 1 to 6
+  If pos("@"xx,ztnt0020_data) > 0 then do
+    ztnt0020_sw = ztnt0020_sw + 1
+    If xx > 2 then,
+      ztnt0020_mr = "X"
+    end
+  end
+If ztnt0020_sw = 0 then do
+  ac = "Not a Finding"
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(ITNT0020)"
+  ac = " "
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(ITNT0020)"
+  a = 1
+  Do xx = 1 to 9
+    pd = a") "
+    ac = value("ZTNT0020_TXT"xx)
+    If ac <> " " then do
+      ac = pd""ac
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)") MEMBER(ITNT0020)"
+      a = a + 1
+      end
+    end
+  end
+Else do
+  ac = "Not Reviewed"
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(ITNT0020)"
+  ac = "The TCP/IP Profile configuration file is coded improperly."
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(ITNT0020)"
+  ac = " "
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(ITNT0020)"
+  a = 1
+  If ztnt0020_sw > 1 then,
+    pd = a") "
+  Else
+    pd = ""
+  Do Z = 1 to 8
+    If pos("@"z,ztnt0020_data) > 0 then do
+      Select
+        When z = "1" then,
+            ac = pd"The BEGINVTAM USSTCP statement is not specified."
+        When z = "2" then,
+          ac = pd"The BEGINVTAM USSTCP statement does not specify a",
+            "default USS table with no client identifiers."
+        When z = "3" then,
+          ac = pd"The BEGINVTAM USSTCP default USS table allows",
+            "access to applications other than session manager and",
+            "NC-PASS applications."
+        When z = "4" then,
+          ac = pd"The BEGINVTAM USSTCP USS table and client",
+            "identifier allows unsecured terminals access to",
+            "applications other than session manager and NC-PASS",
+            "applications."
+        When z = "5" then,
+          ac = pd"The BEGINVTAM DEFAULTAPPL statement allows",
+            "unsecured terminals access to applications other than",
+            "session manager and NC-PASS applications."
+        When z = "6" then,
+          ac = pd"The BEGINVTAM LUMAP statement allows unsecured",
+            "terminals access to applications other than session",
+            "manager and NC-PASS applications."
+        Otherwise nop
+        end
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)") MEMBER(ITNT0020)"
+      a = a + 1
+      If ztnt0020_sw > 1 then,
+        pd = a") "
+      ac = " "
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)") MEMBER(ITNT0020)"
+      x = pos("@"z,ztnt0020_data) + 2
+      sp5 = ""
+      Do until x >= length(ztnt0020_data)
+ZTNT0020_TNP_FINDING_LOOP:
+        parse var ztnt0020_data . =(x) tdata "#" .
+        y = pos("#",ztnt0020_data,x)
+        If y = 0 then,
+          y = length(ztnt0020_data)
+        If y > x then do
+          ac = "     "sp5""tdata
+          Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+            "DATALEN("length(ac)") MEMBER(ITNT0020)"
+          end
+        If substr(ztnt0020_data,x-2,1) = "@" &,
+           substr(ztnt0020_data"@",y+1,1) <> "@" then do
+          sp5 = "     "
+          x = y + 1
+          iterate
+          end
+        sp5 = ""
+        x = pos("@"z,ztnt0020_data,y) + 2
+        If x = 2 then,
+          x = length(ztnt0020_data) + 2
+        end
+      ac = " "
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)") MEMBER(ITNT0020)"
+      end
+    end
+  end
+ 
+ 
+REP_ZTNT0020:
+return_code = 0
+pdimbr = "ITNT0020"
+Call add_member
+ztnt0050_sw = 0
+Do xx = 1 to 8
+  If pos("@"xx,ztnt0050_data) > 0 then,
+    ztnt0050_sw = ztnt0050_sw + 1
+  end
+If ztnt0050_sw = 0 then do
+  ac = "Not a Finding"
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(ITNT0050)"
+  ac = " "
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(ITNT0050)"
+  a = 1
+  Do xx = 1 to 9
+    pd = a") "
+    ac = value("ZTNT0050_TXT"xx)
+    If ac <> " " then do
+      ac = pd""ac
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)") MEMBER(ITNT0050)"
+      a = a + 1
+      end
+    end
+  end
+Else do
+  ac = "The TCP/IP Profile configuration file is coded improperly."
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(ITNT0050)"
+  ac = " "
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(ITNT0050)"
+  a = 1
+  If ztnt0050_sw > 1 then,
+    pd = a") "
+  Else
+    pd = ""
+  y = 1
+  Do Z = 1 to 3
+    If pos("@"z,ztnt0050_data) > 0 then do
+      Select
+        When z = "1" then,
+          ac = pd"The TELNETGLOBALS ENCRYPTION statement does not",
+            "specify an acceptable level of encryption."
+        When z = "2" then,
+          ac = pd"The TELNETPARMS ENCRYPTION statement is not",
+            "configured for SECUREPORT."
+        When z = "3" then,
+          ac = pd"The TELNETPARMS ENCRYPTION statement does not",
+            "specify an acceptable level of encryption."
+        Otherwise nop
+        end
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)") MEMBER(ITNT0050)"
+      a = a + 1
+      If ztnt0050_sw > 1 then,
+        pd = a") "
+      ac = " "
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)") MEMBER(ITNT0050)"
+      x = pos("@"z,ztnt0050_data) + 2
+      sp5 = ""
+      Do until x >= length(ztnt0050_data)
+ZTNT0050_TNP_FINDING_LOOP:
+        y = pos("#",ztnt0050_data,x)
+        If y = 0 then,
+          y = length(ztnt0050_data)
+        If y > x then do
+          If substr(ztnt0050_data,x,3) <> "TNG" then do
+            parse var ztnt0050_data . =(x) tdata "#" .
+            ac = "     "sp5""tdata
+            Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR)",
+              "DATALOC(AC) DATALEN("length(ac)") MEMBER(ITNT0050)"
+            sp5 = "     "
+            end
+          end
+        If substr(ztnt0050_data,x-2,1) = "@" then do
+          x = y + 1
+          iterate
+          end
+        sp5 = ""
+        x = pos("@"z,ztnt0050_data,y) + 2
+        If x = 2 then,
+          x = length(ztnt0050_data) + 2
+        end
+      ac = " "
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)") MEMBER(ITNT0050)"
+      end
+    end
+  end
+ 
+ 
+REP_ZTNT0050:
+return_code = 0
+pdimbr = "ITNT0050"
+Call add_member
+ztnt0060_sw = 0
+Do xx = 2 to 4 by 2
+  If pos("@"xx"TNG",ztnt0060_data) > 0 then,
+    ztnt0060_sw = ztnt0060_sw + 1
+  end
+Do xx = 1 to 4
+  If pos("@"xx,ztnt0060_data) > 0 then,
+    ztnt0060_sw = ztnt0060_sw + 1
+  end
+If ztnt0060_sw = 0 then do
+  ac = "Not a Finding"
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(ITNT0060)"
+  ac = " "
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(ITNT0060)"
+  a = 1
+  Do xx = 1 to 9
+    pd = a") "
+    ac = value("ZTNT0060_TXT"xx)
+    If ac <> " " then do
+      ac = pd""ac
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)") MEMBER(ITNT0060)"
+      a = a + 1
+      end
+    end
+  end
+Else do
+  ac = "The TCP/IP Profile configuration file is coded improperly."
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(ITNT0060)"
+  ac = " "
+  Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER(ITNT0060)"
+  a = 1
+  If ztnt0060_sw > 1 then,
+    pd = a") "
+  Else
+    pd = ""
+  ztnt0060_new = ztnt0060_data"@"
+  Do Z = 1 to 4
+    x = pos("@"z"TNG",ztnt0060_new)
+    If x > 0 then do
+      y = pos("@",ztnt0060_new,x+1)
+      If y = 0 then,
+        y = length(ztnt0060_new) + 1
+      ye = length(ztnt0060_new)
+      If x = 1 then,
+        parse var ztnt0060_new text_data =(y) ztnt0060_new
+      Else do
+        parse var ztnt0060_new a =(x) text_data =(y) b
+        ztnt0060_new = a""b
+        end
+      Select
+        When z = "2" then,
+          ac = pd"The TELNETGLOBALS SMFINIT statement is not coded",
+            "with the TYPE119 operand."
+        When z = "4" then,
+          ac = pd"The TELNETGLOBALS SMFTERM statement is not coded",
+            "with the TYPE119 operand."
+        Otherwise nop
+        end
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)") MEMBER(ITNT0060)"
+      a = a + 1
+      If ztnt0060_sw > 1 then,
+        pd = a") "
+      ac = " "
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)") MEMBER(ITNT0060)"
+      y = pos("#",text_data)
+      ye = length(text_data)
+      parse var text_data . "#" tdata "#" .
+      ac = "     "tdata
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)") MEMBER(ITNT0060)"
+      ac = " "
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)") MEMBER(ITNT0060)"
+      end
+/*  ZTNT0060_END_SELECTION:*/
+    end
+  Do Z = 1 to 4
+    If pos("@"z,ztnt0060_new) > 0 then do
+      Select
+        When z = "1" then,
+          ac = pd"The TELNETPARMS SMFINIT statement is not defined."
+        When z = "2" then,
+          ac = pd"The TELNETPARMS SMFINIT statement is not coded",
+            "with the TYPE119 operand."
+        When z = "3" then,
+          ac = pd"The TELNETPARMS SMFTERM statement is not defined."
+        When z = "4" then,
+          ac = pd"The TELNETPARMS SMFTERM statement is not coded",
+            "with the TYPE119 operand."
+        Otherwise nop
+        end
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)") MEMBER(ITNT0060)"
+      a = a + 1
+      If ztnt0060_sw > 1 then,
+        pd = a") "
+      ac = " "
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)") MEMBER(ITNT0060)"
+      x = pos("@"z,ztnt0060_new) + 2
+      sp5 = ""
+      Do until x >= length(ztnt0060_new)
+ZTNT0060_TNP_FINDING_LOOP:
+        y = pos("#",ztnt0060_new,x)
+        If y = 0 then,
+          y = length(ztnt0060_new)
+        If y > x then do
+          parse var ztnt0060_new . =(x) tdata "#" .
+          ac = "     "sp5""tdata
+          Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR)",
+            "DATALOC(AC) DATALEN("length(ac)") MEMBER(ITNT0060)"
+          end
+        If pos("@"z,ztnt0010_new) + 2 = x then do
+          sp5 = "     "
+          x = y + 1
+          iterate
+          end
+        sp5 = ""
+        x = pos("@"z,ztnt0060_new,y) + 2
+        If x = 2 then,
+          x = length(ztnt0060_new) + 2
+        End
+      ac = " "
+      Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)
+        DATALEN("length(ac)") MEMBER(ITNT0060)"
+      end
+    end
+  end
+ 
+ 
+REP_ZTNT0060:
+return_code = 0
+pdimbr = "ITNT0060"
+Call add_member
+ 
+ 
+END_EXIT:
+return_code = 0
+ERR_EXIT:
+If maxcc >= 16 | return_code > 0 then do
+  Address ISPEXEC "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then,
+    zispfrc = maxcc
+  Else,
+    zispfrc = return_code
+  Address ISPEXEC "VPUT (ZISPFRC) SHARED"
+  Say pgmname "ZISPFRC =" zispfrc
+  end
+cm013rc = return_code
+Address ISPEXEC "VPUT (CM13VGET CM013RC) ASIS"
+"CANCEL"
+Exit (0)
+ 
+ 
+/*******************************************/
+/*  SYSCALL SUBROUTINES                    */
+/*******************************************/
+ADD_MEMBER:
+return_code = 0
+Address ISPEXEC "LMMADD DATAID("pdidd") MEMBER("pdimbr")"
+If return_code = 4 then do
+  return_code = 0
+  /*ISPEXEC LMMREP DATAID(&PDIDD) MEMBER(&PDIMBR)*/
+  If return_code <> 0 then do
+    Say pgmname "LMMREP PDI RCODE =" return_code pdimbr zerrsm
+    end
+  end
+Else do
+  If return_code <> 0 then,
+    Say pgmname "LMMADD PDI RCODE =" return_code pdimbr zerrsm
+  end
+Return (return_code)
+ 
+ 
+REMOVE_COMMENT:
+do until return_code <> 0
+  Call REMOVE_5E_FIRST
+  return_code = 0
+  "FIND 'INCLUDE' WORD"
+  If return_code = 0 then do
+    "(ROW,COL) = CURSOR"
+    "(DATA) = LINE" row
+    parse var data . =(col) . data
+    If data <> " " then do
+      data = strip(data,"B")
+      incdsn = translate(data)
+      Say pgmname    "TCPRPT" incdsn "<INCLUDE>"
+      dsns = "TCPRPT" incdsn
+      Address ISPEXEC "VPUT (DSNS) ASIS"
+      Address ISPEXEC "EDIT DATAID("tblid") MEMBER("dsnlist")",
+        "MACRO("cacm000d")"
+      locate = sysdsn("'"incdsn"'")
+      If locate <> "OK" &,
+         length(incdsn) < 9 &,
+         pos("(",incdsn) = 0 then do
+        dsnmbr = parmdsn"("incdsn")"
+        locate2 = sysdsn("'"dsnmbr"'")
+        If locate2 = "OK" then do
+          incdsn = dsnmbr
+          locate = locate2
+          end
+        end
+      If locate = "OK" then do
+        return_code = 0
+        "COPY '"incdsn"' AFTER" row
+        If return_code <> 0 then,
+           Say pgmname "COPY" incdsn "Failed" retrun_code zerrsm
+        end
+      Else,
+        Say pgmname "LOCATE" incdsn "Failed" locate
+      end
+    "DELETE" row
+    end
+  end
+"EXCLUDE ALL '"left(" ",80)"' 1 80"
+"DELETE ALL X"
+Return (return_code)
+ 
+ 
+REMOVE_5E_FIRST:
+/* remove all ; lines*/
+return_code = 0
+"EXCLUDE ALL X'5E' 1 1"
+"DELETE ALL X"
+"CURSOR = 1 0"
+ 
+/* remove all ; comments*/
+return_code = 0
+do until return_code <> 0
+  return_code = 0
+  "FIND X'5E' 2 80"
+  If return_code > 0 then do
+    "CURSOR = 1 0"
+    leave
+    end
+  "(ROW,COL) = CURSOR"
+  "(DATA) = LINE" row
+  parse var data data =(col) .
+  "LINE" row "= (DATA)"
+  end
+return
+ 
+ 
+TG_Encryption_process:
+encrypt_data = ""
+return_code = 0
+"FIND 'ENCRYPTION' .X .Y FIRST WORD" /* TELNETGLOBALS */
+If return_code <> 0 then do
+  ztnt0050_encrypt = "N"
+  ztnt0050_txt2 = "The TELNETGLOBALS ENCRYPTION statement is",
+    "not specified."
+  return
+  end
+ztnt0050_txt1 = ""
+"(ENCRYPT,COL) = CURSOR"
+return_code = 0
+"FIND 'ENDENCRYPTION' .X .Y WORD"
+If return_code = 0 then,
+  "(EENCRYPT,COL) = CURSOR"
+Else,
+  eencrypt = encrypt
+If encrypt <= eencrypt then,
+  Do X = encrypt to eencrypt
+    "(DATA) = LINE" x
+    If data <> " " then,
+      data = strip(data,"B")
+    Else,
+      data = " "
+    encrypt_data = encrypt_data""data" "
+    end
+edata = translate(encrypt_data)
+parse var edata "ENCRYPT" . edata "ENDENCRYPT" .
+If (pos("SSL_AES_",edata) = 0 &,
+    pos("SSL_3DES_",edata) = 0) |,
+   edata = " " then do
+  ztnt0050_data = ztnt0050_data"@1TNG#"encrypt_data"#"
+  ztnt0050_txt1 = "The TELNETGLOBALS ENCRYPTION statement does",
+    "not specify an acceptable level of encryption.  "encrypt_data
+  end
+Else do
+  edata = edata
+  Do while pos("SSL_AES_",edata) > 0
+    parse var edata a "SSL_AES_" . b
+    edata = a b
+    end
+  edata = edata
+  Do while pos("SSL_3DES_",edata) > 0
+    parse var edata a "SSL_3DES_" . b
+    edata = a b
+    end
+  If edata = " " then,
+    ztnt0050_txt1 = "The TELNETGLOBALS ENCRYPTION statement does",
+      "specify an acceptable level of encryption.  "encrypt_data
+  Else do
+    ztnt0050_data = ztnt0050_data"@1TNG#ENCRYPTION" edata,
+      "ENDENCRYPTION#"
+    ztnt0050_txt1 = "The TELNETGLOBALS ENCRYPTION statement does",
+      "not specify an acceptable level of encryption.  "encrypt_data
+    end
+  end
+Return
+ 
+ 
+TP_Encryption_process:
+encrypt_data = ""
+"CURSOR =" tnpl 0
+return_code = 0
+"FIND 'ENCRYPTION' .X .Y WORD" /* TELNETPARMS */
+If return_code <> 0 then do
+  If ztnt0050_encrypt = "N" then do
+    ztnt0050_data = ztnt0050_data"@2"port"#"
+    ztnt0050_txt2 = "The TELNETPARMS ENCRYPTION statement is not",
+      "specified for each TELNETPARMS SECUREPORT."
+    end
+  Else,
+    ztnt0050_txt2 = "The TELNETPARMS ENCRYPTION statement is not",
+      "configured using TELNETGLOBALS ENCRYPTION setting."
+  Return
+  end
+ztnt0050_txt2 = "The ENCRYPTION statement is specified within each",
+  "TELNETPARMS statement block that defines a SECUREPORT."
+"(ENCRYPT,COL) = CURSOR"
+return_code = 0
+"FIND 'ENDENCRYPTION' .X .Y WORD" /* TELNETPARMS */
+If return_code = 0 then,
+  "(EENCRYPT,COL) = CURSOR"
+Else,
+  eencrypt = encrypt
+If encrypt <= eencrypt then,
+  Do X = encrypt to eencrypt
+    "(DATA) = LINE" x
+    If data <> " " then,
+      data = strip(data,"B")
+    Else,
+      data = " "
+    encrypt_data = encrypt_data""data" "
+    end
+edata = translate(encrypt_data)
+parse var edata "ENCRYPT" . edata "ENDENCRYPT" .
+If (pos("SSL_AES_",edata) = 0 &,
+    pos("SSL_3DES_",edata) = 0) |,
+   edata = " " then do
+  ztnt0050_data = ztnt0050_data"@3"port"#"encrypt_data"#"
+  ztnt0050_txt3 = "The ENCRYPTION statement does not specify an",
+    "acceptable level of encryption.  "encrypt_data
+  end
+Else do
+  Do while pos("SSL_AES_",edata) > 0
+    parse var edata a "SSL_AES_" . b
+    edata = a b
+    end
+  edata = edata
+  Do while pos("SSL_3DES_",edata) > 0
+    parse var edata a "SSL_3DES_" . b
+    edata = a b
+    end
+  If edata = " " then,
+    ztnt0050_txt3 = "The TELNETPARMS ENCRYPTION statement does",
+      "specify an acceptable level of encryption.  "encrypt_data
+  Else do
+    ztnt0050_data = ztnt0050_data"@3"port"#ENCRYPTION" edata,
+      "ENDENCRYPTION#"
+    ztnt0050_txt3 = "The TELNETPARMS ENCRYPTION statement does not",
+      "specify an acceptable level of encryption.  "encrypt_data
+    end
+  end
+Return
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname "REXX error" rc "in line" sigl":" strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC >= 16 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname "REXX error" rc "in line" sigl":" ERRORTEXT(rc)
+  say SOURCELINE(sigl)
+  end
+if return_code > maxcc then
+  maxcc = return_code
+return
+ 
+ 

@@ -1,0 +1,7 @@
+* “o *** CA-Examine BATCH FACILITY SCRIPT *** CREATED:  CI08006  97.059  8:20
+OPT FULL                S
+CMD 2
+CMD 3
+CMD 1
+VAR GENLCSIL  1
+CMD =X

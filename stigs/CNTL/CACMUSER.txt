@@ -1,0 +1,40 @@
+ISREDIT MACRO       /* CACM000U EDIT MACRO */
+ 
+/*CONTROL LIST CONLIST SYMLIST
+ISPEXEC VGET (GROUP)
+ 
+IF &GROUP NE &STR(ALL) THEN                                        -
+  ISREDIT EXCLUDE ALL '&GROUP' 1 4
+ELSE                                                               -
+  ISREDIT EXCLUDE ALL ' ' 5 5
+ 
+ISREDIT DELETE ALL NX
+ 
+ISREDIT RESET
+ 
+ISREDIT (ENDER) = LINENUM .ZLAST
+ 
+SET TROWS = &ENDER
+ 
+SET UCNT = 1
+ 
+DO CNT = 1 TO &ENDER
+ 
+ ISREDIT (DATA) = LINE &CNT
+ 
+ IF &SYSINDEX(&STR(*),&STR(&DATA)) = 0 THEN                           -
+  DO
+/*  SET PREFIX&UCNT = &SUBSTR(1:4,&STR(&DATA))
+  SET USER&UCNT = &SUBSTR(6:13,&STR(&DATA))
+    ISPEXEC  VPUT  (                                                  -
+    USER&UCNT                                                         -
+    UCNT                                                              -
+    ) ASIS
+/*  PREFIX&UCNT                                                      */
+   SET UCNT = &UCNT + 1
+ END
+ END
+ 
+ISREDIT CANCEL
+ 
+EXIT

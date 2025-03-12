@@ -1,0 +1,133 @@
+/* REXX */
+/*                                       */
+/* AUTHOR: Charles Fenton                */
+/*                                       */
+/*********************************************************************/
+/* This Edit macro write data sets from input variable.              */
+/*********************************************************************/
+/* Change summary:                                                   */
+/* 04/06/2005 CL Fenton Processed variables passed from multiple     */
+/*            scripts.                                               */
+/* 02/06/2019 CL Fenton Changes on how TBLMBR is processed.          */
+/* 02/06/2019 CL Fenton Changes to allow dsns with period.           */
+/* 02/30/2019 CL Fenton Changes to report number records written.    */
+/* 08/29/2016 CL Fenton Correct issue with TBLMBR.                   */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+PGMNAME = 'CACM000D 04/12/21'
+Numeric digits 10                           /* dflt of 9 not enough  */
+Address ISREDIT "MACRO"
+Address ISPEXEC
+"CONTROL NONDISPL ENTER"
+"CONTROL ERRORS RETURN"
+'VGET (CONSLIST COMLIST SYMLIST TERMPRO TERMMSGS) ASIS'
+If CONSLIST = ON | COMLIST = ON | SYMLIST = ON | TRACE = ON ,
+  then Trace r
+'VGET (DSNS TBLMBR TYPERUN) ASIS'
+Address ISREDIT
+'NUMBER OFF'
+'CAPS OFF'
+"(MEMBER) = MEMBER"
+cnt = 0
+if TYPERUN = 'TEXT' then do
+  do until DSNS = ''
+    parse var DSNS LINE 81 DSNS
+    if LINE <> '' then do
+      rc = 0
+      "FIND '"LINE"' FIRST"
+      if rc <> 0 then do
+        "LINE_AFTER .ZLAST = DATALINE (LINE)"
+        cnt = cnt + 1
+        end
+      end /* if LINE <> '' */
+    end /* until DSNS */
+  end /* if TYPERUN = 'TEXT' */
+else do
+  parse var dsns MBRRPT dsns
+  call FIND_ITER
+  do x = 1 to words(dsns)
+    DSN = word(dsns,x)
+    parse var DSN DSN '(' .
+    call ALIAS_TEST DSN
+    end
+  end
+say pgmname right(cnt,4) 'records written to' MEMBER||'.'
+"END"
+/*********************************************************************/
+/* Done looking at all control blocks                                */
+/*********************************************************************/
+Exit 0                                       /* End CACC1001 - RC 0  */
+ 
+FIND_ITER:
+/*********************************************************************/
+/* Find MBRRPT in TBLMBR and extract additional fields               */
+/*********************************************************************/
+ITER    = '99 '
+TITLE   =
+PDI     =
+/*TBLMBR  = TBLMBR||"#"*/
+TBLMBR  = TBLMBR
+x = 0
+do forever
+  if x = 0 then x = wordpos(MBRRPT,TBLMBR)
+  else x = wordpos(MBRRPT,TBLMBR,x+1)
+  if x = 0 then leave
+  y = wordindex(TBLMBR,x)-4
+  if substr(TBLMBR,y,1) = '#' then do
+    TBLENT = substr(TBLMBR,y)
+    parse var TBLENT . 2 ITER 5 . 14 PDI 23 TITLE "#" .
+    leave
+  end
+end
+ 
+if MBRRPT = 'ACP00110' & TYPERUN = 'FULL' then do
+  ITER  = 'BA9'
+  TITLE = 'User Linklist Datasets@'
+  end
+if TITLE <> ' ' then do
+  x = index(TITLE,'@')
+  TITLE   = substr(TITLE,1,x-1)
+end
+ 
+say PGMNAME 'Processing' LEFT(MBRRPT,8) 'ITER =' ITER,
+  'PDI =' LEFT(PDI,8) 'TITLE =' TITLE
+ 
+Return
+ 
+ALIAS_TEST:
+arg DSN VOL
+VOL = strip(VOL)
+/*if right(DSN,1) = '.' then,
+  DSN = left(DSN,length(DSN)-1)*/
+alias_msgst = msg('OFF')
+alias_x = OUTTRAP("LINE.")
+address TSO "LISTCAT ENTRY('"strip(DSN,t)"') ALIAS ALL"
+  do alias_i = 1 to LINE.0
+    say LINE.alias_i
+    end    /* do i = 1 to LINE.0 */
+/*if rc > 4 then return*/
+if rc = 0 then do
+/*DSN =*/
+  do alias_i = 1 to LINE.0
+    if pos('RESOLVED-',LINE.alias_i) > 0 then,
+      parse var LINE.alias_i . '-' DSN
+    if pos('VSAM--',LINE.alias_i) > 0 then,
+      parse var LINE.alias_i . '--' DSN
+    end    /* do i = 1 to LINE.0 */
+  end    /* if rc = 0 */
+ADDRESS ISREDIT
+if DSN <> '' then do
+  LINE = ITER||left(DSN,47)PGMNAME TYPERUN
+  "FIND '"LINE"' FIRST"
+/*if rc <> 0 then,
+    "LINE_AFTER .ZLAST = DATALINE (LINE)"*/
+  if rc <> 0 then do
+    "LINE_AFTER .ZLAST = DATALINE (LINE)"
+    cnt = cnt + 1
+    end
+  end /* if DSN <> '' */
+Return
+ 

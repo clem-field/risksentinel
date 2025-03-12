@@ -1,0 +1,194 @@
+/* REXX */
+/* CLS2REXXed by UMLA01S on 13 May 2022 at 17:59:25  */
+/*trace r?*/
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+Address ISREDIT
+sysprompt = 'OFF'
+syssymlist = 'OFF'
+sysconlist = 'OFF'
+syslist = 'OFF'
+sysmsg = 'ON'
+ 
+"MACRO"
+/*********************************************************************/
+/* This EDIT macro (CATM0005) generates the WHOOWNS reports and      */
+/* creates the WHOOxxxx member depending on the values in variable   */
+/* RESOURCE.                                                         */
+/*********************************************************************/
+/* 05/13/2022 CL Fenton Converted script from CLIST to REXX.         */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname = "CATM0005 05/13/22"
+sysprompt = "OFF"                /* CONTROL NOPROMPT          */
+sysflush = "OFF"                 /* CONTROL NOFLUSH           */
+sysasis = "ON"                   /* CONTROL ASIS - caps off   */
+Numeric digits 10                 /* default of 9 not enough         */
+maxcc = 0
+zerrsm           = ""
+zerrlm           = ""
+zerrmsg          = ""
+return_code = 0                   /* SET RETURN CODE TO 0  */
+tm05vge = 0
+tm05rc = 0
+Address ISPEXEC "CONTROL NONDISPL ENTER"
+Address ISPEXEC "CONTROL ERRORS RETURN"
+/*******************************************/
+/* Variables are passed to this macro      */
+/* RESOURCE                                */
+/* OUTPUT                                  */
+/* TEMP                                    */
+/* CONSLIST                                */
+/* COMLIST                                 */
+/* SYMLIST                                 */
+/* TERMMSGS                                */
+/*******************************************/
+Address ISPEXEC "VGET (RESOURCE OUTPUT TEMP CONSLIST COMLIST",
+  "SYMLIST TERMMSGS) ASIS"
+If return_code <> 0 then
+  tm05vge = return_code
+ 
+return_code = 0
+MESSAGE_HOUSEKEEPING:
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" ,
+  then Trace ?r
+ 
+syssymlist = symlist          /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist         /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist             /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs             /* CONTROL MSG/NOMSG         */
+ 
+/******************************************************************/
+/*  Set different attributes within currently opened member.      */
+/******************************************************************/
+"STATS = OFF"
+"NUMBER OFF"
+/******************************************************************/
+/*  Clear member.                                                 */
+/******************************************************************/
+"DELETE .ZF .ZL"
+/******************************************************************/
+/*  Set AUTOSAVE for WHOOWNS variable in resource.                */
+/******************************************************************/
+"AUTOSAVE OFF NOPROMPT"
+/******************************************************************/
+/*  Set variables and control variables for this process.         */
+/******************************************************************/
+line = 1
+var = left(resource,8)  /* SET RESOURCE CLASS */
+var = strip(var,"T")
+return_code = 0
+ 
+/******************************************************************/
+/*  Issue TSS command to obtain ownership of the resource         */
+/*  values.                                                       */
+/******************************************************************/
+"LINE_AFTER .ZLAST = ""READY"""
+x = outtrap("var.")
+syslist = "ON"
+cmd = "TSS WHOO" var"(*)"
+"LINE_AFTER .ZLAST = ""cmd"""
+Address TSO "TSS WHOO" var"(*)"
+If return_code > 0 then,
+  tm05rc = return_code
+syslist = "OFF"
+return_code = 0
+Do X = 1 to var.0
+  data = strip(var.x,"T")
+  "LINE_AFTER .ZLAST = (DATA)"
+  end
+ 
+"LINE_AFTER .ZLAST = ""READY"""
+"LINE_AFTER .ZLAST = ""END"""
+ 
+return_code = 0
+"FIND 'TSS0301I' ALL"
+If return_code = 0 & tm05rc = 0 then,
+  tm05rc = 4
+return_code = 0
+ 
+/*******************************************************************/
+/* Depending on results of TSS command and the value in resource   */
+/* is used to generate the WHOHAS member.                          */
+/*******************************************************************/
+switch = "Y"
+Address ISPEXEC "VPUT (SWITCH)"
+member = strip("WHOH"substr(resource,9,4),"T")
+If substr(resource,14,1) = "Y" & tm05rc = 0 then do
+  "(A) = LINENUM .ZLAST"
+  a = a
+  Do INDEX = 1 to a
+    "(LINE) = LINE" index
+    If substr(line,10,4) <> "OWNS" then iterate
+    value = substr(line,24)
+    value = strip(value,"T")
+    If value = "*(G)" then,
+      value = "*ALL*"
+    parse var value value "(" .
+    Address ISPEXEC "VPUT (VALUE)"
+    Address ISPEXEC "EDIT DATAID("temp") MACRO(CATM0006)",
+      "MEMBER("member")"
+    Address ISPEXEC "LMCOMP DATAID("output")"
+    Address ISPEXEC "LMCOMP DATAID("temp")"
+    return_code = 0
+    end
+ 
+/******************************************************************/
+/*  Adds finishing touches to the WHOHAS member.                  */
+/******************************************************************/
+  If var = "TSOPROC" then,
+    Address ISPEXEC "EDIT DATAID("temp") MACRO(CATM0008)",
+      "MEMBER("member")"
+  Else,
+    Address ISPEXEC "EDIT DATAID("temp") MACRO(CATM0007)",
+      "MEMBER("member")"
+  end
+return_code = 0
+ 
+ 
+ERR_EXIT:
+If maxcc >= 16 | return_code > 0 then do
+  Address ISPEXEC "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then,
+    zispfrc = maxcc
+  Else,
+    zispfrc = return_code
+  Say pgmname "ZISPFRC =" zispfrc
+  Address ISPEXEC "VPUT (ZISPFRC) SHARED"
+  end
+Address ISPEXEC "VPUT (TM05VGE TM05RC) ASIS"
+"END"
+lastcc = 0
+Exit 0
+ 
+ 
+/*******************************************/
+/*  SYSCALL SUBROUTINES                    */
+/*******************************************/
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC > 4 & RC <> 8 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+  say SOURCELINE(sigl)
+  if return_code > maxcc then
+    maxcc = return_code
+  end
+return
+ 
+ 

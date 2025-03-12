@@ -1,0 +1,258 @@
+/* REXX */
+/* CLS2REXXed by UMLA01S on 6 Jun 2022 at 13:14:28  */
+/*trace r?*/
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+Address ISREDIT
+sysprompt = 'OFF'
+syssymlist = 'OFF'
+sysconlist = 'OFF'
+syslist = 'OFF'
+sysmsg = 'ON'
+ 
+"MACRO"
+/********************************************************************/
+/* This edit macro (CATM0008) puts the finishing touches to the     */
+/* WHOHTSOP member.                                                 */
+/********************************************************************/
+/* 06/06/2022 CL Fenton Converted script from CLIST to REXX.         */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname = "CATM0008 06/06/22"
+sysprompt = "OFF"                /* CONTROL NOPROMPT          */
+sysflush = "OFF"                 /* CONTROL NOFLUSH           */
+sysasis = "ON"                   /* CONTROL ASIS - caps off   */
+Numeric digits 10                 /* default of 9 not enough         */
+maxcc = 0
+tm07rep = 0
+tm07vge = 0
+zerrsm           = ""
+zerrlm           = ""
+zerrmsg          = ""
+prof_test = "OFF"
+return_code = 0                   /* SET RETURN CODE TO 0  */
+Address ISPEXEC "CONTROL NONDISPL ENTER"
+Address ISPEXEC "CONTROL ERRORS RETURN"
+/*******************************************/
+/* Variables are passed to this macro      */
+/* CONSLIST                                */
+/* COMLIST                                 */
+/* SYMLIST                                 */
+/* RESOURCE                                */
+/* NOUSR                                   */
+/* OUTPUT                                  */
+/* TERMMSGS                                */
+/*******************************************/
+Address ISPEXEC "VGET ( CONSLIST COMLIST SYMLIST RESOURCE NOUSR",
+  "OUTPUT TERMMSGS ) ASIS"
+If return_code <> 0 then
+  tm07vge = return_code
+ 
+MESSAGE_HOUSEKEEPING:
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" ,
+  then Trace ?r
+ 
+syssymlist = symlist          /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist         /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist             /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs             /* CONTROL MSG/NOMSG         */
+return_code = 0
+ 
+If substr(resource,15,1) = "N" then,
+  nousr = "ON"
+"(MEMBER) = MEMBER"
+"AUTOSAVE ON"
+"STATS = OFF"
+"NUMBER OFF"
+ 
+ 
+CLEAN_UP:
+"SORT 46 53 1 45 62 71 54 61"
+"(ROW) = LINENUM .ZL"
+line = 1
+odata = ""
+ 
+ 
+CLEAN_UP_LOOP:
+Do line = 1 to row
+  return_code = 0              /* SET RETURN CODE TO 0  */
+  If line > row then leave
+  "(DATA) = LINE" line
+  If data = odata then do
+    "CURSOR =" line 1
+    "EXCLUDE ' '"
+    end
+  odata = data
+  end
+ 
+ 
+DELETE_EXCLUDE:
+"DELETE ALL X"
+"(ROW) = LINENUM .ZL"
+row = row
+line = 00001
+Address ISPEXEC "LMOPEN  DATAID("output") OPTION(OUTPUT)"
+oacid = " "
+ 
+ 
+LOOP:
+Do line = 1 to row
+  return_code = 0                         /* SET RETURN CODE TO 0  */
+  If line > row then leave
+  "(DATA) = LINE" line
+  l = length(data)
+  parse var data res 46 acid 54 type 62 acc8 70 audit 71 deny 72,
+    facility "@ " otherinfo
+  sp1 = ""
+  res = left(data,8)
+ 
+  If acid = "*ALL*" | acid = " " then nop
+  Else do
+    x = outtrap("var.")
+    If type = " " then do
+      Address TSO "TSS LIST("acid")"
+      If left(var.1,8) = "TSS LIST" then do
+        name = substr(var.2,37)
+        type = substr(var.3,14,8)
+        end
+      Else do
+        name = substr(var.1,37)
+        type = substr(var.2,14,8)
+        end
+      "CHANGE '"left(acid,16)"' '"acid""type"' ALL 46 61"
+      end
+    end
+  If acid > oacid then do
+    prof_test = "OFF"
+    If oacid <> " " then do
+      cmd = "    "
+      Address ISPEXEC "LMPUT DATAID("output") MODE(INVAR)",
+        "DATALOC(CMD) DATALEN("length(cmd)")"
+      end
+    cmd = "     "acid type
+    Address ISPEXEC "LMPUT DATAID("output") MODE(INVAR)",
+      "DATALOC(CMD) DATALEN("length(cmd)")"
+    end
+  sp1 = ""
+  If type = "PROFILE" | type = "GROUP" then do
+    prof_test = "ON"
+    If deny = "Y" then,
+      prof_test = "OFF"
+    If nousr <> "OFF" then,
+      prof_test = "OFF"
+    end
+ 
+  If prof_test = "ON" & acid <> oacid then do
+    sp1 = "     "
+    x = outtrap("var.")
+    Address TSO "TSS LIST("acid") DATA(ACID)"
+ 
+    sw = ""
+    If acid <> oacid then do
+      Do x = 1 to var.0
+        a = var.x
+        if pos("ACIDS",var.x) = 1 then sw = "ON"
+        if sw = "ON" then do
+          cmd = "          "substr(a,14)
+          If cmd <> " " then do
+            Address ISPEXEC "LMPUT DATAID("output") MODE(INVAR)",
+              "DATALOC(CMD) DATALEN("length(cmd)")"
+            end
+          Else,
+            sw = ""
+          end
+        return_code = 0
+        end
+      end
+    prof_test = "OFF"
+    end
+ 
+ 
+BYPASS_PROFILE:
+  If type = "PROFILE" | type = "GROUP" then,
+    sp1 = "     "
+  Else,
+    sp1 = ""
+  If audit = "N" then,
+      audit = "AUDIT = NO "
+  Else,
+      audit = "AUDIT = YES"
+  If deny = "Y" then,
+      action = "ACTION = DENY"
+  Else,
+      action = ""
+  cmd = "          "sp1""res"     "audit"     "action
+  Address ISPEXEC "LMPUT DATAID("output") MODE(INVAR) DATALOC(CMD)",
+    "DATALEN("length(cmd)")"
+  oacid = acid
+  sp1 = ""
+ 
+ 
+BYPASS_INFO:
+/*line = line + 1
+  SIGNAL  LOOP*/
+  end
+ 
+ 
+END_EDIT:
+return_code = 0
+Address ISPEXEC "LMMREP DATAID("output") MEMBER("member")"
+If return_code <> 0 then,
+  tm07rep = return_code
+return_code = 0
+ 
+ 
+ERR_EXIT:
+If maxcc >= 16 | return_code > 0 then do
+  Address ISPEXEC "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then,
+    zispfrc = maxcc
+  Else,
+    zispfrc = return_code
+  Say pgmname "ZISPFRC =" zispfrc
+  Address ISPEXEC "VPUT (ZISPFRC) SHARED"
+  end
+Address ISPEXEC "LMCLOSE DATAID("output")"
+Address ISPEXEC "VPUT (TM07REP TM07VGE) SHARED"
+"END"
+Exit 0
+ 
+ 
+/*******************************************/
+/*  SYSCALL SUBROUTINES                    */
+/*******************************************/
+"END"
+lastcc = 0
+Exit 0
+ 
+ 
+/*******************************************/
+/*  SYSCALL SUBROUTINES                    */
+/*******************************************/
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC > 4 & RC <> 8 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+  say SOURCELINE(sigl)
+  if return_code > maxcc then
+    maxcc = return_code
+  end
+return
+ 
+ 

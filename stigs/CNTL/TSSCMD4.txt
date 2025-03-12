@@ -1,0 +1,34 @@
+//FSOJCL    JCLLIB ORDER=(&SRRHLQ..CNTL)
+//*--------------------------------------------------------------------
+//*-------------------------->> TSSCMD4  <<----------------------------
+//*--------------------------------------------------------------------
+//*                         TSS COMMANDS
+//*
+//*  IMPORTANT:  Copy member JOBCARD to the beginning of this job.
+//*
+//*  This JOB simulates the execution of TSS commands and saves the
+//*  output in individual PDS members.
+//*
+//*  STEP3:   Runs a BATCH TMP, Executes a CLIST to collect
+//*           the result by simulating the following TSS commands:
+//*
+//*             TSS MODIFY(FACILITY(ALL))
+//*             TSS MODIFY(FACILITY(xxxx))
+//*
+//*           The following command is simulated for CICS FACILITIES:
+//*
+//*             TSS MODIFY(FACILITY(xxxx=BYPLIST))
+//*
+//*  This JOB will be used as a replacement for TSSCMD2 and TSSCMD3
+//*
+//*--------------------------------------------------------------------
+//STEP3     EXEC EXAMRPTS,
+//             CNTL=&SRRHLQ..CNTL
+//REPORT    DD DSN=&SRRHLQ..TSSCMDS.RPT(FACLIST),
+//             DISP=SHR
+//FACALL    DD DSN=&SRRHLQ..TSSCMDS.RPT(FACALL),
+//             DISP=SHR
+//SYSTSPRT  DD SYSOUT=*
+//SYSTSIN   DD *
+ ISPSTART CMD(%CATC1004)
+/*

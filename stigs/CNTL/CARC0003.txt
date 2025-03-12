@@ -1,0 +1,463 @@
+/* REXX */
+/* CLS2REXXed by UMLA01S on 1 Sep 2020 at 14:36:10  */
+/*trace r?*/
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+ 
+/*********************************************************************/
+/* 05/06/2004 JL Nelson Changed to display new findings.             */
+/* 06/18/2004 JL Nelson Added exit code.                             */
+/* 06/23/2004 JL Nelson Added code to check security system.         */
+/* 11/03/2004 JL Nelson Skip RACF table - not used.                  */
+/* 01/19/2005 JL Nelson Changed lmmfind error message                */
+/* 02/24/2005 JL Nelson Changed constants to variables before        */
+/*            rename.                                                */
+/* 03/23/2005 JL Nelson Added typerun for reports without pdis.      */
+/* 06/09/2005 JL Nelson Pass maxcc in zispfrc variable.              */
+/* 06/15/2005 JL Nelson Reset return code to end job step.           */
+/* 07/18/2005 JL Nelson Added typerun check for fso code.            */
+/* 09/10/2007 CL Fenton Added resource collection.  Chgd several     */
+/*            variables and routines being executed by process.      */
+/* 11/30/2007 CL Fenton Corrected substr for resources.              */
+/* 07/16/2009 CL Fenton Changes cact0001 to cact0000, cacm042v to    */
+/*            cacm000t.  Changes for reflect new table information.  */
+/* 08/29/2016 CL Fenton Correct issue with tblmbr.                   */
+/* 09/01/2020 CL Fenton Converted script from CLIST to REXX.         */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname  = "CARC0003 09/01/20"
+CONSLIST = "OFF"                /* DEFAULT IS OFF                    */
+COMLIST  = "OFF"                /* DEFAULT IS OFF                    */
+SYMLIST  = "OFF"                /* DEFAULT IS OFF                    */
+TERMMSGS = "OFF"                /* DEFAULT IS OFF                    */
+TRACE    = "OFF"                /* TRACE ACTIONS AND ERRORS          */
+TYPERUN  = "FSO"                /* Run for SRRAUDIT | FSO            */
+CACC1000 = "CACC1000"           /* SELECT SECURITY CHECK PGM         */
+CACT0000 = "CACT0000"           /* SELECT MVS REPORT TABLE           */
+CACT0008 = "CACT0008"           /* SELECT RESOURCE REPORT TABLE      */
+CART0002 = "CART0002"           /* SELECT RACF REPORT TABLE          */
+CACM000T = "CACM000T"           /* SELECT edit macro/CACT0000        */
+CACM042R = "CACM042R"           /* SELECT edit macro/CACT0008        */
+CARM0004 = "CARM0004"           /* SELECT edit macro/temp4           */
+CARM0104 = "CARM0104"           /* SELECT edit macro/temp4           */
+CARM0005 = "CARM0005"           /* SELECT edit macro/RACFRPT         */
+LISTGRP  = "LGT"                /* Member in RACFCMDS.RPT            */
+NOULST   = "OFF"                /* TURN NO USER LIST OFF             */
+rc03vput           = 0
+lminit_temp4_rc    = 0
+lminit_temp5_rc    = 0
+lminit_racfrpt_rc  = 0
+lminit_cntl_rc     = 0
+lmopen_temp4_rc    = 0
+lmopen_temp5_rc    = 0
+lmopen_racfrpt_rc  = 0
+view_cact0000_rc   = 0
+cm00trc            = 0
+cm0tvget           = 0
+cm0tvput           = 0
+view_cact0008_rc   = 0
+view_cart0002_rc   = 0
+rm004rc            = 0
+rm005rc            = 0
+lmclose_temp4_rc   = 0
+lmclose_temp5_rc   = 0
+lmclose_racfrpt_rc = 0
+lmfree_temp4_rc    = 0
+lmfree_temp5_rc    = 0
+lmfree_temp4_rc    = 0
+lmfree_temp5_rc    = 0
+lmfree_racfrpt_rc  = 0
+lmfree_cntl_rc     = 0
+sysprompt = "OFF"               /* CONTROL NOPROMPT                  */
+sysflush = "OFF"                /* CONTROL NOFLUSH                   */
+sysasis = "ON"                  /* CONTROL ASIS - caps off           */
+Numeric digits 10               /* default of 9 not enough           */
+maxcc = 0
+ 
+Arg OPTION
+do until OPTION = ""
+  parse var OPTION key"("val")" OPTION
+  val = strip(val,"b","'")
+  val = strip(val,"b",'"')
+  optcmd = key '= "'val'"'
+  interpret optcmd
+  end
+ 
+return_code = 0
+If trace = "ON" then do            /* TURN messages on          */
+  termmsgs = "ON"                  /* CONTROL MSG               */
+  comlist = "ON"                   /* CONTROL LIST              */
+  conslist = "ON"                  /* CONTROL CONLIST           */
+  symlist = "ON"                   /* CONTROL SYMLIST           */
+  end
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" | TRACE = "ON",
+  then Trace ?r
+ 
+syssymlist = symlist           /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist          /* CONTROL CONLIST/NOCONLIST */
+syslist    = comlist           /* CONTROL LIST/NOLIST       */
+sysmsg     = termmsgs          /* CONTROL MSG/NOMSG         */
+Address ISPEXEC
+"CONTROL NONDISPL ENTER"
+"CONTROL ERRORS RETURN"
+zispfrc = 0
+"VPUT (ZISPFRC) SHARED"
+edit_cart0002_rc = "n/a"
+"VPUT (CONSLIST COMLIST SYMLIST TERMMSGS) ASIS"
+/* Determine which security system is running */
+return_code = 0
+"SELECT CMD("cacc1000 "ACP)"
+"VGET (ACPNAME ACPVERS) ASIS"
+If acpname <> "RACF" then do
+  Say pgmname "RACF Job running on the wrong system"
+  Say pgmname acpname acpvers
+  return_code = 20
+  SIGNAL ERR_EXIT
+  end
+ 
+/*******************************************/
+/* INITIALIZE LIBRARY MANAGEMENT           */
+/*******************************************/
+ 
+return_code = 0
+"LMINIT DATAID(TEMP4) DDNAME(TEMP4)"
+lminit_temp4_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT TEMP4 RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+return_code = 0
+"LMINIT DATAID(RACFRPT) DDNAME(RACFRPT)"
+lminit_racfrpt_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT RACFRPT RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+return_code = 0
+"LMINIT DATAID(TEMP5) DDNAME(TEMP5)"
+lminit_temp5_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT TEMP5 RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+return_code = 0
+"LMINIT DATAID(CNTL) DDNAME(CNTL)"
+lminit_cntl_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT CNTL RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+/*******************************************/
+/* OPEN DATASETS                           */
+/*******************************************/
+return_code = 0
+"LMOPEN DATAID("racfrpt") OPTION(INPUT)"
+lmopen_racfrpt_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMOPEN RACFRPT RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+return_code = 0
+"LMOPEN DATAID("temp4") OPTION(INPUT)"
+lmopen_temp4_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMOPEN TEMP4   RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+return_code = 0
+"LMOPEN DATAID("temp5") OPTION(OUTPUT)"
+lmopen_temp5_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMOPEN TEMP5   RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+/*******************************************/
+/* PUT VARS IN POOL                        */
+/*******************************************/
+return_code = 0
+"VPUT (CARM0005 TYPERUN LISTGRP RACFRPT CNTL TEMP4 TEMP5 NOULST",
+  "CACT0000) ASIS"
+rc03vput = return_code
+If return_code <> 0 then do
+  Say pgmname "VPUT RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+/*******************************************/
+/* GET TABLE VALUES                        */
+/*******************************************/
+return_code = 0
+"VIEW DATAID("cntl") MACRO("cacm000t") MEMBER("cact0000")"
+view_cact0000_rc = return_code
+ 
+return_code = 0
+"VGET (CM0TVGET CM0TVPUT CM00TRC TBLMBR) ASIS"
+view_cact0000_rc = return_code
+If view_cact0000_rc > 4 then do
+  Say pgmname "VIEW CNTL" cact0000  "RC =" cm00trc zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+/*******************************************/
+/* EDIT RACF REPORTS                       */
+/*******************************************/
+tblmbr = strip(tblmbr,"T")
+Do X = 2 to length(tblmbr)
+  parse var tblmbr . =(x) iter +2 . +1 rptmbr +8 . +1,
+    pdimbr +8 . +1 title "@" .
+  x = pos("#",tblmbr,x)
+  rptmbr = strip(rptmbr,"T")
+  pdimbr = strip(pdimbr,"T")
+/*Do X = 2 to length(tblmbr)*/
+/*iter = substrc(tblmbr,x,2)
+  rptmbr = substrc(tblmbr,x+3,8)
+  pdimbr = substrc(tblmbr,x+12,8)
+  y = pos("@",tblmbr,x)
+  If y > 0 then,
+    title = substrc(x+21,y-1,tblmbr)
+  Else,
+    title = ""*/
+  x = pos("#",tblmbr,x)
+  rptmbr = strip(rptmbr)
+  pdimbr = strip(pdimbr)
+  return_code = 0
+  "LMMFIND DATAID("temp4") MEMBER("iter")"
+  If return_code = 0 then do
+    /*******************************************/
+    /* PUT VARS IN POOL                        */
+    /*******************************************/
+    "VPUT (RPTMBR TITLE) ASIS"
+    return_code = 0
+    "EDIT DATAID("temp4") MACRO("carm0004") MEMBER("iter")"
+    If return_code > 4 then,
+      Say pgmname "EDIT_TEMP4_RC =" return_code "MEMBER" iter,
+        rptmbr zerrsm
+    end
+  Else,
+    Say pgmname "LMMFIND_TEMP4_RC =" return_code "MEMBER" iter,
+      rptmbr zerrsm
+  end
+ 
+return_code = 0
+rectype = 1
+pdiname = ""
+resname = ""
+"VPUT (RECTYPE PDINAME RESNAME) ASIS"
+return_code = 0
+"VIEW DATAID("cntl") MEMBER("cact0008") MACRO("cacm042r")"
+view_cact0008_rc = return_code
+If view_cact0008_rc > 4 then do
+  Say pgmname "VIEW CNTL" cact0008 "RC =" view_cact0008_rc
+  return_code = return_code + 16
+  SIGNAL BYPASS_CACT0008
+  end
+ 
+"VGET (REC1TBL) ASIS"
+Do X = 1 to length(rec1tbl) by 18
+  rptmbr = substrc(x,x+7,rec1tbl)    /* PDI ID*/
+  title = substrc(x+9,x+16,rec1tbl) /* RESOURCE NAME*/
+  return_code = 0
+  "LMMFIND DATAID("temp4") MEMBER("rptmbr")"
+  If return_code <> 0 then,
+    Say pgmname "LMMFIND_TEMP4_RC =" return_code "MEMBER =",
+      rptmbr title zerrsm
+  Else do
+    /*******************************************/
+    /* PUT VARS IN POOL                        */
+    /*******************************************/
+    return_code = 0
+    "EDIT DATAID("temp4") MACRO("carm0104") MEMBER("rptmbr")"
+    If return_code > 4 then,
+      Say pgmname "EDIT_TEMP4_RC =" return_code "MEMBER =" rptmbr,
+        title zerrsm
+    end
+  end
+ 
+ 
+BYPASS_CACT0008:
+return_code = 0
+If typerun = "SRRAUDIT" then,
+  SIGNAL END_EXIT
+/*******************************************/
+/* GET TABLE VALUES                        */
+/*******************************************/
+return_code = 0
+"VIEW DATAID("cntl") MACRO(CARM0008) MEMBER("cart0002")"
+view_cart0002_rc = return_code
+If return_code > 4 then do
+  Say pgmname "VIEW CNTL" cart0002  "RC =" return_code zerrsm
+  SIGNAL ERR_EXIT
+  end
+ 
+"VGET (RM8VGE ICNT) ASIS"
+/*******************************************/
+/* EDIT RACF REPORTS                       */
+/*******************************************/
+Do CNT = 1 to icnt
+  "VGET (ALPHA"cnt "BETA"cnt") ASIS"
+  alpha = strip(value("ALPHA"cnt))
+  beta = value("BETA"cnt)
+  return_code = 0
+  "LMMFIND DATAID("temp4") MEMBER("alpha")"
+  If return_code = 0 then do
+    /*******************************************/
+    /* PUT VARS IN POOL                        */
+    /*******************************************/
+    "VPUT (ALPHA BETA) ASIS"
+    return_code = 0
+    "EDIT DATAID("temp4") MACRO(CARM0041) MEMBER("alpha")"
+      If return_code > 4 then,
+        Say pgmname "EDIT_TEMP4_RC =" return_code "MEMBER" alpha
+    end
+  Else,
+    Say pgmname "LMMFIND_TEMP4_RC =" return_code "MEMBER =" alpha,
+      zerrsm
+  end
+ 
+ 
+/*******************************************/
+/* CLOSE OUTPUT                            */
+/*******************************************/
+END_EXIT:
+return_code = 0
+"LMCLOSE DATAID("temp4")"
+lmclose_temp4_rc = return_code
+ 
+return_code = 0
+"LMCLOSE DATAID("racfrpt")"
+lmclose_racfrpt_rc = return_code
+ 
+return_code = 0
+"LMCLOSE DATAID("temp5")"
+lmclose_temp5_rc = return_code
+ 
+/*******************************************/
+/* FREE FILES                              */
+/*******************************************/
+return_code = 0
+"LMFREE DATAID("temp4")"
+lmfree_temp4_rc = return_code
+ 
+return_code = 0
+"LMFREE DATAID("racfrpt")"
+lmfree_racfrpt_rc = return_code
+ 
+return_code = 0
+"LMFREE DATAID("temp5")"
+lmfree_temp5_rc = return_code
+ 
+return_code = 0
+"LMFREE DATAID("cntl")"
+lmfree_cntl_rc = return_code
+ 
+return_code = 0
+ 
+ 
+/*******************************************/
+/* ERROR EXIT                              */
+/*******************************************/
+ERR_EXIT:
+If maxcc >= 16 | return_code > 0 then do
+  "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then,
+    zispfrc = maxcc
+  Else,
+    zispfrc = return_code
+  "VPUT (ZISPFRC) SHARED"
+  Say pgmname "ZISPFRC =" zispfrc
+  end
+ 
+"VGET (RM004RC RM005RC) ASIS"
+If termmsgs = "ON" then do
+  Say "==============================================================="
+  Say pgmname "VPUT                    " rc03vput
+  Say pgmname "LMINIT_TEMP4_RC         " lminit_temp4_rc
+  Say pgmname "LMINIT_TEMP5_RC         " lminit_temp5_rc
+  Say pgmname "LMINIT_RACFRPT_RC       " lminit_racfrpt_rc
+  Say pgmname "LMINIT_CNTL_RC          " lminit_cntl_rc
+  Say pgmname "LMOPEN_TEMP4_RC         " lmopen_temp4_rc
+  Say pgmname "LMOPEN_TEMP5_RC         " lmopen_temp5_rc
+  Say pgmname "LMOPEN_RACFRPT_RC       " lmopen_racfrpt_rc
+  Say "==============================================================="
+  Say pgmname "VIEW_CACT0000_RC        " view_cact0000_rc
+  Say pgmname cacm000t "CM00TRC        " cm00trc
+  If cm00trc <> 0 then do
+    Say pgmname cacm000t "VGET           " cm0tvget
+    Say pgmname cacm000t "VPUT           " cm0tvput
+    end
+  Say pgmname "VIEW_CACT0008_RC        " view_cact0008_rc
+  Say pgmname "VIEW_CART0002_RC        " view_cart0002_rc
+  Say pgmname carm0004 "RM004RC        " rm004rc
+  Say pgmname carm0005 "RM005RC        " rm005rc
+  Say "==============================================================="
+  Say pgmname "LMCLOSE_TEMP4_RC        " lmclose_temp4_rc
+  Say pgmname "LMCLOSE_TEMP5_RC        " lmclose_temp5_rc
+  Say pgmname "LMCLOSE_RACFRPT_RC      " lmclose_racfrpt_rc
+  Say pgmname "LMFREE_TEMP4_RC         " lmfree_temp4_rc
+  Say pgmname "LMFREE_TEMP5_RC         " lmfree_temp5_rc
+  Say pgmname "LMFREE_RACFRPT_RC       " lmfree_racfrpt_rc
+  Say pgmname "LMFREE_CNTL_RC          " lmfree_cntl_rc
+  Say "==============================================================="
+  end
+Exit
+ 
+ 
+substrc: Procedure
+ If arg(3) = ''
+   Then
+     Do
+     s = Arg(1)
+     l = 1
+     v = arg(2)
+     End
+   Else
+     Do
+     s = arg(1)
+     l = arg(2)-arg(1)+1
+     v = arg(3)
+     End
+  Return substr(v,s,l)
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC >= 16 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname 'REXX error' rc 'in line' sigl':' ERRORTEXT(rc)
+  say SOURCELINE(sigl)
+  end
+if return_code > maxcc then
+  maxcc = return_code
+return
+ 
+ 

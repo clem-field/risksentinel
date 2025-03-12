@@ -1,0 +1,41 @@
+)ATTR
+ _ TYPE(INPUT)  INTENS(HIGH) CAPS(ON) PADC('_')
+ # TYPE(OUTPUT) INTENS(HIGH) SKIP(ON) COLOR(RED) CAPS(OFF)
+ @ TYPE(OUTPUT) INTENS(LOW)  SKIP(ON) CAPS(OFF)
+ $ TYPE(OUTPUT) INTENS(LOW)  SKIP(ON) CAPS(OFF)
+)BODY WIDTH(80) EXPAND("")
+%"-" Security Readiness Review Self-Audit "-"+
+%" "Product List" "+
+@PGM8     %       " "Version:@SRRVERS +
+%Command ===>_ZCMD                                            %Scroll ===>_ZUSC+
+%  Commands:  CANCEL+- Exit without saving information
+             %EXIT/END/PF3+- Ends and saves information
+%  Line Commands:
+%  Y+Used %N+Unused %S+Used and Select for Additional Information
+%"="
+%  Product  U Description                                              Condition
+)MODEL
+_S@PRODNAME@Z@DESC                                                     #MBRS
+)INIT
+ .ZVARS = INST
+ .CURSOR = ZCMD
+ &S      = ' '
+ 
+)REINIT
+ REFRESH *
+ &S      = ' '
+ 
+)PROC
+ VER (&ZCMD,LIST,CANCEL,END,EXIT,' ')
+ VER (&S,LIST,S,Y,N,' ')
+ IF (&PRODNAME EQ 'VTAM')
+   VER(&S,LIST,Y,S,' ')
+ VER (&S,LIST,Y,N,S)
+)END
+/*
+/* 05/09/2005 JL.Nelson Created for dialog - Update auth user lists
+/* VER (&S,LIST,B,S,E,MSG=SRR002)
+/*
+/* SAMPLE MODEL LINE FOLLOWS:
+/* &MODLINE
+/*

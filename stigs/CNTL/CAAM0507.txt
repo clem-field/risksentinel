@@ -1,0 +1,1724 @@
+ISREDIT MACRO       /* CAAM0507 EDIT MACRO */
+ 
+/* 03/01/2006 C. STERN Created from CAAM0007 for PDIs 250, 280, 330 */
+/* 06/06/2006 C. STERN Update ERROR ROUTINE.
+/* 10/20/2006 C. STERN Modify ZUSSA050 per CF/FSO.
+/*                     With "I. CLASSMAP"
+/* 11/01/2006 C. STERN Add ZUSSA053 per CF/FSO.
+/* 12/22/2006 C. FENTON Removed "I. CLASSMAP for ZUSSA050.
+/* 12/22/2006 C. FENTON Removed addition lines on Manual Reviews.
+/* 12/22/2006 C. FENTON ACF0550 removed.
+/* 12/22/2006 C. FENTON Modification made for false findings on
+/*            GSO OPTION not being defined.  Finding should have been
+/*            "Not a Finding".
+/* 12/22/2006 C. FENTON Modification to remove additional PSWD entries
+/*            that are not part of the STIG analysis.
+/* 01/05/2007 C. FENTON Modification ACF0360 to change analysis and to
+/*            make it a manual review if issues are found.
+/* 05/17/2007 C. FENTON Changes made to reflect Ver 9.0.
+/* 07/11/2007 CL.FENTON Changed evaluation of ACF0270 and
+/*            ZUSSA050 to review CLASS.
+/* 07/11/2007 CL.FENTON Removed logic for ACP0300, being
+/*            performed by CAAM0506.
+/* 08/07/2007 CL.FENTON Corrected ACF0270 Classified settings
+/*            check.
+/* 05/05/2008 CL.FENTON Changed evaluation of ACPVERS to execute
+/*            CACC1000 ACPCOMP to compare ACPVERS with var.
+/* 07/16/2009 CL.FENTON Removed evaluation of ACPVERS and analysis
+/*            cleanup.
+/* 09/18/2009 CL.FENTON Chgd ACF0360 Manual Review for only when
+/*            MODE(RULE... is specified.
+/* 04/07/2010 CL.FENTON Chgd ACF0380 PASSLMT from 2 to 3.
+/* 05/18/2010 CL.FENTON Removed several write statements.
+/* 06/29/2010 CL.FENTON Added DECOMP(AUDIT) and DECOMP(SECURITY) to
+/*            ACF0430.
+/* 08/03/2010 CL.Fenton added additional fields and cleanup for ACF0390.
+/* 03/09/2011 CL.Fenton chged PASSLMT to 1-2 for ACF0390.
+/* 09/12/2011 CL.Fenton chged PASSLMT to 1-3 for ACF0390.
+/* 09/19/2011 CL.Fenton chged ACF0370 to require TEMPDSN.
+/* 12/23/2011 CL.FENTON Removed VOLRULE/NOVOLRULE from requirements for
+/*            ACF0430, CSD-AR003102861.
+/* 02/08/2012 CL.FENTON Added removal of additional entries for
+/*            ACF0370, GSO OPT, TEMPDSN retained, CSD-AR003213039.
+/* 03/06/2013 CL.Fenton split ACF0370 into checking for the CAT I and
+/*            ACF0375 a CAT II for the remaining GSO OPTS, STS-000812.
+/*            ADD ACF0400 to evaluate GSO PWPHRASE option settings,
+/*            CSD-AR003262504.
+/* 08/19/2013 CL.FENTON Chgd ACF0400 evaluation of REPCHAR and
+/*            WARNDAYS and IF statement, STS-003764.
+/* 09/24/2013 CL.FENTON Chgd ACF0270 to require AUTOERAS settings
+/*            are specified for both class and unclass, STS-003180
+/* 03/06/2014 CL.FENTON Chgd ACF0500 to remove NOFSRETAIN requirement
+/*            and clean up other non required entries, STS-004473
+/*            and STS-005146.
+/* 12/11/2014 CL.FENTON Chgd ACF0375 INFOLIST to allow INFOLIST(AUDIT),
+/*            INFOLIST(SECURITY) and INFOLIST(), STS-007733.
+/* 12/15/2014 CL.FENTON Added CSLIDEXT and NOCSLIDEXT as valid
+/*            requirements, STS-008394.
+/* 01/30/2015 CL.Fenton Chgd ZUSSA053 to specify Not Applicable when
+/*            CHOWNRES or NOCHOWNRES are not specified in the GSO
+/*            UNIXOPTS, STS-006695.
+/* 02/09/2015 CL.Fenton Chgd ACF0400 to evaluate MINLEN=15 for GSO
+/*            PWPHRASE record, STS-008965.
+/* 02/09/2015 CL.Fenton Chgd ACF0390 to check for special characters,
+/*            STS-004529.
+/* 02/09/2015 CL.Fenton Chgd ACF0400 to check for special characters and
+/*            removed LID and REPCHAR requirements, STS-008965.
+/* 07/31/2015 CL.Fenton Chgd ACF0430 to remove VSAMFAIL or NOVSAMFAIL
+/*            from finding details, STS-011132.
+/* 11/20/2015 CL.Fenton Chgd ACF0390 to remove PSWDENCT(AES1) and
+/*            PSWDENCT(AES2) from finding details until encryption
+/*            requirement becomes effective.
+/* 01/27/2016 CL.Fenton Added ACF0395 to evaluate value of PSWDENCT
+/*            and for version 16.0 ONEPWALG.  Evaluation of encryption
+/*            requirements, STS-013213.
+/* 04/18/2016 CL.Fenton Chgs ACF0375 to remove evaluation of NOCACHE
+/*            from GSO OPTS record, STS-013816.
+/* 04/18/2016 CL.Fenton Chgs ACF0500 to remove evaluation of PROC(IKJACCNT)
+/*            from GSO TSO record, STS-013817.
+/* 07/18/2017 CL.Fenton Chgd ZUSSA050 automation evaluation for z/OS
+/*            2.1 and above, STS-017962.
+/* 11/03/2017 CL.Fenton Chgd ACF0390 and ACF0400 evaluation that 0 is not
+/*            to be used for WRNDAYS and WARNDAYS as a finding, STS-018505.
+/* 05/23/2018 CL.Fenton Removed Manual Review from ACF0250.
+/* 05/23/2018 CL.Fenton Added "Not Reviewed" to ACF0270, ACF0375, and
+/*            ACF0380 for vuls that require additional analysis and
+/*            ACF0370 for MODE(RULE,...) that requires additional
+/*            analysis, STS-019713.
+/* 09/28/2018 CL.Fenton Chgd "Not Reviewed" for ACF0310 from .ZFIRST
+/*            to .ZLAST, STS-020817.
+/* 01/30/2019 CL.Fenton Chgd ACF0390 and ACF0400 evaluation that all
+/*            special characters be specified in PSWDPLST and
+/*            SPECLIST, STS-021085.
+/* 05/14/2021 CL.Fenton Chgd ACF0330 to correct 920 return_code.
+/* 06/29/2021 CL Fenton Chgs to remove ACF0260, ACF0410, ACF0490,
+/*            ACF0520, ZUSSA050, and ZUSSA053, STS-026845.
+/* 11/26/2021 CL Fenton Added entries to TABLE for PSWD vuls
+/*            ACF2-ES-000430, ACF2-ES-000590, ACF2-ES-000820,
+/*            ACF2-ES-000840, ACF2-ES-000860, ACF2-ES-000870,
+/*            ACF2-ES-000890, ACF2-ES-000900, ACF2-ES-000850,
+/*            ACF2-ES-000910, and ACF2-ES-000990, STS-027409,
+/*            STS-027410, STS-027411, STS-027412, STS-027413,
+/*            STS-027414, STS-027415, STS-027416, STS-027417,
+/*            STS-027418, and STS-027419.
+/* 06/23/2022 CL Fenton Chgd OPTLINE to add '@' for PSWDPLST in
+/*            ACF039C, STS-028636.
+/* 08/31/2023 CL Fenton Added automation for SAFDEF vul
+/*            ACF2-SM-000040 for ZSMSA006, SCTASK0045234.
+ 
+SET PGMNAME = &STR(CAAM0507 08/31/23)
+ 
+NGLOBAL PGMNAME RETURN_CODE
+ 
+/* *************************************** */
+/* THIS EDIT MACRO PROVIDES THE FINDING    */
+/* DETAILS FOR ACF2 CONTROL OPTIONS        */
+/* *************************************** */
+ 
+ 
+/* *************************************** */
+/* VARIABLES ARE PASSED TO THIS MACRO      */
+/* CONSLIST                                */
+/* COMLIST                                 */
+/* SYMLIST                                 */
+/* TERMMSGS                                */
+/* *************************************** */
+ 
+ 
+SET RETURN_CODE = 0
+ 
+/* ERROR ROUTINE */
+ERROR DO
+  SET RETURN_CODE = &LASTCC         /* save LAST ERROR CODE */
+  IF &LASTCC GE 16 THEN +
+    WRITE &PGMNAME LASTCC = &LASTCC &ZERRLM
+  RETURN
+  END
+ 
+ISPEXEC CONTROL NONDISPL ENTER
+ISPEXEC CONTROL ERRORS RETURN
+ 
+                    /* GET VARIABLES FROM POOL */
+ 
+ISPEXEC  VGET (                                                       -
+  CONSLIST                                                            -
+  COMLIST                                                             -
+  FINDRC                                                              -
+  SYMLIST                                                             -
+  TERMMSGS                                                            -
+  CHK                                                                 -
+  OPT                                                                 -
+  OPTDEL                                                              -
+  OPTLINE                                                             -
+  ACPVERS                                                             -
+  ) ASIS
+ 
+IF &RETURN_CODE NE 0 THEN                                             -
+  SET AM07VGE = &RETURN_CODE
+ELSE                                                                  -
+  SET AM07VGE = 0
+ 
+ 
+/* *************************************** */
+/* TURN ON MESSAGES                        */
+/* *************************************** */
+ 
+CAAM0007_MESSAGE_HOUSEKEEPING:                                        -
+SET SYSSYMLIST = &SYMLIST          /* CONTROL SYMLIST/NOSYMLIST */
+SET SYSCONLIST = &CONSLIST         /* CONTROL CONLIST/NOCONLIST */
+SET SYSLIST    = &COMLIST          /* CONTROL LIST/NOLIST       */
+SET SYSMSG     = &TERMMSGS         /* CONTROL MSG/NOMSG         */
+ 
+CONTROL ASIS
+ 
+ 
+IF &NRSTR(&OPTDEL) NE &STR( ) THEN DO
+  ISREDIT DELETE .ZF .ZL
+  SET OPTDEL =
+  ISPEXEC VPUT ( +
+    OPTDEL       +
+    ) ASIS
+  END
+ 
+ 
+/* *************************************** */
+/* MAIN PROCESS                            */
+/* *************************************** */
+ 
+SET DFTGROUP_SWITCH = N
+SET DFTUSER_SWITCH = N
+ 
+SET LP = &STR((
+SET RP = )
+SET ROW = 0
+ 
+SET SPC = &STR(          )
+ 
+ISREDIT CAPS = OFF
+ISREDIT STATS = OFF
+ISREDIT (ROW) = LINENUM .ZLAST
+ 
+ISREDIT (PDINUM) = MEMBER
+ 
+ 
+SET X = &SYSINDEX(&STR(/ ),&STR(&OPT))
+SET XL = &LENGTH(&STR(&OPT))
+IF &X GT 0 THEN DO
+  SET RETURN_CODE = 0
+  ISREDIT FIND '&SUBSTR(&X:&XL,&STR(&OPT)) ' ALL
+  SET FOPT_RC = &RETURN_CODE
+END
+SET RETURN_CODE = 0
+ISREDIT FIND 'Not a Finding' ALL
+SET NF_RC = &RETURN_CODE
+SET RETURN_CODE = 0
+ISREDIT FIND 'Manual Review.' ALL
+SET MR_RC = &RETURN_CODE
+SET RETURN_CODE = 0
+ISREDIT FIND 'Not Reviewed' ALL
+SET NR_RC = &RETURN_CODE
+SET RETURN_CODE = 0
+ISREDIT FIND 'Not Applicable' ALL
+SET NA_RC = &RETURN_CODE
+SET RETURN_CODE = 0
+ISREDIT FIND 'not defined:' ALL
+SET ND_RC = &RETURN_CODE
+SET RETURN_CODE = 0
+ISREDIT FIND 'set improperly:' ALL
+SET SI_RC = &RETURN_CODE
+SET RETURN_CODE = 0
+ 
+IF &CHK EQ &STR( ) AND +
+  &ROW EQ 0 AND +
+  &STR(&PDINUM) EQ &STR(ACF0250) THEN +
+  GOTO ACF0250
+ 
+IF &NRSTR(&OPTLINE) NE &STR( ) THEN DO
+  SET OPTLINEX = &NRSTR( &OPTLINE @ )
+ 
+  DO UNTIL &SYSINDEX(&STR(@),&NRSTR(&OPTLINEX)) EQ 0
+    SET Y = &LENGTH(&NRSTR(&OPTLINEX))
+    SET X = &SYSINDEX(&STR(@),&NRSTR(&OPTLINEX))
+    SET OPTLINEX = &STR(&SUBSTR(1:&X-1,&NRSTR(&OPTLINEX)) +
+      &SUBSTR(&X+1:&Y,&NRSTR(&OPTLINEX)) )
+  END
+  END
+ 
+IF &CHK EQ &STR( ) AND +
+  &FINDRC NE 0 THEN DO
+  IF &ROW EQ 0 THEN DO
+    SET AC = &STR(The following GSO record value(s) is (are) +
+      set improperly:)
+    ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+    ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+    END
+ 
+  SET AC = &STR(     &OPT is not defined.)
+  ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+  GOTO END_EDIT
+  END
+ 
+SET OPTL = &LENGTH(&NRSTR(&OPTLINE))
+ 
+ 
+ACF0250: +
+IF &PDINUM NE ACF0250 THEN +
+  GOTO BYPASS_ACF0250
+ 
+IF &FOPT_RC EQ 0 THEN +
+  GOTO END_EDIT
+ 
+IF &FINDRC EQ 0 THEN DO
+  ISREDIT LINE_AFTER .ZLAST = DATALINE 'Not Reviewed'
+  SET AC = &STR(The following GSO record value(s) is (are) set +
+    improperly:)
+  ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+  ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+ 
+  SYSCALL WRITE_OPT OPT OPTLINE
+ 
+  GOTO END_EDIT
+ 
+  END
+ELSE DO
+  IF &NR_RC GT 0 AND +
+     &NF_RC GT 0 THEN DO
+    SET AC = &STR(Not a Finding.)
+    ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+    ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+ 
+    SET AC = &STR(No Application Definitions exist on this system.)
+    ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+    GOTO END_EDIT
+    END
+  END
+ 
+IF &FOPT_RC EQ &STR( ) THEN DO
+  ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+ 
+  SET AC = &STR(Note: The APPLDEF record is optional.  Use of this +
+    record will be justified in writing with supporting +
+    documentation.)
+ 
+  ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+  END
+ 
+ 
+BYPASS_ACF0250: +
+IF &PDINUM NE ACF0270 THEN +
+  GOTO BYPASS_ACF0270
+ 
+IF &FOPT_RC EQ 0 OR +
+   &FOPT_RC EQ &STR( ) THEN +
+  GOTO END_EDIT
+ 
+ISPEXEC VGET ( +
+  CLASS        +
+  ) ASIS
+ 
+IF &SYSINDEX(&STR( NON-VSAM ),&NRSTR(&OPTLINEX)) GT 0 AND +
+   &SYSINDEX(&STR( VOLS(-) ),&NRSTR(&OPTLINEX)) GT 0 AND +
+   &SYSINDEX(&STR( VSAM ),&NRSTR(&OPTLINEX)) GT 0 THEN +
+   GOTO BYPASS_ACF0270
+ 
+IF &NF_RC EQ 0 THEN +
+  ISREDIT DELETE .ZF .ZL
+ 
+IF &NR_RC GT 0 AND +
+   &ROW EQ 0 THEN DO
+  ISREDIT LINE_AFTER .ZLAST = DATALINE 'Not Reviewed'
+  SET AC = &STR(The following GSO record value(s) is (are) +
+    set improperly:)
+  ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+  ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+  END
+ 
+SYSCALL WRITE_OPT OPT OPTLINE
+ 
+SYSCALL DELETE_STRING P1('NOERASEALL')
+SYSCALL DELETE_STRING P1('ERASEALL')
+SYSCALL DELETE_STRING P1('NON-VSAM')
+SYSCALL DELETE_STRING P1('PROCESS(')
+SYSCALL DELETE_STRING P1('SECLEVEL')
+SYSCALL DELETE_STRING P1('NOSECLEVEL')
+SYSCALL DELETE_STRING P1('SECLVL(')
+SYSCALL DELETE_STRING P1('VSAM')
+SYSCALL DELETE_STRING P1('VOLS(-)')
+ 
+GOTO END_EDIT
+ 
+ 
+BYPASS_ACF0270: +
+IF &PDINUM NE ACF0280 THEN +
+  GOTO BYPASS_ACF0280
+ 
+SET LP = &STR((
+SET RP = )
+ 
+IF &FOPT_RC EQ 0 THEN +
+  GOTO END_EDIT
+ 
+IF &SYSINDEX(&STR( TIME&LP.00:00&RP ),&NRSTR(&OPTLINEX)) +
+  GT 0 THEN DO
+  IF &NF_RC GT 0 AND +
+     &ROW EQ 0 THEN DO
+    SET AC = &STR(The following GSO record value(s) is (are) +
+      set improperly:)
+    ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+    ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+    END
+ 
+  SYSCALL WRITE_OPT OPT OPTLINE
+ 
+  GOTO END_EDIT
+  END
+ 
+IF &FOPT_RC EQ &STR( ) THEN +
+  IF &NF_RC EQ 0 THEN DO
+    ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+ 
+    SET AC = &STR(Site defined start time allowed.)
+    ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+    GOTO END_EDIT
+    END
+  ELSE DO
+    ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+ 
+    SET AC = &STR(DISA recommendation: CHANGE BACKUP TIME(xx:xx) +
+    Specify a non-zero value for TIME option.)
+    ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+    GOTO END_EDIT
+    END
+ 
+ 
+BYPASS_ACF0280: +
+IF &PDINUM NE ACF0310 THEN +
+  GOTO BYPASS_ACF0310
+ 
+IF &FOPT_RC EQ 0 OR +
+   &FOPT_RC EQ &STR( ) THEN +
+  GOTO END_EDIT
+ 
+SET OPTL = &LENGTH(&OPTLINE)
+SET OPTTEST = &SUBSTR(1:&OPTL-1,&NRSTR(&OPTLINE))
+SET OPTL = &LENGTH(&OPTTEST)+10
+SET X = &SYSINDEX(&STR(DSNPOST),&STR(&OPTTEST))
+ 
+IF &X GT 0 THEN +
+  SET Y = &SYSINDEX(&RP,&STR(&OPTTEST),&X) + 2
+ 
+IF &X GT 1 THEN +
+  SET OPTTEST = &STR(&SUBSTR(1:&X-1,&STR(&OPTTEST))+
+                     &SUBSTR(&Y:&OPTL,&STR(&OPTTEST&SPC&SPC)))
+ELSE +
+  IF &X EQ 1 THEN +
+    SET OPTTEST = &STR(&SUBSTR(&Y:&OPTL,&STR(&OPTTEST&SPC))&SPC)
+ 
+SET OPTL = &LENGTH(&STR(&OPTTEST))+10
+SET X = &SYSINDEX(&STR(SEVPOST(SEVPST01)),&STR(&OPTTEST))
+ 
+IF &X GT 1 THEN +
+  SET OPTTEST = &STR(&SUBSTR(1:&X-1,&STR(&OPTTEST))+
+                     &SUBSTR(&X+18:&OPTL,&STR(&OPTTEST&SPC&SPC)))
+ELSE +
+  IF &X EQ 1 THEN +
+    SET OPTTEST = &STR(&SUBSTR(19:&OPTL,&STR(&OPTTEST&SPC))&SPC)
+ 
+SET OPTL = &LENGTH(&STR(&OPTTEST))+10
+SET X = &SYSINDEX(&STR(SEVPRE(SEVPRE01)),&STR(&OPTTEST))
+ 
+IF &X GT 1 THEN +
+  SET OPTTEST = &STR(&SUBSTR(1:&X-1,&STR(&OPTTEST))+
+                     &SUBSTR(&X+17:&OPTL,&STR(&OPTTEST&SPC&SPC)))
+ELSE +
+  IF &X EQ 1 THEN +
+    SET OPTTEST = &STR(&SUBSTR(18:&OPTL,&STR(&OPTTEST&SPC))&SPC)
+ 
+SET OPTL = &LENGTH(&OPTLINE)
+ 
+IF (&SYSINDEX(&STR( SEVPOST(SEVPST01) ),+
+  &NRSTR(&OPTLINEX)) EQ 0 AND +
+  &SYSINDEX(&STR( SEVPRE(SEVPRE01) ),+
+  &NRSTR(&OPTLINEX)) EQ 0) OR +
+  &STR(&OPTTEST) NE &STR( ) THEN DO
+  IF &NF_RC EQ 0 THEN +
+    ISREDIT DELETE .ZF .ZL
+ 
+  IF &NR_RC GT 0 THEN DO
+    ISREDIT LINE_BEFORE .ZLAST = DATALINE 'Not Reviewed'
+    SET AC = &STR(The following GSO record value(s) is (are) +
+      set improperly:)
+    ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+    ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+    END
+ 
+  SET OPTTEST = &NRSTR(&OPTTEST)@
+  SYSCALL WRITE_OPT OPT OPTTEST
+ 
+  GOTO END_EDIT
+  END
+ 
+ 
+BYPASS_ACF0310: +
+IF &PDINUM NE ACF0330 THEN +
+  GOTO BYPASS_ACF0330
+ 
+IF &FOPT_RC EQ 0 THEN +
+  GOTO END_EDIT
+ 
+IF &SYSINDEX(&STR( LIBRARY&LP.SYS1.LINKLIB&RP ),+
+   &NRSTR(&OPTLINEX)) GT 0 AND +
+   &MR_RC EQ 0 THEN +
+    GOTO END_EDIT
+ 
+IF &NR_RC EQ 0 AND +
+   &FOPT_RC EQ &STR( ) THEN DO
+  ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+ 
+  SET AC = &STR(DISA recommendation: Change Rep/Del LINKLST +
+    LIBRARY(xxxx.xxx.xxx xxxx.xxx.xxx).)
+  SET AC = &STR(&AC  Ensure only trusted system data sets are +
+    listed.)
+  ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+  GOTO END_EDIT
+  END
+ 
+IF &SYSINDEX(&STR( LIBRARY&LP.SYS1.LINKLIB&RP ),+
+   &NRSTR(&OPTLINEX)) EQ 0 AND +
+   &NRSTR(&OPTLINEX) NE &STR( ) THEN DO
+  IF &NF_RC EQ 0 AND +
+     &NRSTR(&OPTLINE) NE &STR( ) THEN +
+    ISREDIT DELETE .ZF .ZL
+ 
+  IF &NR_RC GT 0 THEN DO
+    ISREDIT LINE_AFTER .ZLAST = DATALINE 'Not Reviewed'
+    SET AC = &STR(The following GSO record value(s) is (are) +
+      set improperly:)
+    ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+    ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+    END
+ 
+  SYSCALL WRITE_OPT OPT OPTLINE
+ 
+  GOTO END_EDIT
+  END
+ 
+ 
+BYPASS_ACF0330: +
+IF &PDINUM NE ACF0360 THEN +
+  GOTO BYPASS_ACF0360
+ 
+IF &FOPT_RC EQ 0 THEN +
+  GOTO END_EDIT
+ 
+IF &FOPT_RC NE &STR( ) AND +
+  (&SYSINDEX(&STR( DFTLID() ),&NRSTR(&OPTLINEX))   EQ 0 OR +
+   &SYSINDEX(&STR( ENCRYPT ),&NRSTR(&OPTLINEX))    EQ 0 OR +
+   &SYSINDEX(&STR( INHERIT ),&NRSTR(&OPTLINEX))    EQ 0 OR +
+   &SYSINDEX(&STR( VALIN(YES) ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+   &SYSINDEX(&STR( NOVALOUT  ),&NRSTR(&OPTLINEX))  EQ 0) THEN DO
+  IF &NF_RC EQ 0 THEN +
+    ISREDIT DELETE .ZF .ZL
+ 
+  IF &MR_RC GT 0 AND +
+     &ROW EQ 0 THEN DO
+    ISREDIT LINE_AFTER .ZLAST = DATALINE 'Manual Review.'
+    SET AC = &STR(The following GSO record value(s) is (are) +
+      set improperly:)
+    ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+    ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+    END
+ 
+  SYSCALL WRITE_OPT OPT OPTLINE
+ 
+  SYSCALL DELETE_STRING P1('DFTLID()')
+  SYSCALL DELETE_STRING P1('ENCRYPT')
+  SYSCALL DELETE_STRING P1('INHERIT')
+  SYSCALL DELETE_STRING P1('NODEMASK(-)')
+  SYSCALL DELETE_STRING P1('VALIN(YES)')
+  SYSCALL DELETE_STRING P1('NOVALOUT')
+  SYSCALL DELETE_STRING P1('DFSYSOUT&LP')
+  ISREDIT FIND ALL ' DFSYSOUT('
+  ISREDIT (X,Y) = CURSOR
+  ISREDIT FIND NEXT ') ' .ZCSR .ZCSR
+  ISREDIT (X1,Y1) = CURSOR
+  ISREDIT (DATA) = LINE &X
+  ISREDIT LINE &X = '&SUBSTR(1:&Y,&STR(&DATA))+
+    &SUBSTR(&Y1+2:&LENGTH(&STR(&DATA)),&STR(&DATA))'
+  END
+ 
+IF &MR_RC EQ 0 AND +
+   &FOPT_RC EQ &STR( ) THEN DO
+  ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+ 
+  SET AC = &STR(Local changes will be justified in writing with +
+    supporting documentation.)
+  ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+  END
+ 
+IF &FOPT_RC EQ &STR( ) THEN +
+  GOTO END_EDIT
+ 
+ 
+BYPASS_ACF0360: +
+IF &PDINUM NE ACF0370 THEN +
+  GOTO BYPASS_ACF0370
+ 
+IF &FOPT_RC EQ 0 OR +
+   &FOPT_RC EQ &STR( ) THEN +
+  GOTO END_EDIT
+ 
+IF &SYSINDEX(&STR( MODE(ABORT) ),&NRSTR(&OPTLINEX)) EQ 0 THEN DO
+  SET AC = &STR(The following GSO record value(s) is (are) +
+    set improperly:)
+  ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+  ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+ 
+  SET AS = &SYSINDEX(&STR(MODE&LP),&NRSTR(&OPTLINEX))
+  SET AE = &SYSINDEX(&STR( ),&NRSTR(&OPTLINEX),&AS)
+  SET OPTLINE = &STR(&SUBSTR(&AS:&AE,&NRSTR(&OPTLINEX)) @)
+ 
+  SYSCALL WRITE_OPT OPT OPTLINE
+ 
+  SET RETURN_CODE = 0
+  ISREDIT FIND ALL 'MODE(RULE'
+  IF &RETURN_CODE EQ 0 AND +
+     &NR_RC EQ 0 THEN +
+    ISREDIT LINE_BEFORE .ZFIRST = DATALINE 'Not Reviewed'
+  GOTO END_EDIT
+  END
+ 
+BYPASS_ACF0370: +
+IF &PDINUM NE ACF0375 THEN +
+  GOTO BYPASS_ACF0375
+ 
+IF &FOPT_RC EQ 0 OR +
+   &FOPT_RC EQ &STR( ) THEN +
+  GOTO END_EDIT
+ 
+IF &SYSINDEX(&STR( BLPLOG ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( NOCMDREC ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( CONSOLE(NOROLL) ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( CPUTIME(LOCAL) ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( DATE(MDY) ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( NODDB ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( DFTLID() ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( DFTSTC() ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+ (&SYSINDEX(&STR( INFOLIST(SECURITY AUDIT) ),+
+    &NRSTR(&OPTLINEX)) EQ 0 AND +
+  &SYSINDEX(&STR( INFOLIST(AUDIT SECURITY) ),+
+    &NRSTR(&OPTLINEX)) EQ 0 AND +
+  &SYSINDEX(&STR( INFOLIST(AUDIT) ),+
+    &NRSTR(&OPTLINEX)) EQ 0 AND +
+  &SYSINDEX(&STR( INFOLIST(SECURITY) ),+
+    &NRSTR(&OPTLINEX)) EQ 0 AND +
+  &SYSINDEX(&STR( INFOLIST() ),+
+    &NRSTR(&OPTLINEX)) EQ 0) OR +
+  &SYSINDEX(&STR( JOBCK ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( MAXVIO(10) ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( NOTIFY ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( RPTSCOPE ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( SHRDASD ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( STAMPSMF ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( STC ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( TEMPDSN ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( TAPEDSN ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( NOUADS ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( NOVTAMOPEN ),&NRSTR(&OPTLINEX)) EQ 0 THEN DO
+  ISREDIT LINE_AFTER .ZLAST = DATALINE 'Not Reviewed'
+  SET AC = &STR(The following GSO record value(s) is (are) +
+    set improperly:)
+  ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+  ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+ 
+  SYSCALL WRITE_OPT OPT OPTLINE
+ 
+  SYSCALL DELETE_STRING P1('ACCESS')                      /*1
+  SYSCALL DELETE_STRING P1('NOACCESS')                    /*1
+  SYSCALL DELETE_STRING P1('ALTSYS&LP')                   /*2
+  SYSCALL DELETE_STRING P1('BLPLOG')                      /*1
+  SYSCALL DELETE_STRING P1('BYPSTATS')                    /*1
+  SYSCALL DELETE_STRING P1('NOBYPSTATS')                  /*1
+  SYSCALL DELETE_STRING P1('NOCACHE')                     /*1
+  SYSCALL DELETE_STRING P1('CACHE')                       /*1
+  SYSCALL DELETE_STRING P1('CERTEXP&LP')                  /*2
+  SYSCALL DELETE_STRING P1('NOCMDREC')                    /*1
+  SYSCALL DELETE_STRING P1('DFTLNXG&LP')                  /*2
+  SYSCALL DELETE_STRING P1('DFTLNXU&LP')                  /*2
+  SYSCALL DELETE_STRING P1('DFTSTC()')                    /*2
+  SYSCALL DELETE_STRING P1('ETAUDIT')                     /*2
+  SYSCALL DELETE_STRING P1('NOETAUDIT')                   /*2
+  SYSCALL DELETE_STRING P1('EVALMODE')                    /*2
+  SYSCALL DELETE_STRING P1('NOEVALMODE')                  /*2
+  SYSCALL DELETE_STRING P1('INFOLIST(AUDIT SECURITY)')    /*2
+  SYSCALL DELETE_STRING P1('INFOLIST(SECURITY AUDIT)')    /*2
+  SYSCALL DELETE_STRING P1('INFOLIST(AUDIT)')             /*2
+  SYSCALL DELETE_STRING P1('INFOLIST(SECURITY)')          /*2
+  SYSCALL DELETE_STRING P1('INFOLIST()')                  /*2
+  SYSCALL DELETE_STRING P1('MODE&LP')                     /*3
+  SYSCALL DELETE_STRING P1('NAMEHIDE')                    /*3
+  SYSCALL DELETE_STRING P1('NONAMEHIDE')                  /*3
+  SYSCALL DELETE_STRING P1('NOTIFY')                      /*3
+  SYSCALL DELETE_STRING P1('PRIMARY&LP')                  /*3
+  SYSCALL DELETE_STRING P1('PTKRESCK')                    /*3
+  SYSCALL DELETE_STRING P1('NOPTKRESCK')                  /*3
+  SYSCALL DELETE_STRING P1('STATRECD&LP')                 /*4
+  SYSCALL DELETE_STRING P1('STATSINT&LP')                 /*4
+  SYSCALL DELETE_STRING P1('STATSLOG&LP')                 /*4
+  SYSCALL DELETE_STRING P1('STC')                         /*4
+  SYSCALL DELETE_STRING P1('SWTCHKEY&LP')                 /*4
+  SYSCALL DELETE_STRING P1('SWTCHTOD&LP')                 /*4
+  SYSCALL DELETE_STRING P1('SYSPLEX')                     /*4
+  SYSCALL DELETE_STRING P1('NOSYSPLEX')                   /*4
+  SYSCALL DELETE_STRING P1('TAPEDSN')                     /*4
+  SYSCALL DELETE_STRING P1('TEMPDSN')                     /*4
+  SYSCALL DELETE_STRING P1('XAPPLVLD')                    /*5
+  SYSCALL DELETE_STRING P1('NOXAPPLVLD')                  /*5
+  ISREDIT TFLOW 4 150
+ 
+  SYSCALL DELETE_STRING P1('CONSOLE(NOROLL)')             /*1
+  SYSCALL DELETE_STRING P1('CPF')                         /*1
+  SYSCALL DELETE_STRING P1('NOCPF')                       /*1
+  SYSCALL DELETE_STRING P1('CPUTIME(LOCAL)')              /*1
+  SYSCALL DELETE_STRING P1('CSLIDEXT')                    /*1
+  SYSCALL DELETE_STRING P1('NOCSLIDEXT')                  /*1
+  SYSCALL DELETE_STRING P1('DATE(MDY)')                   /*1
+  SYSCALL DELETE_STRING P1('NODDB')                       /*1
+  SYSCALL DELETE_STRING P1('DFTLID()')                    /*1
+  SYSCALL DELETE_STRING P1('ROLESYS&LP')                  /*3
+  SYSCALL DELETE_STRING P1('RPTSCOPE')                    /*3
+  SYSCALL DELETE_STRING P1('SDNSIZE&LP')                  /*3
+  SYSCALL DELETE_STRING P1('SECONDRY&LP')                 /*3
+  SYSCALL DELETE_STRING P1('SHRDASD')                     /*3
+  SYSCALL DELETE_STRING P1('STAMPSMF')                    /*3
+  SYSCALL DELETE_STRING P1('STATS')                       /*3
+  SYSCALL DELETE_STRING P1('NOSTATS')                     /*3
+  SYSCALL DELETE_STRING P1('WRNDAYS&LP')                  /*5
+  ISREDIT TFLOW 4 150                                     /*
+                                                          /*
+  SYSCALL DELETE_STRING P1('ICSF')                        /*2
+  SYSCALL DELETE_STRING P1('NOICSF')                      /*2
+  SYSCALL DELETE_STRING P1('JOBCK')                       /*2
+  SYSCALL DELETE_STRING P1('KERBLVL&LP')                  /*2
+  SYSCALL DELETE_STRING P1('KEYSIZE&LP')                  /*2
+  SYSCALL DELETE_STRING P1('LDS')                         /*2
+  SYSCALL DELETE_STRING P1('NOLDS')                       /*2
+  SYSCALL DELETE_STRING P1('MAXVIO(10)')                  /*2
+  SYSCALL DELETE_STRING P1('TNGMON')                      /*4
+  SYSCALL DELETE_STRING P1('NOTNGMON')                    /*4
+  SYSCALL DELETE_STRING P1('NOUADS')                      /*4
+  SYSCALL DELETE_STRING P1('NOVTAMOPEN')                  /*4
+  ISREDIT TFLOW 4 150                                     /*
+ 
+  GOTO END_EDIT
+  END
+ 
+BYPASS_ACF0375: +
+IF &PDINUM NE ACF0380 THEN +
+  GOTO BYPASS_ACF0380
+ 
+IF &FOPT_RC EQ 0 OR +
+   &FOPT_RC EQ &STR( ) THEN +
+  GOTO END_EDIT
+ 
+IF &NR_RC GT 0 THEN DO
+  ISREDIT LINE_AFTER .ZLAST = DATALINE 'Not Reviewed'
+  SET AC = &STR(The following GSO record value(s) is (are) +
+    set improperly:)
+  ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+  ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+  END
+ 
+SYSCALL WRITE_OPT OPT OPTLINE
+ 
+GOTO END_EDIT
+ 
+BYPASS_ACF0380: +
+IF &PDINUM NE ACF039A THEN +
+  GOTO BYPASS_ACF039A
+ 
+IF &FOPT_RC EQ 0 OR +
+   &FOPT_RC EQ &STR( ) THEN +
+  GOTO END_EDIT
+ 
+SET MAXTRY = 1
+IF &SYSINDEX( MAXTRY&LP,&NRSTR(&OPTLINEX)) GT 0 THEN DO
+  SET X = &SYSINDEX( MAXTRY&LP,&NRSTR(&OPTLINEX))
+  SET Y = &SYSINDEX(&STR(&RP ),&NRSTR(&OPTLINEX),&X)
+  SET MAXTRY = &SUBSTR(&X+8:&Y-1,&NRSTR(&OPTLINEX))
+  END
+ 
+SET PASSLMT = 2
+IF &SYSINDEX( PASSLMT&LP,&NRSTR(&OPTLINEX)) GT 0 THEN DO
+  SET X = &SYSINDEX( PASSLMT&LP,&NRSTR(&OPTLINEX))
+  SET Y = &SYSINDEX(&STR(&RP ),&NRSTR(&OPTLINEX),&X)
+  SET PASSLMT = &SUBSTR(&X+9:&Y-1,&NRSTR(&OPTLINEX))
+  END
+ 
+IF &SYSINDEX(&STR( MAXTRY&LP),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &MAXTRY EQ 0 OR +
+  &MAXTRY GT 3 OR +
+  &SYSINDEX(&STR( PASSLMT&LP),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &PASSLMT GT 3 THEN DO
+  SET AC = &STR(The following GSO record value(s) is (are) +
+    set improperly:)
+  ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+  ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+ 
+  SET OPTLINE = &NRSTR(MAXTRY&LP&MAXTRY&RP PASSLMT&LP&PASSLMT&RP@)
+  SYSCALL WRITE_OPT OPT OPTLINE
+ 
+  IF &MAXTRY GT 0 AND +
+     &MAXTRY LT 4 THEN +
+    SYSCALL DELETE_STRING P1('MAXTRY(&MAXTRY)')           /*1
+  IF &PASSLMT LE 3 THEN +
+    SYSCALL DELETE_STRING P1('PASSLMT(&PASSLMT)')         /*1
+ 
+  GOTO END_EDIT
+  END
+ 
+BYPASS_ACF039A: +
+IF &PDINUM NE ACF039B THEN +
+  GOTO BYPASS_ACF039B
+ 
+IF &FOPT_RC EQ 0 OR +
+   &FOPT_RC EQ &STR( ) THEN +
+  GOTO END_EDIT
+ 
+IF &SYSINDEX(&STR( PSWDRSV ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( PSWDRSVW ),&NRSTR(&OPTLINEX)) EQ 0 THEN DO
+  SET AC = &STR(The following GSO record value(s) is (are) +
+    set improperly:)
+  ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+  ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+ 
+  SET OPTLINE = &STR(@)
+  IF &SYSINDEX(&STR( PSWDRSV ),&NRSTR(&OPTLINEX)) EQ 0 THEN +
+    SET OPTLINE = &STR(NOPSWDRSV )&OPTLINE
+  IF &SYSINDEX(&STR( PSWDRSVW ),&NRSTR(&OPTLINEX)) EQ 0 THEN +
+    SET OPTLINE = &STR(NOPSWDRSVW )&OPTLINE
+  SYSCALL WRITE_OPT OPT OPTLINE
+ 
+  GOTO END_EDIT
+  END
+ 
+BYPASS_ACF039B: +
+IF &PDINUM NE ACF039C THEN +
+  GOTO BYPASS_ACF039C
+ 
+IF &FOPT_RC EQ 0 OR +
+   &FOPT_RC EQ &STR( ) THEN +
+  GOTO END_EDIT
+ 
+/* PSWDPLST tests
+SET PSWDPLST = &SYSINDEX(&STR(PSWDPLST),&NRSTR(&OPTLINEX))
+IF &PSWDPLST GT 0 THEN DO
+  SET Y = &SYSINDEX(&STR(&RP),&NRSTR(&OPTLINEX),&PSWDPLST)
+  IF &PSWDPLST+9 LT &Y THEN +
+    SET PWCHAR = &SUBSTR(&PSWDPLST+9:&Y-1,&NRSTR(&OPTLINEX))&STR( )
+  ELSE +
+    SET PWCHAR = &STR()
+  END
+ELSE +
+  SET PWCHAR = &STR()
+SET MPWCHAR = &STR()
+SET TPASSCHAR = &NRSTR(&& * ^ : = ! - % . ? _ | )
+SET TPASSCHAR = &STR(&TPASSCHAR)
+DO X = 1 TO &LENGTH(&NRSTR(&TPASSCHAR)) BY 2
+  SET T = &SUBSTR(&X:&X+1,&NRSTR(&TPASSCHAR))
+  IF &SYSINDEX(&NRSTR(&T),&NRSTR(&PWCHAR)) EQ 0 THEN +
+    SET MPWCHAR = &NRSTR(&MPWCHAR)&NRSTR(&T)
+  END
+IF &LENGTH(&NRSTR(&MPWCHAR)) GT 1 THEN DO
+  SET X = &LENGTH(&NRSTR(&MPWCHAR)) - 1
+  SET MPWCHAR = &SUBSTR(1:&X,&NRSTR(&MPWCHAR))
+  END
+ 
+IF &LENGTH(&NRSTR(&MPWCHAR)) GT 0 THEN DO
+  SET AC = &STR(The following GSO record value(s) is (are) +
+    set improperly:)
+  ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+  ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+ 
+  SET OPTLINE = &NRSTR(PSWDPLST(&PWCHAR) @) /* Change made */
+  SYSCALL WRITE_OPT OPT OPTLINE
+ 
+  GOTO END_EDIT
+  END
+ 
+BYPASS_ACF039C: +
+IF &PDINUM NE ACF039D THEN +
+  GOTO BYPASS_ACF039D
+ 
+IF &FOPT_RC EQ 0 OR +
+   &FOPT_RC EQ &STR( ) THEN +
+  GOTO END_EDIT
+ 
+IF &SYSINDEX(&STR( PSWDUC ),&NRSTR(&OPTLINEX)) EQ 0 THEN DO
+  SET AC = &STR(The following GSO record value(s) is (are) +
+    set improperly:)
+  ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+  ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+ 
+  SET OPTLINE = &STR(NOPSWDUC @)
+  SYSCALL WRITE_OPT OPT OPTLINE
+ 
+  GOTO END_EDIT
+  END
+ 
+BYPASS_ACF039D: +
+IF &PDINUM NE ACF039E THEN +
+  GOTO BYPASS_ACF039E
+ 
+IF &FOPT_RC EQ 0 OR +
+   &FOPT_RC EQ &STR( ) THEN +
+  GOTO END_EDIT
+ 
+IF &SYSINDEX(&STR( PSWDALPH ),&NRSTR(&OPTLINEX)) EQ 0 THEN DO
+  SET AC = &STR(The following GSO record value(s) is (are) +
+    set improperly:)
+  ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+  ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+ 
+  SET OPTLINE = &STR(NOPSWDALPH @)
+  SYSCALL WRITE_OPT OPT OPTLINE
+ 
+  GOTO END_EDIT
+  END
+ 
+BYPASS_ACF039E: +
+IF &PDINUM NE ACF039F THEN +
+  GOTO BYPASS_ACF039F
+ 
+IF &FOPT_RC EQ 0 OR +
+   &FOPT_RC EQ &STR( ) THEN +
+  GOTO END_EDIT
+ 
+IF &SYSINDEX(&STR( PSWDLC ),&NRSTR(&OPTLINEX)) EQ 0 THEN DO
+  SET AC = &STR(The following GSO record value(s) is (are) +
+    set improperly:)
+  ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+  ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+ 
+  SET OPTLINE = &STR(PSWDLC @)
+  SYSCALL WRITE_OPT OPT OPTLINE
+ 
+  GOTO END_EDIT
+  END
+ 
+BYPASS_ACF039F: +
+IF &PDINUM NE ACF039G THEN +
+  GOTO BYPASS_ACF039G
+ 
+IF &FOPT_RC EQ 0 OR +
+   &FOPT_RC EQ &STR( ) THEN +
+  GOTO END_EDIT
+ 
+SET PSWDSIM  = 0
+IF &SYSINDEX( PSWDSIM&LP,&NRSTR(&OPTLINEX)) GT 0 THEN DO
+  SET X = &SYSINDEX( PSWDSIM&LP,&NRSTR(&OPTLINEX))
+  SET Y = &SYSINDEX(&STR(&RP ),&NRSTR(&OPTLINEX),&X)
+  SET PSWDSIM = &SUBSTR(&X+9:&Y-1,&NRSTR(&OPTLINEX))
+  END
+ 
+IF &SYSINDEX(&STR( PSWDSIM&LP),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &PSWDSIM LT 3 THEN DO
+  SET AC = &STR(The following GSO record value(s) is (are) +
+    set improperly:)
+  ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+  ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+ 
+  SET OPTLINE = &STR(PSWDSIM&LP&PSWDSIM&RP @)
+  SYSCALL WRITE_OPT OPT OPTLINE
+ 
+  GOTO END_EDIT
+  END
+ 
+BYPASS_ACF039G: +
+IF &PDINUM NE ACF039H THEN +
+  GOTO BYPASS_ACF039H
+ 
+IF &FOPT_RC EQ 0 OR +
+   &FOPT_RC EQ &STR( ) THEN +
+  GOTO END_EDIT
+ 
+SET PSWDMAX  = 0
+IF &SYSINDEX( PSWDMAX&LP,&NRSTR(&OPTLINEX)) GT 0 THEN DO
+  SET X = &SYSINDEX( PSWDMAX&LP,&NRSTR(&OPTLINEX))
+  SET Y = &SYSINDEX(&STR(&RP ),&NRSTR(&OPTLINEX),&X)
+  SET PSWDMAX = &SUBSTR(&X+9:&Y-1,&NRSTR(&OPTLINEX))
+  END
+ 
+IF &SYSINDEX(&STR( PSWDMAX&LP),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &PSWDMAX EQ 0 OR +
+  &PSWDMAX GT 60 THEN DO
+  SET AC = &STR(The following GSO record value(s) is (are) +
+    set improperly:)
+  ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+  ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+ 
+  SET OPTLINE = &STR(PSWDMAX&LP&PSWDMAX&RP @)
+  SYSCALL WRITE_OPT OPT OPTLINE
+ 
+  GOTO END_EDIT
+  END
+ 
+BYPASS_ACF039H: +
+IF &PDINUM NE ACF039I THEN +
+  GOTO BYPASS_ACF039I
+ 
+IF &FOPT_RC EQ 0 OR +
+   &FOPT_RC EQ &STR( ) THEN +
+  GOTO END_EDIT
+ 
+SET PSWDMIN  = 0
+IF &SYSINDEX( PSWDMIN&LP,&NRSTR(&OPTLINEX)) GT 0 THEN DO
+  SET X = &SYSINDEX( PSWDMIN&LP,&NRSTR(&OPTLINEX))
+  SET Y = &SYSINDEX(&STR(&RP ),&NRSTR(&OPTLINEX),&X)
+  SET PSWDMIN = &SUBSTR(&X+9:&Y-1,&NRSTR(&OPTLINEX))
+  END
+ 
+IF &SYSINDEX(&STR( PSWDMIN(1) ),&NRSTR(&OPTLINEX)) EQ 0 THEN DO
+  SET AC = &STR(The following GSO record value(s) is (are) +
+    set improperly:)
+  ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+  SET OPTLINE = &STR(PSWDMIN&LP&PSWDMIN&RP @)
+  ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+ 
+  SYSCALL WRITE_OPT OPT OPTLINE
+ 
+  GOTO END_EDIT
+  END
+ 
+BYPASS_ACF039I: +
+IF &PDINUM NE ACF039J THEN +
+  GOTO BYPASS_ACF039J
+ 
+IF &FOPT_RC EQ 0 OR +
+   &FOPT_RC EQ &STR( ) THEN +
+  GOTO END_EDIT
+ 
+SET PSWXHST#  = 0
+IF &SYSINDEX( PSWXHST#&LP,&NRSTR(&OPTLINEX)) GT 0 THEN DO
+  SET X = &SYSINDEX( PSWXHST#&LP,&NRSTR(&OPTLINEX))
+  SET Y = &SYSINDEX(&STR(&RP ),&NRSTR(&OPTLINEX),&X)
+  SET PSWXHST# = &SUBSTR(&X+10:&Y-1,&NRSTR(&OPTLINEX))
+  END
+ 
+IF &SYSINDEX(&STR( PSWXHIST ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( PSWXHST#&LP),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &PSWXHST# LT 5 THEN DO
+  SET AC = &STR(The following GSO record value(s) is (are) +
+    set improperly:)
+  ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+  ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+ 
+  SET OPTLINE = &STR(PSWXHST#&LP&PSWXHST#&RP @)
+  IF &SYSINDEX(&STR( PSWXHIST ),&NRSTR(&OPTLINEX)) EQ 0 THEN +
+    SET OPTLINE = &STR(NOPSWXHIST &OPTLINE)
+  SYSCALL WRITE_OPT OPT OPTLINE
+ 
+  IF &PSWXHST# GE 5 THEN +
+    SYSCALL DELETE_STRING P1('PSWXHST#(&PSWXHST#)')       /*3
+ 
+  GOTO END_EDIT
+  END
+ 
+BYPASS_ACF039J: +
+IF &PDINUM NE ACF039K THEN +
+  GOTO BYPASS_ACF039K
+ 
+IF &FOPT_RC EQ 0 OR +
+   &FOPT_RC EQ &STR( ) THEN +
+  GOTO END_EDIT
+ 
+SET MINPSWD = 1
+IF &SYSINDEX( MINPSWD&LP,&NRSTR(&OPTLINEX)) GT 0 THEN DO
+  SET X = &SYSINDEX( MINPSWD&LP,&NRSTR(&OPTLINEX))
+  SET Y = &SYSINDEX(&STR(&RP ),&NRSTR(&OPTLINEX),&X)
+  SET MINPSWD = &SUBSTR(&X+8:&Y-1,&NRSTR(&OPTLINEX))
+  END
+ 
+IF &SYSINDEX(&STR( MINPSWD(8) ),&NRSTR(&OPTLINEX)) EQ 0 THEN DO
+  SET AC = &STR(The following GSO record value(s) is (are) +
+    set improperly:)
+  ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+  ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+ 
+  SET OPTLINE = &STR(MINPSWD&LP&MINPSWD&RP @)
+  SYSCALL WRITE_OPT OPT OPTLINE
+ 
+  GOTO END_EDIT
+  END
+ 
+BYPASS_ACF039K: +
+IF &PDINUM NE ACF0395 THEN +
+  GOTO BYPASS_ACF0395
+ 
+IF &FOPT_RC EQ 0 OR +
+   &FOPT_RC EQ &STR( ) THEN +
+  GOTO END_EDIT
+ 
+ISPEXEC SELECT CMD(%CACC1000 ACPCOMP 16.0)
+SET ACPV160 = &RETURN_CODE
+ 
+IF (&ACPV160 LT 2 AND +
+    &SYSINDEX(&STR( PSWDENCT(AES1) ),&NRSTR(&OPTLINEX)) EQ 0) OR +
+   (&ACPV160 GE 2 AND +
+    &SYSINDEX(&STR( PSWDENCT&LP.AES),&NRSTR(&OPTLINEX)) EQ 0) THEN DO
+  SET AC = &STR(The following GSO record value(s) is (are) +
+    set improperly:)
+  ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+  ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+ 
+  SYSCALL WRITE_OPT OPT OPTLINE
+ 
+  SYSCALL DELETE_STRING P1('MAXTRY&LP')                   /*1
+  SYSCALL DELETE_STRING P1('MINPSWD&LP')                  /*1
+  SYSCALL DELETE_STRING P1('PASSLMT&LP')                  /*1
+  SYSCALL DELETE_STRING P1('PSWDALPH')                    /*1
+  SYSCALL DELETE_STRING P1('NOPSWDALPH')                  /*1
+  SYSCALL DELETE_STRING P1('PSWDALT')                     /*1
+  SYSCALL DELETE_STRING P1('NOPSWDALT')                   /*1
+  SYSCALL DELETE_STRING P1('PSWDFRC')                     /*1
+  SYSCALL DELETE_STRING P1('NOPSWDFRC')                   /*1
+  SYSCALL DELETE_STRING P1('PSWDHST')                     /*1
+  SYSCALL DELETE_STRING P1('NOPSWDHST')                   /*1
+  SYSCALL DELETE_STRING P1('PSWDMAXL&LP')                 /*2
+  SYSCALL DELETE_STRING P1('PSWDMIN&LP')                  /*2
+  SYSCALL DELETE_STRING P1('PSWDMIXD')                    /*2
+  SYSCALL DELETE_STRING P1('NOPSWDMIXD')                  /*2
+  SYSCALL DELETE_STRING P1('PSWDNAME&LP')                 /*2
+  SYSCALL DELETE_STRING P1('PSWDNCH')                     /*2
+  SYSCALL DELETE_STRING P1('NOPSWDNCH')                   /*2
+  SYSCALL DELETE_STRING P1('PSWDNMIC')                    /*2
+  SYSCALL DELETE_STRING P1('NOPSWDNMIC')                  /*2
+  SYSCALL DELETE_STRING P1('PSWDREQ')                     /*3
+  SYSCALL DELETE_STRING P1('NOPSWDREQ')                   /*3
+  SYSCALL DELETE_STRING P1('PSWDRSV')                     /*3
+  SYSCALL DELETE_STRING P1('NOPSWDRSV')                   /*3
+  SYSCALL DELETE_STRING P1('PSWDSIM&LP')                  /*3
+  SYSCALL DELETE_STRING P1('PSWDSPLT')                    /*3
+  SYSCALL DELETE_STRING P1('NOPSWDSPLT')                  /*3
+  SYSCALL DELETE_STRING P1('PSWDUC')                      /*3
+  SYSCALL DELETE_STRING P1('NOPSWDUC')                    /*3
+  SYSCALL DELETE_STRING P1('PSWDVFY')                     /*3
+  SYSCALL DELETE_STRING P1('NOPSWDVFY')                   /*3
+  SYSCALL DELETE_STRING P1('PSWDVOWL')                    /*3
+  SYSCALL DELETE_STRING P1('NOPSWDVOWL')                  /*3
+  ISREDIT TFLOW 4 150
+  SYSCALL DELETE_STRING P1('CLEARVIO')                    /*1
+  SYSCALL DELETE_STRING P1('NOCLEARVIO')                  /*1
+  SYSCALL DELETE_STRING P1('PSWDENCT&LP.AES1&RP')         /*1
+  IF &ACPV160 GE 2 THEN +
+    SYSCALL DELETE_STRING P1('PSWDENCT&LP.AES2&RP')       /*1
+  SYSCALL DELETE_STRING P1('PSWDNUM')                     /*2
+  SYSCALL DELETE_STRING P1('NOPSWDNUM')                   /*2
+  SYSCALL DELETE_STRING P1('PSWDPAIR&LP')                 /*2
+  SYSCALL DELETE_STRING P1('PSWDPLID')                    /*2
+  SYSCALL DELETE_STRING P1('NOPSWDPLID')                  /*2
+  SYSCALL DELETE_STRING P1('PSWDPLST&LP')                 /*2
+  SYSCALL DELETE_STRING P1('WRNDAYS&LP')                  /*4
+  ISREDIT TFLOW 4 150
+  IF &ACPV160 GE 2 THEN DO
+    SYSCALL DELETE_STRING P1('ONEPWALG')                  /*?
+    SYSCALL DELETE_STRING P1('NOONEPWALG')                /*?
+    END
+  SYSCALL DELETE_STRING P1('PSWDJES')                     /*1
+  SYSCALL DELETE_STRING P1('NOPSWDJES')                   /*1
+  SYSCALL DELETE_STRING P1('PSWDLC')                      /*1
+  SYSCALL DELETE_STRING P1('NOPSWDLC')                    /*1
+  SYSCALL DELETE_STRING P1('PSWDLID')                     /*1
+  SYSCALL DELETE_STRING P1('NOPSWDLID')                   /*1
+  SYSCALL DELETE_STRING P1('PSWDMAX&LP')                  /*1
+  SYSCALL DELETE_STRING P1('PSWDXTR')                     /*3
+  SYSCALL DELETE_STRING P1('NOPSWDXTR')                   /*3
+  SYSCALL DELETE_STRING P1('PSWNAGE')                     /*3
+  SYSCALL DELETE_STRING P1('NOPSWNAGE')                   /*3
+  SYSCALL DELETE_STRING P1('PSWXHIST')                    /*3
+  SYSCALL DELETE_STRING P1('NOPSWXHIST')                  /*3
+  SYSCALL DELETE_STRING P1('PSWXHST#&LP')                 /*3
+  ISREDIT TFLOW 4 150
+ 
+  GOTO END_EDIT
+  END
+ 
+BYPASS_ACF0395: +
+IF &PDINUM NE ACF0400 THEN +
+  GOTO BYPASS_ACF0400
+ 
+IF &FOPT_RC EQ 0 OR +
+   &FOPT_RC EQ &STR( ) THEN +
+  GOTO END_EDIT
+ 
+SET ALPHA    = 0
+IF &SYSINDEX( ALPHA&LP,&NRSTR(&OPTLINEX)) GT 0 THEN DO
+  SET X = &SYSINDEX( ALPHA&LP,&NRSTR(&OPTLINEX))
+  SET Y = &SYSINDEX(&STR(&RP ),&NRSTR(&OPTLINEX),&X)
+  SET ALPHA   = &SUBSTR(&X+7:&Y-1,&NRSTR(&OPTLINEX))
+  END
+ 
+SET HISTORY  = 0
+IF &SYSINDEX( HISTORY&LP,&NRSTR(&OPTLINEX)) GT 0 THEN DO
+  SET X = &SYSINDEX( HISTORY&LP,&NRSTR(&OPTLINEX))
+  SET Y = &SYSINDEX(&STR(&RP ),&NRSTR(&OPTLINEX),&X)
+  SET HISTORY = &SUBSTR(&X+9:&Y-1,&NRSTR(&OPTLINEX))
+  END
+ 
+SET MAXDAYS  = 0
+IF &SYSINDEX( MAXDAYS&LP,&NRSTR(&OPTLINEX)) GT 0 THEN DO
+  SET X = &SYSINDEX( MAXDAYS&LP,&NRSTR(&OPTLINEX))
+  SET Y = &SYSINDEX(&STR(&RP ),&NRSTR(&OPTLINEX),&X)
+  SET MAXDAYS = &SUBSTR(&X+9:&Y-1,&NRSTR(&OPTLINEX))
+  END
+ 
+SET MAXLEN   = 100
+IF &SYSINDEX( MAXLEN&LP,&NRSTR(&OPTLINEX)) GT 0 THEN DO
+  SET X = &SYSINDEX( MAXLEN&LP,&NRSTR(&OPTLINEX))
+  SET Y = &SYSINDEX(&STR(&RP ),&NRSTR(&OPTLINEX),&X)
+  SET MAXLEN  = &SUBSTR(&X+8:&Y-1,&NRSTR(&OPTLINEX))
+  END
+ 
+SET MINDAYS  = 0
+IF &SYSINDEX( MINDAYS&LP,&NRSTR(&OPTLINEX)) GT 0 THEN DO
+  SET X = &SYSINDEX( MINDAYS&LP,&NRSTR(&OPTLINEX))
+  SET Y = &SYSINDEX(&STR(&RP ),&NRSTR(&OPTLINEX),&X)
+  SET MINDAYS = &SUBSTR(&X+9:&Y-1,&NRSTR(&OPTLINEX))
+  END
+ 
+SET MINLEN   = 9
+IF &SYSINDEX( MINLEN&LP,&NRSTR(&OPTLINEX)) GT 0 THEN DO
+  SET X = &SYSINDEX( MINLEN&LP,&NRSTR(&OPTLINEX))
+  SET Y = &SYSINDEX(&STR(&RP ),&NRSTR(&OPTLINEX),&X)
+  SET MINLEN  = &SUBSTR(&X+8:&Y-1,&NRSTR(&OPTLINEX))
+  END
+ 
+SET MINWORD  = 1
+IF &SYSINDEX( MINWORD&LP,&NRSTR(&OPTLINEX)) GT 0 THEN DO
+  SET X = &SYSINDEX( MINWORD&LP,&NRSTR(&OPTLINEX))
+  SET Y = &SYSINDEX(&STR(&RP ),&NRSTR(&OPTLINEX),&X)
+  SET MINWORD = &SUBSTR(&X+9:&Y-1,&NRSTR(&OPTLINEX))
+  END
+ 
+SET NUMERIC  = 0
+IF &SYSINDEX( NUMERIC&LP,&NRSTR(&OPTLINEX)) GT 0 THEN DO
+  SET X = &SYSINDEX( NUMERIC&LP,&NRSTR(&OPTLINEX))
+  SET Y = &SYSINDEX(&STR(&RP ),&NRSTR(&OPTLINEX),&X)
+  SET NUMERIC = &SUBSTR(&X+9:&Y-1,&NRSTR(&OPTLINEX))
+  END
+ 
+SET REPCHAR  =
+IF &SYSINDEX( REPCHAR&LP,&NRSTR(&OPTLINEX)) GT 0 THEN DO
+  SET X = &SYSINDEX( REPCHAR&LP,&NRSTR(&OPTLINEX))
+  SET Y = &SYSINDEX(&STR(&RP ),&NRSTR(&OPTLINEX),&X)
+  IF &X+9 LE &Y-1 THEN +
+    SET REPCHAR = &SUBSTR(&X+9:&Y-1,&NRSTR(&OPTLINEX))
+  END
+ 
+SET SPECIAL  = 0
+IF &SYSINDEX( SPECIAL&LP,&NRSTR(&OPTLINEX)) GT 0 THEN DO
+  SET X = &SYSINDEX( SPECIAL&LP,&NRSTR(&OPTLINEX))
+  SET Y = &SYSINDEX(&STR(&RP ),&NRSTR(&OPTLINEX),&X)
+  SET SPECIAL = &SUBSTR(&X+9:&Y-1,&NRSTR(&OPTLINEX))
+  END
+ 
+SET WARNDAYS = 1
+IF &SYSINDEX( WARNDAYS&LP,&NRSTR(&OPTLINEX)) GT 0 THEN DO
+  SET X = &SYSINDEX( WARNDAYS&LP,&NRSTR(&OPTLINEX))
+  SET Y = &SYSINDEX(&STR(&RP ),&NRSTR(&OPTLINEX),&X)
+  SET WARNDAYS = &SUBSTR(&X+10:&Y-1,&NRSTR(&OPTLINEX))
+  END
+ 
+/* SPECLIST tests
+SET SPECLIST = &SYSINDEX(&STR(SPECLIST),&NRSTR(&OPTLINEX))
+IF &SPECLIST GT 0 THEN DO
+  SET Y = &SYSINDEX(&STR(&RP),&NRSTR(&OPTLINEX),&SPECLIST)
+  IF &SPECLIST+10 LT &Y THEN +
+    SET PWCHAR = &SUBSTR(&SPECLIST+9:&Y-1,&NRSTR(&OPTLINEX))&STR( )
+  ELSE +
+    SET PWCHAR = &STR()
+  END
+ELSE +
+  SET PWCHAR = &STR()
+SET MPWCHAR = &STR()
+SET TPASSCHAR = &NRSTR(&& * ^ : = ! - % . ? _ | )
+SET TPASSCHAR = &STR(&TPASSCHAR)
+DO X = 1 TO &LENGTH(&NRSTR(&TPASSCHAR)) BY 2
+  SET T = &SUBSTR(&X:&X+1,&NRSTR(&TPASSCHAR))
+  IF &SYSINDEX(&NRSTR(&T),&NRSTR(&PWCHAR)) EQ 0 THEN +
+    SET MPWCHAR = &NRSTR(&MPWCHAR)&NRSTR(&T)
+  END
+IF &LENGTH(&NRSTR(&MPWCHAR)) GT 1 THEN DO
+  SET X = &LENGTH(&NRSTR(&MPWCHAR)) - 1
+  SET MPWCHAR = &SUBSTR(1:&X,&NRSTR(&MPWCHAR))
+  END
+ 
+SET OPTLINEX = &NRSTR(&OPTLINEX)
+IF &SYSINDEX(&STR( ALPHA&LP),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &ALPHA EQ 0 OR +
+  &SYSINDEX(&STR( HISTORY&LP),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &HISTORY LT 10 OR +
+  &SYSINDEX(&STR( MAXDAYS&LP),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &MAXDAYS EQ 0 OR +
+  &MAXDAYS GT 60 OR +
+  &SYSINDEX(&STR( MAXLEN(100)),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( MINDAYS&LP),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &MINDAYS EQ 0 OR +
+  &SYSINDEX(&STR( MINLEN&LP),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &MINLEN LT 15 OR +
+  &SYSINDEX(&STR( MINWORD&LP),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &MINWORD EQ 0 OR +
+  &SYSINDEX(&STR( NUMERIC&LP),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &NUMERIC EQ 0 OR +
+  &SYSINDEX(&STR( SPECIAL&LP),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SPECIAL EQ 0 OR +
+  &LENGTH(&NRSTR(&MPWCHAR)) GT 0 OR +
+  &SYSINDEX( WARNDAYS&LP,&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &WARNDAYS EQ 0 OR +
+  &WARNDAYS GT 10 THEN DO
+  SET AC = &STR(The following GSO record value(s) is (are) +
+    set improperly:)
+  ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+  ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+ 
+  SYSCALL WRITE_OPT OPT OPTLINE
+ 
+  SYSCALL DELETE_STRING P1('ALLOW')                       /*1
+  IF &ALPHA GT 0 THEN +
+    SYSCALL DELETE_STRING P1('ALPHA(&ALPHA)')             /*1
+  SYSCALL DELETE_STRING P1('NOCMD-CHG')                   /*1
+  SYSCALL DELETE_STRING P1('CMD-CHG')                     /*1
+  IF &HISTORY GE 10 THEN +
+    SYSCALL DELETE_STRING P1('HISTORY(&HISTORY)')         /*1
+  SYSCALL DELETE_STRING P1('LID')                         /*1
+  SYSCALL DELETE_STRING P1('NOLID')                       /*1
+  IF &MAXDAYS GT 0 AND +
+     &MAXDAYS LE 60 THEN +
+    SYSCALL DELETE_STRING P1('MAXDAYS(&MAXDAYS)')         /*1
+  IF &MAXLEN EQ 100 THEN +
+    SYSCALL DELETE_STRING P1('MAXLEN(&MAXLEN)')           /*1
+  SYSCALL DELETE_STRING P1('PWPLC')                       /*2
+  SYSCALL DELETE_STRING P1('NOPWPLC')                     /*2
+  SYSCALL DELETE_STRING P1('PWPUC')                       /*2
+  SYSCALL DELETE_STRING P1('NOPWPUC')                     /*2
+  IF &NUMERIC GT 0 THEN +
+    SYSCALL DELETE_STRING P1('NUMERIC(&NUMERIC)')         /*2
+  IF &SPECIAL GT 0 THEN +
+    SYSCALL DELETE_STRING P1('SPECIAL(&SPECIAL)')         /*2
+  IF &LENGTH(&NRSTR(&MPWCHAR)) EQ 0 THEN +
+    SYSCALL DELETE_STRING P1('SPECLIST&LP')               /*2
+  ISREDIT TFLOW 4 150
+  SYSCALL DELETE_STRING P1('REPCHAR&LP')                  /*2
+  IF &MINDAYS GT 0 THEN +
+    SYSCALL DELETE_STRING P1('MINDAYS(&MINDAYS)')         /*1
+  IF &MINLEN GE 14 THEN +
+    SYSCALL DELETE_STRING P1('MINLEN(&MINLEN)')           /*1
+  IF &MINWORD GT 0 THEN +
+    SYSCALL DELETE_STRING P1('MINWORD(&MINWORD)')         /*1
+  SYSCALL DELETE_STRING P1('TEMP-AGE')                    /*2
+  SYSCALL DELETE_STRING P1('NOTEMP-AGE')                  /*2
+  IF &WARNDAYS GT 0 AND +
+     &WARNDAYS LE 10 THEN +
+    SYSCALL DELETE_STRING P1('WARNDAYS(&WARNDAYS)')       /*2
+  SYSCALL DELETE_STRING P1('NOALLOW')                     /*1
+  ISREDIT TFLOW 4 150
+ 
+  GOTO END_EDIT
+  END
+ 
+BYPASS_ACF0400: +
+IF &PDINUM NE ACF0420 THEN +
+  GOTO BYPASS_ACF0420
+ 
+IF &FOPT_RC EQ 0 OR +
+   &FOPT_RC EQ &STR( ) THEN +
+  GOTO END_EDIT
+ 
+IF &SYSINDEX(&STR(VOLMASK(-)),&NRSTR(&OPTLINE)) EQ 0 THEN DO
+  SET AC = &STR(The following GSO record value(s) is (are) +
+    set improperly:)
+  ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+  ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+ 
+  SYSCALL WRITE_OPT OPT OPTLINE
+ 
+  GOTO END_EDIT
+  END
+ 
+BYPASS_ACF0420: +
+IF &PDINUM NE ACF0430 THEN +
+  GOTO BYPASS_ACF0430
+ 
+IF &FOPT_RC EQ 0 OR +
+   &FOPT_RC EQ &STR( ) THEN +
+  GOTO END_EDIT
+ 
+IF &SYSINDEX(&STR( NO$NOSORT ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( CENTRAL ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( CHANGE ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+ (&SYSINDEX(&STR( DECOMP(SECURITY AUDIT) ),+
+    &NRSTR(&OPTLINEX)) EQ 0 AND +
+  &SYSINDEX(&STR( DECOMP(AUDIT SECURITY) ),+
+    &NRSTR(&OPTLINEX)) EQ 0 AND +
+  &SYSINDEX(&STR( DECOMP(AUDIT) ),+
+    &NRSTR(&OPTLINEX)) EQ 0 AND +
+  &SYSINDEX(&STR( DECOMP(SECURITY) ),+
+    &NRSTR(&OPTLINEX)) EQ 0 ) THEN DO
+  SET AC = &STR(The following GSO record value(s) is (are) +
+    set improperly:)
+  ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+  ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+ 
+  SYSCALL WRITE_OPT OPT OPTLINE
+ 
+  SYSCALL DELETE_STRING P1('NO$NOSORT')
+  SYSCALL DELETE_STRING P1('CENTRAL')
+  SYSCALL DELETE_STRING P1('CHANGE')
+  SYSCALL DELETE_STRING P1('COMPDYN')
+  SYSCALL DELETE_STRING P1('NOCOMPDYN')
+  SYSCALL DELETE_STRING P1('DECOMP(AUDIT SECURITY)')
+  SYSCALL DELETE_STRING P1('DECOMP(SECURITY AUDIT)')
+  SYSCALL DELETE_STRING P1('DECOMP(SECURITY)')
+  SYSCALL DELETE_STRING P1('DECOMP(AUDIT)')
+  SYSCALL DELETE_STRING P1('RULELONG')
+  SYSCALL DELETE_STRING P1('NORULELONG')
+  SYSCALL DELETE_STRING P1('NOVOLRULE')
+  SYSCALL DELETE_STRING P1('VOLRULE')
+  SYSCALL DELETE_STRING P1('NOVSAMFAIL')
+  SYSCALL DELETE_STRING P1('VSAMFAIL')
+ 
+  GOTO END_EDIT
+  END
+ 
+BYPASS_ACF0430: +
+IF &PDINUM NE ACF0480 THEN +
+  GOTO BYPASS_ACF0480
+ 
+IF &FOPT_RC EQ 0 OR +
+   &FOPT_RC EQ &STR( ) THEN +
+  GOTO END_EDIT
+ 
+IF &SYSINDEX(&STR(VOLMASK()),+
+  &NRSTR(&OPTLINE)) EQ 0 THEN DO
+  SET AC = &STR(The following GSO record value(s) is (are) +
+    set improperly:)
+  ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+  ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+ 
+  SYSCALL WRITE_OPT OPT OPTLINE
+ 
+  GOTO END_EDIT
+  END
+ 
+BYPASS_ACF0480: +
+IF &PDINUM NE ACF0500 THEN +
+  GOTO BYPASS_ACF0500
+ 
+SET WAITIME = 0
+IF &SYSINDEX( WAITIME&LP,&NRSTR(&OPTLINEX)) GT 0 THEN DO
+  SET X = &SYSINDEX( WAITIME&LP,&NRSTR(&OPTLINEX))
+  SET Y = &SYSINDEX(&STR(&RP ),&NRSTR(&OPTLINEX),&X)
+  SET WAITIME = &SUBSTR(&X+9:&Y-1,&NRSTR(&OPTLINEX))
+  END
+ 
+IF &SYSINDEX( REGION&LP,&NRSTR(&OPTLINEX)) GT 0 THEN DO
+  SET X = &SYSINDEX( REGION&LP,&NRSTR(&OPTLINEX))
+  SET Y = &SYSINDEX(&STR(&RP ),&NRSTR(&OPTLINEX),&X)
+  SET REGION = &SUBSTR(&X+8:&Y-1,&NRSTR(&OPTLINEX))
+  END
+ 
+IF &SYSINDEX(&STR( ACCOUNT(1) ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( BYPASS(#) ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( CHAR(BS) ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( CMDLIST() ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( LINE(ATTN) ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( LOGONCK ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( PERFORM(0) ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( NOQLOGON ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( REGION&LP),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( SUBCLSS() ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( SUBHOLD() ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( SUBMSGC() ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( TIME(0) ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( TSOSOUT(A) ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( UNIT(SYSDA) ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( WAITIME&LP),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &WAITIME EQ 0 OR +
+  &WAITIME GT 60 THEN DO
+  SET AC = &STR(The following GSO record value(s) is (are) +
+    set improperly:)
+  ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+  ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+ 
+  SYSCALL WRITE_OPT OPT OPTLINE
+ 
+  ISREDIT TFLOW 4 150
+  SYSCALL DELETE_STRING P1('ACCOUNT(1)')
+  SYSCALL DELETE_STRING P1('REGION(&REGION)')
+  SYSCALL DELETE_STRING P1('BYPASS(#)')
+  SYSCALL DELETE_STRING P1('SUBCLSS()')
+  SYSCALL DELETE_STRING P1('CHAR(BS)')
+  SYSCALL DELETE_STRING P1('TIME(0)')
+  SYSCALL DELETE_STRING P1('CMDLIST()')
+  SYSCALL DELETE_STRING P1('NOFSRETAIN')
+  SYSCALL DELETE_STRING P1('FSRETAIN')
+  SYSCALL DELETE_STRING P1('LINE(ATTN)')
+  SYSCALL DELETE_STRING P1('LOGONCK')
+  SYSCALL DELETE_STRING P1('PERFORM(0)')
+  SYSCALL DELETE_STRING P1('TSOSOUT(A)')
+  SYSCALL DELETE_STRING P1('UNIT(SYSDA)')
+  SYSCALL DELETE_STRING P1('PROC&LP')
+  SYSCALL DELETE_STRING P1('NOQLOGON')
+  SYSCALL DELETE_STRING P1('NOLOGHERE')
+  SYSCALL DELETE_STRING P1('LOGHERE')
+  SYSCALL DELETE_STRING P1('SUBHOLD()')
+  SYSCALL DELETE_STRING P1('SUBMSGC()')
+  ISREDIT TFLOW 4 150
+  SYSCALL DELETE_STRING P1('NOBYPPAUSE')
+  SYSCALL DELETE_STRING P1('BYPPAUSE')
+  SYSCALL DELETE_STRING P1('NOPWPHRASE')
+  SYSCALL DELETE_STRING P1('PWPHRASE')
+  IF &WAITIME GT 0 AND +
+    &WAITIME LE 60 THEN +
+    SYSCALL DELETE_STRING P1('WAITIME(&WAITIME)')
+ 
+  SYSCALL DELETE_STRING P1('NOIKJEFLD1')
+  SYSCALL DELETE_STRING P1('IKJEFLD1')
+  SYSCALL DELETE_STRING P1('TSOGNAME&LP')
+  ISREDIT TFLOW 4 150
+ 
+  GOTO END_EDIT
+  END
+ 
+BYPASS_ACF0500: +
+IF &PDINUM NE ACF0510 THEN +
+  GOTO BYPASS_ACF0510
+ 
+IF &FOPT_RC EQ 0 OR +
+   &FOPT_RC EQ &STR( ) THEN +
+  GOTO END_EDIT
+ 
+IF &SYSINDEX(&STR(STRING(A12FA11C1A270C0D)),+
+  &NRSTR(&OPTLINE)) EQ 0 THEN DO
+  SET AC = &STR(The following GSO record value(s) is (are) +
+    set improperly:)
+  ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+  ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+ 
+  SYSCALL WRITE_OPT OPT OPTLINE
+ 
+  GOTO END_EDIT
+  END
+ 
+BYPASS_ACF0510: +
+IF &PDINUM NE ACF0530 THEN +
+  GOTO BYPASS_ACF0530
+ 
+IF &FOPT_RC EQ 0 OR +
+   &FOPT_RC EQ &STR( ) THEN +
+  GOTO END_EDIT
+ 
+IF &SYSINDEX(&STR( CR(15) ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( IDLE(17) ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( LENGTH(8) ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( M1(X) ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( M2(N) ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( M3(Z) ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( M4(M) ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( STRING() ),&NRSTR(&OPTLINEX)) EQ 0 THEN DO
+  SET AC = &STR(The following GSO record value(s) is (are) +
+    set improperly:)
+  ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+  ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+ 
+  SYSCALL WRITE_OPT OPT OPTLINE
+ 
+/*ISREDIT TFLOW 4 150
+  SYSCALL DELETE_STRING P1('CR(15)')
+  SYSCALL DELETE_STRING P1('IDLE(17)')
+  SYSCALL DELETE_STRING P1('LENGTH(8)')
+  SYSCALL DELETE_STRING P1('M1(X)')
+  SYSCALL DELETE_STRING P1('M2(N)')
+  SYSCALL DELETE_STRING P1('M3(Z)')
+  SYSCALL DELETE_STRING P1('M4(M)')
+  SYSCALL DELETE_STRING P1('STRING()')
+  ISREDIT TFLOW 4 150
+ 
+  GOTO END_EDIT
+  END
+ 
+BYPASS_ACF0530: +
+IF &PDINUM NE ACF0540 THEN +
+  GOTO BYPASS_ACF0540
+ 
+IF &FOPT_RC EQ 0 OR +
+   &FOPT_RC EQ &STR( ) THEN +
+  GOTO END_EDIT
+ 
+IF &SYSINDEX(&STR( BS(16) ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( LENGTH(8) ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( M1(X) ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( M2(N) ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( M3(Z) ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( M4(M) ),&NRSTR(&OPTLINEX)) EQ 0 OR +
+  &SYSINDEX(&STR( STRING() ),&NRSTR(&OPTLINEX)) EQ 0 THEN DO
+  SET AC = &STR(The following GSO record value(s) is (are) +
+    set improperly:)
+  ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+  ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+ 
+  SYSCALL WRITE_OPT OPT OPTLINE
+ 
+/*ISREDIT TFLOW 4 150
+  SYSCALL DELETE_STRING P1('BS(16)')
+  SYSCALL DELETE_STRING P1('LENGTH(8)')
+  SYSCALL DELETE_STRING P1('M1(X)')
+  SYSCALL DELETE_STRING P1('M2(N)')
+  SYSCALL DELETE_STRING P1('M3(Z)')
+  SYSCALL DELETE_STRING P1('M4(M)')
+  SYSCALL DELETE_STRING P1('STRING()')
+  ISREDIT TFLOW 4 150
+ 
+  GOTO END_EDIT
+  END
+ 
+ 
+BYPASS_ACF0540: +
+IF &PDINUM NE ZSMSA006 THEN +
+  GOTO BYPASS_ZSMSA006
+ 
+IF &FINDRC GT 0 AND +
+   &NF_RC = 0 THEN DO
+  ISREDIT DELETE .ZF .ZL
+  END
+ 
+IF &FINDRC EQ 4 THEN DO
+  IF &ND_RC NE 0 THEN DO
+    SET AC = &STR(The following GSO record value(s) is (are) +
+      not defined:)
+    ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+    ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+    END
+  END
+ 
+IF &FINDRC EQ 6 THEN DO
+  IF &SI_RC NE 0 THEN DO
+    SET AC = &STR(The following GSO record value(s) is (are) +
+      set improperly:)
+    ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+    ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+    END
+  END
+ 
+IF &FINDRC NE 0 THEN DO
+  SYSCALL WRITE_OPT OPT OPTLINE
+  GOTO END_EDIT
+  END
+ 
+ 
+BYPASS_ZSMSA006: +
+IF &ROW EQ 0 THEN DO
+  ISREDIT LINE_AFTER .ZLAST = DATALINE 'Not a Finding'
+  ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+  SET NF_RC = 0
+  END
+ 
+IF &NF_RC EQ 0 AND +
+   &NRSTR(&OPTLINE) NE &STR( ) THEN +
+  SYSCALL WRITE_OPT OPT OPTLINE
+ 
+ 
+END_EDIT: +
+ISPEXEC  VPUT  (                                                      -
+  AM07VGE                                                             -
+  ) ASIS
+ 
+ISREDIT END
+ 
+EXIT
+ 
+ 
+WRITE_OPT: PROC 2 P1 P2
+ 
+SYSREF &P1 &P2
+ 
+SET P2L = &LENGTH(&NRSTR(&P2))
+SET AC = &STR(     &P1)
+ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+ 
+SET X = 1
+DO UNTIL &X GE &P2L
+  SET Y = &SYSINDEX(&STR(@),&NRSTR(&P2),&X)
+  SET AC = &STR(          &SUBSTR(&X:&Y-1,+
+    &NRSTR(&P2)))
+  ISREDIT LINE_AFTER .ZLAST = DATALINE (AC)
+  SET X = &Y + 1
+END
+ISREDIT LINE_AFTER .ZLAST = DATALINE ' '
+ 
+RETURN CODE(&RETURN_CODE)
+END
+ 
+ 
+DELETE_STRING: PROC 0 P1( )
+SET LP = &STR((
+ 
+IF &NRSTR(&P1) EQ &STR() THEN RETURN CODE(1)
+ 
+SET RETURN_CODE = 0
+ 
+IF &SUBSTR(&LENGTH(&NRSTR(&P1)),&NRSTR(&P1)) NE &STR(&LP) THEN DO
+  ISREDIT CHANGE ALL ' &NRSTR(&P1) ' ' '
+  RETURN CODE(2)
+END
+ 
+SET RETURN_CODE = 0
+ 
+ISREDIT FIND ALL ' &NRSTR(&P1)'
+IF &RETURN_CODE GT 0 THEN RETURN CODE(3)
+ 
+ISREDIT (X,Y) = CURSOR
+ISREDIT FIND NEXT ') ' .ZCSR .ZCSR
+IF &RETURN_CODE GT 0 THEN RETURN CODE(4)
+ 
+ISREDIT (X1,Y1) = CURSOR
+ISREDIT (DATA) = LINE &X
+SET DATA  = &SUBSTR(1:&Y,&NRSTR(&DATA))+
+  &SUBSTR(&Y1+2:&LENGTH(&NRSTR(&DATA)),&NRSTR(&DATA))
+ISREDIT LINE &X = (DATA)
+ 
+RETURN CODE(5)
+END

@@ -1,0 +1,258 @@
+/* REXX */
+/* CLS2REXXed by UMLA01S on 14 Jun 2019 at 16:10:04  */
+/*trace r?*/
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+Address ISREDIT
+ 
+"MACRO"               /* CACM0101 EDIT MACRO */
+/*********************************************************************/
+/* Edit macro to generate PDI finding results for user being         */
+/* properly defined.                                                 */
+/*********************************************************************/
+/* 07/25/2022 CL Fenton Created to generate finding details.         */
+/* 07/25/2022 CL Fenton Added automation for ZUSS0045 and            */
+/*            IFTP0010, STS-028721 and STS-028720.                   */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname = "CACM0101 07/25/22"
+sysprompt = "OFF"                /* CONTROL NOPROMPT          */
+sysflush = "OFF"                /* CONTROL NOFLUSH           */
+sysasis = "ON"                 /* CONTROL ASIS - caps off   */
+return_code = 0
+maxcc = 0
+max_rc = 0
+Address ISPEXEC "CONTROL NONDISPL ENTER"
+Address ISPEXEC "CONTROL ERRORS RETURN"
+return_code = 0   /* SET RETURN CODE TO 0 */
+Address ISPEXEC "VGET (CONSLIST COMLIST SYMLIST TERMMSGS INFO",
+  "ACPNAME) ASIS"
+vget_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "VGET_RC =" return_code zerrsm
+  Say pgmname "CONSLIST/"conslist "COMLIST/"comlist,
+    "SYMLIST/"symlist "TERMMSGS/"termmsgs
+  Say pgmname "INFO/"info "ACPNAME/"acpname
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" ,
+  then Trace r
+ 
+/*******************************************/
+/* TURN ON MESSAGES                        */
+/*******************************************/
+syssymlist = symlist          /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist         /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist          /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs         /* CONTROL MSG/NOMSG         */
+return_code = 0
+"DELETE ALL .ZF .ZL"
+parse var info usr uid dfltgrp shpgm home .
+uidnum = substr(uid,2)
+x = outtrap("out.")
+detail_sw = 0
+err1_line = ""
+err2_line = ""
+err3_line = ""
+err4_line = ""
+If ACPNAME = 'ACF2' then do
+  err5_line = "Does not specify the STC privilege."
+  queue "LIST" usr
+  queue "LIST" usr "SECTION(RESTRICTIONS) PROFILE(OMVS)"
+  queue "QUIT"
+  queue ""
+  address TSO "ACF"
+  end
+If ACPNAME = 'RACF' then do
+  err5_line = "Does not specify the PROTECTED attribute."
+  address TSO "LU" usr
+  end
+If ACPNAME = 'TSS' then do
+  err5_line = "Does not specify a FACILITY of STC."
+  address TSO "TSS LIST("usr")DATA(ALL)"
+  end
+"(PDIMBR) = MEMBER"
+If pdimbr <> "IFTP0010" then,
+  err5_line = ""
+Say pgmname "Processing" pdimbr"."
+If uidnum = 0 & pdimbr = "ZUSS0045" then do
+  detail_sw = detail_sw + 1
+  err1_line = "Does not specify a non-zero UID."
+  end
+If uidnum > 0 & pdimbr = "IFTP0010" then do
+  detail_sw = detail_sw + 1
+  err1_line = "Does not specify a UID of 0."
+  end
+If home <> "/" then do
+  detail_sw = detail_sw + 1
+  err2_line = "Does not specify a HOME of /."
+  end
+If home <> "/" then do
+  detail_sw = detail_sw + 1 cc
+  err3_line = "Does not specify a shell program of /bin/sh."
+  end
+If dfltgrp <> "OMVSGRP" & dfltgrp <> "STCOMVS" &,
+  pdimbr = "ZUSS0045" then do
+  detail_sw = detail_sw + 1
+  err4_line = "Does not specify a default group of OMVSGRP or STCOMVS."
+  end
+If pdimbr = "IFTP0010" then do
+  do x = 1 to out.0
+    If ACPNAME = 'ACF2' then do
+      If wordpos("PRIVILEGES",out.x) = 1 &,
+         wordpos("STC",out.x) > 1 then do
+        err5_line = ""
+        x = out.0
+        end
+      end
+    If ACPNAME = 'RACF' then do
+      If pos("ATTRIBUTES=",out.x) = 2 &,
+         pos("PROTECTED",out.x) > 2 then do
+        err5_line = ""
+        x = out.0
+        end
+      end
+    If ACPNAME = 'TSS' then do
+      If wordpos("FACILITY",out.x) = 1 &,
+         wordpos("STC",out.x) > 1 then do
+        err5_line = ""
+        x = out.0
+        end
+      end
+    end
+  end
+If err5_line <> "" then,
+  detail_sw = detail_sw + 1
+ 
+If detail_sw = 0 then,
+  "LINE_AFTER .ZLAST = DATALINE 'Not a Finding'"
+Else do
+  ac = "User is not properly defined."
+  return_code = 0
+  "LINE_AFTER .ZLAST = DATALINE '"ac"'"
+  a = 1
+  Do a1 = 1 to 5
+    If detail_sw > 1 then
+      pd = a") "
+    Else,
+      pd = ""
+    interpret "err_line = err"a1"_line"
+    say pgmname err_line
+    if err_line <> "" then do
+      ac = pd""err_line
+      "LINE_AFTER .ZLAST = DATALINE '"ac"'"
+      a = a + 1
+      end
+    end
+  end
+"LINE_AFTER .ZLAST = DATALINE ' '"
+Do x = 1 to out.0
+  ac = "     "out.x
+  "LINE_AFTER .ZLAST = DATALINE '"ac"'"
+  end
+ 
+info = ""
+"(LASTLINE) = LINENUM .ZLAST"
+Do x = 1 to lastline
+  "(DATA) = LINE" x
+  info = info""strip(data,"T")" @"
+  end
+Address ISPEXEC "VPUT (INFO) ASIS"
+ 
+ 
+ERR_EXIT:
+return_code = 0
+"SAVE"
+"END"
+Exit
+ 
+ 
+/*******************************************/
+/*  SYSCALL SUBROUTINES                    */
+/*******************************************/
+DIALOG_RTN:
+Parse upper arg AUMBR .
+return_code = 0
+Address ISPEXEC "LMMFIND DATAID("dialog") MEMBER("aumbr")"
+lmmfind_dialog_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "Authorized user list" aumbr "not found for PDI" pdimbr"."
+  Return
+  end
+ 
+ 
+GET_NEXT_USR:
+return_code = 0
+do until return_code > 0
+  Address ISPEXEC "LMGET DATAID("dialog") MODE(INVAR) DATALOC(URECORD)",
+    "MAXLEN(80) DATALEN(LRECL)"
+  lmget_dialog_rc = return_code
+  If return_code = 8 then do
+    lmget_dialog_rc = 0             /* SET RETURN CODE TO 0 */
+    leave
+    end
+  If return_code > 4 then do
+    Say pgmname "LMGET  DIALOG  RC =" return_code zerrsm
+    return_code = return_code + 16
+    leave
+    end
+  If left(urecord,1) = "*" | left(urecord,1) = " " then,
+    iterate
+  usr = left(urecord,8)
+  "EXCLUDE ALL '"usr"' 1"
+  return_code = 0
+  end
+/*  ---------------   */
+Return
+ 
+ 
+ADD_MEMBER:
+return_code = 0
+Address ISPEXEC "LMMADD DATAID("pdidd") MEMBER("pdimbr")"
+If return_code = 4 then do
+  return_code = 0
+  Address ISPEXEC "LMMREP DATAID("pdidd") MEMBER("pdimbr")"
+  If return_code <> 0 then do
+    Say pgmname "LMMREP PDI RCODE =" return_code datamem zerrsm
+    end
+  end
+Else do
+  If return_code <> 0 then,
+    Say pgmname "LMMADD PDI RCODE =" return_code datamem zerrsm
+  end
+"RESET"
+"DELETE ALL NX"
+return_code = 0
+"(MBR) = MEMBER"
+"COPY ("mbr") AFTER .ZF"
+Return
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname "REXX error" rc "in line" sigl":" strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC >= 16 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname "REXX error" rc "in line" sigl":" ERRORTEXT(rc)
+  say SOURCELINE(sigl)
+  end
+if return_code > maxcc then
+  maxcc = return_code
+return
+ 
+ 

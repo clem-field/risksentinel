@@ -1,0 +1,398 @@
+/* REXX */
+/* CLS2REXXed by UMLA01S on 4 Dec 2024 at 19:04:42  */
+/*trace r?*/
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+ 
+/*********************************************************************/
+/* 11/16/2005 JL Nelson Copied from CARC0501 for ACF2.               */
+/* 11/02/2005 JL Nelson Split out ACPs from SY$ACTON.                */
+/* 11/16/2005 JL Nelson Copied/modified for ACF2 extracts.           */
+/* 11/17/2005 JL Nelson Modified search for variable UID strings.    */
+/* 11/18/2005 JL Nelson Added tests for File condition codes.        */
+/* 01/30/2006 JL Nelson Made intermediate file a seq. was PDS.       */
+/* 01/30/2006 JL Nelson Changed from TSO to ISPF commands.           */
+/* 01/30/2006 JL Nelson Change for ACF2 8.0 DFP now MISCELLANEOUS.   */
+/* 02/02/2006 JL Nelson Modified for 24 byte UID.                    */
+/* 02/02/2006 JL Nelson Modified for ASC string after NAME field.    */
+/* 06/06/2006 C Stern Updated ERROR ROUTINE.                         */
+/* 02/10/2008 CL Fenton Removed unused variables and obtain trace    */
+/*            variables.                                             */
+/* 12/04/2024 CL Fenton Converted script from CLIST to REXX.         */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname = "CAAC0501 12/04/24"
+listuddn = "NULLFILE"                  /* LISTUSER DDname            */
+dataddn  = "NULLFILE"                  /* DATA DDname                */
+datambr  = "ALLUSERS"                  /* DATA default member name   */
+sysprompt = "OFF"                 /* CONTROL NOPROMPT                */
+sysflush = "OFF"                  /* CONTROL NOFLUSH                 */
+sysasis = "ON"                    /* CONTROL ASIS - caps off         */
+Numeric digits 10                 /* default of 9 not enough         */
+maxcc = 0
+ 
+Arg OPTION
+if OPTION <> "" then,
+  do until OPTION = ""
+    parse var OPTION key"("val")" OPTION
+    val = strip(val,"b","'")
+    val = strip(val,"b",'"')
+    optcmd = key '= "'val'"'
+    interpret optcmd
+    end
+ 
+Address ISPEXEC
+"CONTROL NONDISPL ENTER"
+"CONTROL ERRORS RETURN"
+sysprompt = "OFF"                       /* CONTROL NOPROMPT          */
+sysflush = "OFF"                        /* CONTROL NOFLUSH           */
+sysasis = "ON"                          /* CONTROL ASIS - caps off   */
+zispfrc = 0
+ 
+/* Called from CACC0501 */
+"VGET (SYMLIST CONSLIST COMLIST TERMMSGS ACPNAME ACPVERS) ASIS"
+"VGET (UIDFLDS UIDLNTH) ASIS"
+If acpname <> "ACF2" then do
+  Say pgmname "ACF2 Job running on the wrong system"
+  Say pgmname acpname acpvers
+  return_code = 20
+  SIGNAL ERR_EXIT
+  End
+ 
+syssymlist = symlist                    /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist                   /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist                       /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs                       /* CONTROL MSG/NOMSG         */
+ 
+/*******************************************/
+/* INITIALIZE LIBRARY MANAGEMENT           */
+/*******************************************/
+ 
+return_code = 0
+"LMINIT DATAID(LISTUID) DDNAME("listuddn")"
+If return_code <> 0 then do
+  Say pgmname "LMINIT_LISTUID_RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  End
+ 
+"LMOPEN DATAID("listuid") OPTION(INPUT)"
+If return_code <> 0 then do
+  Say pgmname "LMOPEN_LISTUID_RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  End
+ 
+"LMINIT DATAID(DATAID) DDNAME("dataddn")"
+If return_code <> 0 then do
+  Say pgmname "LMINIT_DATAID_RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  End
+ 
+"LMOPEN DATAID("dataid") OPTION(OUTPUT)"
+If return_code <> 0 then do
+  Say pgmname "LMOPEN_DATAID_RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  End
+ 
+datamem = datambr        /* Can not be in PROC & GLOBAL  */
+cnt = 0
+nr = 0
+usrid = "        "
+usrnam = left(" ",20)
+indicator = ""
+uid = left(" ",uidlnth)
+grp. = ""
+f1 = ""
+of1 = ""
+ 
+ 
+READRF:
+Do until return_code <> 0
+  return_code = 0
+  "LMGET DATAID("listuid") MODE(INVAR) DATALOC(LISTU)",
+    "DATALEN(LRECL) MAXLEN(255)"
+  listu = listu
+  If return_code = 8 then iterate
+ 
+  If return_code <> 0 then do
+    Say pgmname "LMGET_LISTUID_RC =" return_code zerrsm
+    return_code = return_code + 16
+    SIGNAL ERR_EXIT
+    End
+ 
+  If listu = "LIST LIKE(-)" |,
+     listu = " " then do
+    indicator = "X"
+    iterate
+    end
+ 
+  If indicator = "X" then do
+    Call put_data
+    parse var listu . 2 usrid 10 . 23 uid +(uidlnth) . +1 usrnam +20 .
+    indicator = ""
+    end
+ 
+  return_code = 0
+  f1 = substr(listu,2,8)
+  Select
+    When f1 = "        " then Do
+      Call ASC
+      of1 = f1
+      End
+    When f1 = "PRIVILEG" then Do
+      Call PRIV
+      of1 = f1
+      End
+    When f1 = "DFP     " then Do
+      Call DFP
+      of1 = f1
+      End
+    When f1 = "MISCELLA" then Do
+      Call DFP
+      of1 = f1
+      End
+    When f1 = "TSO     " then Do
+      Call TSO
+      of1 = f1
+      End
+    Otherwise of1 = ""
+    End
+ 
+  End
+ 
+ 
+EOF_LISTUSER:
+return_code = 0
+If nr > 0 then,
+  Call put_data
+ 
+Call add_member
+ 
+return_code = 0
+"LMCLOSE DATAID("listuid")"
+lmclose_listuid_rc = return_code
+ 
+return_code = 0
+"LMFREE DATAID("listuid")"
+lmfree_listcud_rc = return_code
+ 
+return_code = 0
+"LMCLOSE DATAID("dataid")"
+lmclose_dataid_rc = return_code
+ 
+return_code = 0
+"LMFREE DATAID("dataid")"
+lmfree_dataid_rc = return_code
+ 
+ 
+/*******************************************/
+/* END of program                          */
+/*******************************************/
+END_EXIT:
+return_code = 0
+ 
+If termmsgs = "ON" then do
+  Say "==============================================================="
+  Say pgmname "Output member" datambr
+  Say pgmname "Users =" cnt
+  Say pgmname "ACF2 Processing completed."
+  Say "==============================================================="
+  End
+ 
+ 
+/*******************************************/
+/* ERROR EXIT                              */
+/*******************************************/
+ERR_EXIT:
+If maxcc >= 16 | return_code > 0 then do
+  "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then,
+    zispfrc = maxcc
+  Else
+    zispfrc = return_code
+  "VPUT (ZISPFRC) SHARED"
+  Say pgmname "ZISPFRC =" zispfrc
+  End
+ 
+Exit (0)
+ 
+ 
+/********************************************/
+/* Write record and clear variables        **/
+/********************************************/
+PUT_DATA:
+If uid = " " then Return
+cnt = cnt + 1
+data = usrid" "usrnam" "uid" "grp.1" "grp.2" "grp.3
+ 
+grpcnt = 5
+Do x = 4 to nr
+  If grpcnt = 5 then do
+    return_code = 0
+    "LMPUT DATAID("dataid") MODE(INVAR) DATALOC(DATA)",
+      "DATALEN("length(data)")"
+    If return_code <> 0 then do
+      Say pgmname "LMPUT_DATAID_RC =" return_code zerrsm
+      return_code = return_code + 16
+      End
+    grpcnt = 0
+    data = usrid" "usrnam
+    End
+  data = data" "grp.x
+  grpcnt = grpcnt + 1
+  End
+ 
+if grpcnt > 0 then do
+  return_code = 0
+  "LMPUT DATAID("dataid") MODE(INVAR) DATALOC(DATA)",
+    "DATALEN("length(data)")"
+  If return_code <> 0 then do
+    Say pgmname "LMPUT_DATAID_RC =" return_code zerrsm
+    return_code = return_code + 16
+    End
+  End
+ 
+grp. = ""
+of1 = ""
+nr = 0
+uid = "        "
+Return
+ 
+ 
+/*******************************************/
+/*  SYSCALL SUBROUTINES                    */
+/*******************************************/
+PRIV:
+attr = substr(listu,23)
+Do x = 1 to words(attr)
+  nr = nr + 1
+  grp.nr = word(attr,x)
+  end
+Return
+ 
+ 
+TSO:
+return_code = 0
+If pos("MOUNT ",listu,23) > 0 then do
+  nr = nr + 1
+  grp.nr = "MOUNT"
+  End
+ 
+If pos("OPERATOR",listu,23) > 0 then do
+  nr = nr + 1
+  grp.nr = "OPERATOR"
+  End
+Return
+ 
+ 
+ASC:
+Select
+  When of1 = "PRIVILEG" then,
+    Call PRIV
+  When of1 = "DFP     " then,
+    Call DFP
+  When of1 = "MISCELLA" then,
+    Call DFP
+  When of1 = "TSO     " then,
+    Call TSO
+  Otherwise nop
+  End
+Return
+ 
+ 
+DFP:
+return_code = 0
+If nr > 0 then,
+  Call put_data
+ 
+dfp = substr(listu,23,53)
+If dfp = " " then Return
+ 
+data = usrid" "usrnam" "dfp
+return_code = 0
+"LMPUT DATAID("dataid") MODE(INVAR) DATALOC(DATA)",
+  "DATALEN("length(data)")"
+If return_code <> 0 then do
+  Say pgmname "LMPUT_DATAID_RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  End
+ 
+dfp = substr(listu,77,53)
+If dfp = " " then Return
+ 
+data = usrid" "usrnam" "dfp
+return_code = 0
+"LMPUT DATAID("dataid") MODE(INVAR) DATALOC(DATA)",
+  "DATALEN("length(data)")"
+If return_code <> 0 then do
+  Say pgmname "LMPUT_DATAID_RC =" return_code zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  End
+ 
+Return
+ 
+ 
+ADD_MEMBER:
+  return_code = 0
+  "LMMADD DATAID("dataid") MEMBER("datamem")"
+  If return_code = 4 then do
+      return_code = 0
+      "LMMREP DATAID("dataid") MEMBER("datamem")"
+      If return_code <> 0 then do
+          Say pgmname "LMMREP_DATA_RCODE =" return_code datamem  zerrsm
+          End
+      End
+    Else do
+      If return_code <> 0 then,
+          Say pgmname "LMMADD_DATA_RCODE =" return_code datamem  zerrsm
+      End
+  Return
+ 
+ 
+substrc: Procedure
+ If arg(3) = ''
+   Then
+     Do
+     s = Arg(1)
+     l = 1
+     v = arg(2)
+     End
+   Else
+     Do
+     s = arg(1)
+     l = arg(2)-arg(1)+1
+     v = arg(3)
+     End
+  Return substr(v,s,l)
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC > 4 & RC <> 8 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname 'REXX error' rc 'in line' sigl':' ERRORTEXT(rc)
+  say SOURCELINE(sigl)
+  end
+if return_code > maxcc then,
+  maxcc = return_code
+return
+ 
+ 

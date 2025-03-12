@@ -1,0 +1,250 @@
+/* REXX */
+/* CLS2REXXed by UMLA01S on 20 May 2022 at 13:06:35  */
+/*trace r?*/
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+Address ISREDIT
+sysprompt = 'OFF'
+syssymlist = 'OFF'
+sysconlist = 'OFF'
+syslist = 'OFF'
+sysmsg = 'ON'
+ 
+"MACRO"
+/*********************************************************************/
+/* This edit macro (CATM0006) generates the WHOHAS reports and       */
+/* creates the WHOHxxxx member depending on the values in variable   */
+/* RESOURCE.  VALUE variable contains the resource to be generated.  */
+/*********************************************************************/
+/* 06/29/2010 CL Fenton Chgs to work around UNTIL on ACCESS record.  */
+/* 05/02/2019 CL Fenton Added addition accesses for CICS SPI         */
+/*            permissions, STS-021044.                               */
+/* 05/20/2022 CL Fenton Converted script from CLIST to REXX.         */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname = "CATM0006 05/20/22"
+sysprompt = "OFF"                /* CONTROL NOPROMPT          */
+sysflush = "OFF"                 /* CONTROL NOFLUSH           */
+sysasis = "ON"                   /* CONTROL ASIS - caps off   */
+Numeric digits 10                /* default of 9 not enough   */
+maxcc = 0
+zerrsm           = ""
+zerrlm           = ""
+zerrmsg          = ""
+return_code = 0                   /* SET RETURN CODE TO 0  */
+Address ISPEXEC "CONTROL NONDISPL ENTER"
+Address ISPEXEC "CONTROL ERRORS RETURN"
+/*******************************************/
+/* Variables are passed to this macro      */
+/* RESOURCE                                */
+/* AUDDSNS                                 */
+/* SWITCH                                  */
+/* VALUE                                   */
+/* CONSLIST                                */
+/* COMLIST                                 */
+/* SYMLIST                                 */
+/* TERMMSGS                                */
+/*******************************************/
+Address ISPEXEC "VGET (RESOURCE AUDDSNS SWITCH VALUE CONSLIST",
+  "COMLIST SYMLIST TERMMSGS ) ASIS"
+tm06vge = return_code
+ 
+ 
+MESSAGE_HOUSEKEEPING:
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" ,
+  then Trace ?r
+ 
+syssymlist = symlist          /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist         /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist             /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs             /* CONTROL MSG/NOMSG         */
+return_code = 0               /* SET RETURN CODE TO 0      */
+"STATS = OFF"
+"NUMBER OFF"
+/******************************************************************/
+/*  CLEAR MEMBER                                                  */
+/******************************************************************/
+If switch = "Y" then do
+  "DELETE .ZF .ZL"
+  switch = "N"
+  Address ISPEXEC "VPUT (SWITCH)"
+  end
+ 
+/******************************************************************/
+/*  START PROCESS                                                 */
+/******************************************************************/
+res = ""
+acid = ""
+access = ""
+acc8 = "        "
+audit = "N"
+deny = " "
+facility = ""
+other = ""
+ 
+var = left(resource,8)  /* SET RESOURCE CLASS */
+var = strip(var,"T")
+value = strip(value,"T")
+return_code = 0
+x = outtrap("var.")
+syslist = "ON"
+cmd = "TSS WHOH" var"("value")"
+Address TSO "TSS WHOH" var"("value")"
+syslist = "OFF"
+If return_code = 8 then do
+  return_code = 0
+  Signal ERR_EXIT
+  end
+Do X = 1 to var.0
+  data = strip(var.x,"T")
+  l = length(data)
+ 
+  If left(data,3) = "TSS" then iterate
+ 
+  If left(data,8) = var then do
+    resowner = substr(data,14,45)
+    iterate
+    end
+ 
+  If substr(data,2,5) = "XAUTH" then do
+    If res <> " " then do
+      cmd = res""left(acid,16)
+      cmd = cmd""acc8
+      cmd = cmd""audit""deny
+      cmd = cmd""facility" @ "
+      cmd = cmd""other
+      "LINE_AFTER .ZLAST = (CMD)"
+      access = ""
+      acc8 = "        "
+      audit = "N"
+      deny = " "
+      facility = ""
+      other = ""
+      end
+    res = substr(data,14,45)
+ 
+    Do Z = 1 to words(auddsns)
+      auddsn = word(auddsns,z)
+      If pos(auddsn,res) = 1 |,
+         wordpos("*ALL*",auddsns) > 0 then do
+        audit = "X"
+        z = words(auddsns)
+        end
+      audx = auddsn
+      audx = strip(audx,"B","*")
+      If auddsn > res then,
+        z = words(auddsns)
+      end
+ 
+    acid = substr(data,66,8)
+    iterate
+    end
+  If substr(data,4,6) = "ACCESS" then do
+    acc8 = ""
+    access = strip(substr(data,14),"T")
+    access = translate(access," ",",")
+    y = 1
+    Do y = 1 to words(access)
+      acc = word(access,y)
+      If acc = "ALL"      then acc = "A"
+      If acc = "ALTER"    then acc = "B"
+      If acc = "INSTALL"  then acc = "C"
+      If acc = "BLP"      then acc = "D"
+      If acc = "SCRATCH"  then acc = "E"
+      If acc = "CREATE"   then acc = "F"
+      If acc = "CONTROL"  then acc = "G"
+      If acc = "UPDATE"   then acc = "H"
+      If acc = "SET"      then acc = "I"
+      If acc = "COLLECT"  then acc = "J"
+      If acc = "DISCARD"  then acc = "K"
+      If acc = "PERFORM"  then acc = "L"
+      If acc = "WRITE"    then acc = "M"
+      If acc = "READ"     then acc = "N"
+      If acc = "INQUIRE"  then acc = "O"
+      If acc = "NOCREATE" then acc = "P"
+      If acc = "FETCH"    then acc = "Q"
+      If acc = "EXECUTE"  then acc = "R"
+      If acc = "EXEC"     then acc = "S"
+      If acc = "NONE"     then acc = "T"
+      acc8 = acc8""acc
+      end
+    acc8 = left(acc8,8)
+    iterate
+    end
+  If substr(data,4,6) = "ACTION" then do
+    ind = pos("AUDIT",substr(data,14))
+    If ind > 0 &,
+       audit <> "X" then,
+      audit = "Y"
+    ind = pos("DENY",substr(data,14))
+    If ind > 0 then,
+      deny = "Y"
+    iterate
+    end
+  If substr(data,4,6) = "FAC" then do
+    facility = strip(substr(data,14),"T")
+    iterate
+    end
+  If data <> " " then,
+    other = other""data"³"
+  end
+ 
+If res <> " " then do
+  cmd = res""left(acid,16)
+  cmd = cmd""acc8
+  cmd = cmd""audit""deny
+  cmd = cmd""facility" @ "
+  cmd = cmd""other
+  end
+Else,
+  cmd = resowner
+ 
+"LINE_AFTER .ZLAST = (CMD)"
+ 
+ 
+ERR_EXIT:
+If maxcc >= 16 | return_code > 0 then do
+  Address ISPEXEC "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then,
+    zispfrc = maxcc
+  Else,
+    zispfrc = return_code
+  Address ISPEXEC "VPUT (ZISPFRC) SHARED"
+  end
+Address ISPEXEC "VPUT (tm06vge) ASIS"
+"SAVE"
+"END"
+lastcc = 0
+Exit 0
+ 
+ 
+/*******************************************/
+/*  SYSCALL SUBROUTINES                    */
+/*******************************************/
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC > 4 & RC <> 8 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+  say SOURCELINE(sigl)
+  if return_code > maxcc then
+    maxcc = return_code
+  end
+return
+ 
+ 

@@ -1,0 +1,234 @@
+/* REXX */
+/* CLS2REXXed by FSOX001 on 21 Aug 2017 at 11:08:18  */
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+ 
+/*********************************************************************/
+/* 05/09/2005 JL.Nelson Created for dialog - update auth user lists  */
+/* 05/23/2005 JL.Nelson Check for environment TSO or BATCH           */
+/* 06/22/2005 JL.Nelson Set return_code after SYSDSN                 */
+/* 10/28/2005 JL.Nelson Modified to reset status after EDIT.         */
+/* 10/31/2005 JL.Nelson Correct error on Browse of empty member.     */
+/* 11/08/2005 JL.NELSON Re-did data set checks with error panel.     */
+/* 01/12/2006 C. Stern  Changed ERROR to EMPTY for member.           */
+/* 06/08/2006 C. Stern  Changed ERROR to EMPTY for member.           */
+/* 09/25/2008 CL Fenton Chgs to sort auth user table entries.        */
+/* 07/16/2009 CL.Fenton Chg to allow for multiple selections.        */
+/* 08/21/2017 CL.FENTON Converted script from CLIST to REXX.         */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname = "SRR$USR  08/21/17"
+pgm8 = substr(pgmname,1,8)
+srrcntl  = "CNTL"             /* CNTL DATA SET QUALIFIER     */
+srrdata  = "DATA"             /* Data file suffix            */
+cacp0425 = "SRRPUSR"          /* Dialog panel name           */
+cact0000 = "CACT0000"         /* table 2 user groups         */
+jobinst  = "CACJ051D"         /* BATCH Install job           */
+/*******************************************/
+/* CONSLIST = CONLIST                      */
+/* COMLIST = LIST                          */
+/* SYMLIST = SYMLIST                       */
+/* TERMPRO = PROMPT                        */
+/* TERMMSGS = MESSAGES                     */
+/* TRACE TURNS ON MESSAGING                */
+/*******************************************/
+Address ISPEXEC
+"VGET (CONSLIST COMLIST SYMLIST TERMMSGS) ASIS"
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" then,
+  Trace r
+ 
+syssymlist = symlist           /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist          /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist              /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs              /* CONTROL MSG/NOMSG         */
+sysprompt = "OFF"              /* CONTROL NOPROMPT          */
+sysflush = "OFF"               /* CONTROL NOFLUSH           */
+sysasis = "ON"                 /* CONTROL ASIS - CAPS OFF   */
+"CONTROL ERRORS RETURN"
+If SysVar('SysEnv') <> "FORE" then do
+  Say pgmname "CLIST running in background, can not receive input",
+    "SYSENV =" SysVar('SysEnv')"."
+  return_code = 8
+  SIGNAL  ERR_EXIT
+  end
+return_code = 0
+"VGET (SRRINST SRRUSER) PROFILE"
+/*******************************************/
+/* VERFIY HLQ FOR CNTL AND CLIST LIBRARIES */
+/*******************************************/
+cntldsn = srrinst"."srrcntl
+datadsn = srruser"."srrdata
+return_code = 0
+locate = sysdsn("'"cntldsn"("cact0000")'")
+If locate <> "OK" then do
+  srrerr = "Member" cact0000" is missing, batch job" jobinst,
+    "must be ran to create the member first."
+  srrerc = return_code
+  zerrlm = cntldsn"("cact0000")"
+  srrmsg1 = locate
+  srrmsg2 = " "
+  "DISPLAY PANEL(SRRPERR)"
+  SIGNAL  ERR_EXIT
+  end
+return_code = 0
+locate = sysdsn("'"datadsn"'")
+If locate <> "OK" then do
+  srrerr = "File DATA is missing, batch job" jobinst "must be",
+    "ran to create the member first."
+  srrerc = return_code
+  zerrlm = datadsn
+  srrmsg1 = locate
+  srrmsg2 = " "
+  "DISPLAY PANEL(SRRPERR)"
+  SIGNAL  ERR_EXIT
+  end
+return_code = 0
+"TBCREATE GRPTABLE REPLACE NOWRITE KEYS(MBRNAME)",
+  "NAMES(S MBRDESC MBRS)"
+ 
+If return_code > 4 then do
+  Say pgmname "TBCREATE  RC =" return_code  zerrsm
+  SIGNAL  ERR_EXIT
+  end
+return_code = 0
+ 
+Address TSO "ALLOC FI(TBLMBR) DA('"cntldsn"(CACT0000)') SHR"
+Address TSO "EXECIO * DISKR TBLMBR (FINIS STEM TBLDATA."
+Address TSO "FREE FILE(TBLMBR)"
+GET_NEXT_TBL:
+do cnt = 1 to tbldata.0
+  trecord = tbldata.cnt
+  if left(trecord,1) = "*" &,
+     index(trecord,"DIALOG") = 3 then do
+    parse var trecord . "DIALOG" mbrname mbrdesc 73 .
+    mbrname = strip(mbrname,"B")
+    mbrdesc = strip(mbrdesc,"B")
+    mbrs = " "
+    s = " "
+    locate = sysdsn("'"datadsn"("mbrname")'")
+    If locate <> "OK" then,
+      mbrs = "Empty"
+    return_code = 0
+    "TBADD GRPTABLE"
+    end
+  end
+ 
+return_code = 0
+"TBSORT GRPTABLE FIELDS(MBRNAME)"
+If return_code > 4 then do
+  Say pgmname "TBSORT  RC =" return_code  zerrsm
+  SIGNAL  ERR_EXIT
+  end
+return_code = 0
+"TBTOP GRPTABLE"
+curnr = 1
+ 
+ 
+TBDISPL:
+do until return_code > 0
+  return_code = 0
+  mbrname = " "
+  "TBDISPL GRPTABLE PANEL("cacp0425") AUTOSEL(NO)"
+  curnr = ztdtop
+  If return_code = 8 then,
+    leave
+  "VGET (ZVERB ZSCROLLN) ASIS"
+  return_code = 0
+  Do until ztdsels = 0
+    mbrname = mbrname
+    s = s
+    "TBMOD GRPTABLE"
+    if ztdsels > 1 then,
+      "TBDISPL GRPTABLE"
+    else,
+      ztdsels = 0
+    end /* Do while ztdsels = 0 */
+  Select
+    When zverb = "UP" then,
+      "TBSKIP GRPTABLE NUMBER("-zscrolln")"
+    When zverb = "DOWN" then,
+      "TBSKIP GRPTABLE NUMBER("zscrolln")"
+    Otherwise nop
+    end
+  if zverb <> "" then do
+    iterate
+    end
+ 
+ 
+PROCESS_TABLE:
+  tbl_nr = 1
+  tblnr = 1
+  return_code = 0
+  "TBTOP GRPTABLE"
+  "TBSKIP GRPTABLE ROW("tbl_nr")"
+  "TBGET GRPTABLE POSITION(TBLNR)"
+  return_code = 0
+  Do while return_code = 0
+    mbrsel = s
+    mbrs = mbrs
+    If mbrs = "Empty" & mbrsel <> "" then,
+      mbrsel = "E"
+    If mbrsel = "B" | mbrsel = "S" then do
+      "CONTROL DISPLAY SAVE"
+      "BROWSE DATASET('"datadsn"("mbrname")')"
+      "CONTROL DISPLAY RESTORE"
+      end /* If mbrsel = "B" ... */
+    If mbrsel = "E" then do
+      "CONTROL DISPLAY SAVE"
+      "EDIT DATASET('"datadsn"("mbrname")')"
+      "CONTROL DISPLAY RESTORE"
+      end /* If mbrsel = "E" */
+    If mbrsel = "V" then do
+      "CONTROL DISPLAY SAVE"
+      "VIEW DATASET('"datadsn"("mbrname")')"
+      "CONTROL DISPLAY RESTORE"
+      end /* If mbrsel = "V" */
+    If s <> "" then do
+      s = " "
+      If mbrs = "Empty" then do
+        locate = sysdsn("'"datadsn"("mbrname")'")
+        If locate = "OK" then do
+          mbrs = " "
+          end /* If locate = "OK" */
+        end /* If mbrs = "Empty" */
+      "TBMOD GRPTABLE SAVE("mbrname")"
+      end /* If s <> "" */
+    return_code = 0
+    tblnr = tblnr + 1
+    "TBSKIP GRPTABLE ROW("tblnr")"
+    end /* Do while return_code = 0 */
+  return_code = 0
+  "TBTOP GRPTABLE"
+  "TBSKIP GRPTABLE ROW("curnr")"
+  end /* do until return_code > 0 */
+ 
+ 
+END_EXIT:
+return_code = 0
+"TBEND GRPTABLE"
+ 
+ 
+ERR_EXIT:
+zispfrc = return_code
+"VPUT (ZISPFRC) SHARED"
+Exit
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+Exit
+ 
+ 
+Error:
+return_code = RC
+return
+ 
+ 

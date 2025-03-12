@@ -1,0 +1,34 @@
+)ATTR
+ _ TYPE(INPUT)  INTENS(HIGH) CAPS(ON)
+ # TYPE(OUTPUT) INTENS(HIGH) SKIP(ON) CAPS(OFF)
+ @ TYPE(OUTPUT) INTENS(LOW)  SKIP(ON) CAPS(OFF)
+)BODY WIDTH(80) EXPAND("")
+%"-" Security Readiness Review Self-Audit "-"+
+%" "Application option menu" "+
+@PGM8     %       " "Version:@SRRVERS +
+%Option ===>_ZCMD
+%
+%
+%            A+- Authorized User Groups: Pre-Populate and Edit
+%
+%            B+- Update User PROC EXAMRPTS
+%
+%            C+- Review reports for Findings, User access & Dataset rules
+%
+%            D+- Products
+%
+%            E+- Vulnerability Questions
+%
+%
+%
+%
+%
+%EXIT +(PF3) To end.
+#SRRMSG
+)INIT
+  .CURSOR = ZCMD
+)PROC
+  &OPT = TRUNC (&ZCMD, '.')
+  &ZTRAIL = .TRAIL
+  VER (&OPT,NB,LIST,A,B,C,D,E)
+)END

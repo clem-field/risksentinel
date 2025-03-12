@@ -1,0 +1,384 @@
+/* REXX */
+/* CLS2REXXed by FSOX001 on 3 Oct 2018 at 11:01:20  */
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+Address ISREDIT
+ 
+"MACRO"             /* CACM0010 EDIT PARMLIB(PROGxx) */
+/*********************************************************************/
+/* 06/15/2004 JL.NELSON ADDED EXIT CODE.                             */
+/* 08/27/2004 JL.NELSON Split PROGxx APF/0040 and LNK/0350 PDIs.     */
+/* 08/30/2004 JL.NELSON ADDED change all for &symbolics.             */
+/* 12/23/2004 JL.NELSON IKJ79075I System variable SYSSYMDEF failed   */
+/*            RC=8.                                                  */
+/* 01/25/2005 JL.NELSON Ignore comments in PARMLIB.                  */
+/* 02/11/2005 JL.NELSON Changed constants to variables before        */
+/*            rename.                                                */
+/* 03/09/2005 JL.NELSON Changed LMMREP to LMMADD/LMMREP to avoid     */
+/*            errors.                                                */
+/* 06/09/2005 JL.NELSON Pass MAXCC in ZISPFRC variable.              */
+/* 06/15/2005 JL.NELSON Set return code to end job step.             */
+/* 06/16/2005 JL.NELSON Changed to display the real LISTDSI error    */
+/*            msg.                                                   */
+/* 06/20/2005 JL.NELSON Modified to test sysreason for LISTDSI       */
+/*            command.                                               */
+/* 09/26/2005 JL.NELSON SYSSYMDEF check to end with a period or ")". */
+/* 10/17/2005 JL.NELSON IKJ79075I SYSSYMDEF rc=8 maxcc=624 length    */
+/*            gt 8.                                                  */
+/* 10/18/2005 JL.NELSON Added code to debug syssymdef errors.        */
+/* 03/06/2006 JL.NELSON Made changes to avoid SUBSTR abend 920/932.  */
+/* 03/09/2006 JL.NELSON Set/test RCode for every ISPEXEC command.    */
+/* 03/20/2006 JL.NELSON Use NRSTR avoid abend 900 if ampersand in    */
+/*            data.                                                  */
+/* 03/29/2006 JL.NELSON Test for empty member LINENUM Rcode = 4.     */
+/* 04/11/2006 JL.NELSON Replace & with ? if varible length > 8.      */
+/* 05/09/2006 JL.NELSON Avoid RC 20 on ISREDIT LINE when " or ' in   */
+/*            data.                                                  */
+/* 03/05/2007 CL.FENTON Added process for logical parmlibs.          */
+/* 09/22/2009 CL.FENTON Added REMOVE_COMMENTS to remove comments     */
+/*            from various member.  Modification made remove comment */
+/*            logic from other parts of this member and symbolic     */
+/*            process.                                               */
+/* 04/26/2011 CL.FENTON Corrected symbolic change by changing both   */
+/*            %&NAME.. and %&NAME to &NAME2.                         */
+/* 10/03/2018 CL.FENTON Converted script from CLIST to REXX.         */
+/* 04/08/2019 CL.FENTON Correct issue with LISTDSI by stripping      */
+/*            spaces from dataset entries, STS-022062.               */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname = "CACM0010 04/08/19"
+sysprompt = "OFF"                /* CONTROL NOPROMPT          */
+sysflush = "OFF"                /* CONTROL NOFLUSH           */
+sysasis = "ON"                 /* CONTROL ASIS - caps off   */
+return_code = 0
+maxcc = 0
+Address ISPEXEC "CONTROL NONDISPL ENTER"
+Address ISPEXEC "CONTROL ERRORS RETURN"
+/* *****************************************/
+/* VARIABLES ARE PASSED TO THIS MACRO      */
+/* CONSLIST                                */
+/* COMLIST                                 */
+/* SYMLIST                                 */
+/* TERMMSGS                                */
+/*******************************************/
+Address ISPEXEC "VGET (CONSLIST COMLIST SYMLIST TERMMSGS MBRMSG",
+  "MEMBER CACM040A TEMP8 PARMDSN PDIDD PDINAME RESVOL CATVOL) ASIS"
+ 
+cm10vget = return_code
+If return_code <> 0 then do
+  Say pgmname "VGET RC =" return_code
+  Say pgmname "CONSLIST/"conslist "COMLIST/"comlist "SYMLIST/"symlist,
+    "TERMMSGS/"termmsgs
+  Say pgmname "MBRMSG/"mbrmsg "MEMBER/"member "CACM040A/"cacm040a,
+    "TEMP8/"temp8
+  Say pgmname "PDIDD/"pdidd "PDINAME/"pdiname "RESVOL/"resvol,
+    "CATVOL/"catvol
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" ,
+  then Trace r
+ 
+return_code = 0
+/***************************************** */
+/* TURN ON MESSAGES                        */
+/*******************************************/
+syssymlist = symlist          /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist         /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist          /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs         /* CONTROL MSG/NOMSG         */
+/*******************************************/
+/* MAIN PROCESS                            */
+/*******************************************/
+vmember = member
+"(MEMBER) = MEMBER"
+"(DSNAME) = DATASET"
+"NUMBER = OFF"
+"AUTONUM = OFF"
+return_code = 0
+"(LASTLINE) = LINENUM .ZLAST"
+ 
+If return_code > 0 then do
+  If lastline = 0 then,
+    Say pgmname "Empty file RCode =" return_code "DSN="dsname,
+      "MEMBER="member zerrsm
+  Else,
+    Say pgmname "LINENUM Error RCode =" return_code "DSN="dsname,
+      "MEMBER="member zerrsm
+  SIGNAL ERR_EXIT
+  end
+return_code = 0
+Address TSO "PROFILE NOPREFIX"
+ 
+If pdiname = "AAMV0040" then,
+  scan = "APF"
+Else,
+  If pdiname = "AAMV0350" then,
+    scan = "LNKLST"
+  Else do
+    Say pgmname "Invalid PDI number for PROGxx" pdiname
+    return_code = 8
+    SIGNAL ERR_EXIT
+    end
+ 
+row = 1
+col = 0
+ 
+ 
+PRE_LOOP:
+"CHANGE ALL X'50' X'6C'"             /* CHANGE ALL '&' '%'*/
+do forever
+  return_code = 0
+  "CURSOR =" row col
+  "FIND X'6C'"     /* FIND '%' */
+ 
+  If return_code > 0 then leave
+ 
+  "(ROW,COL) = CURSOR"
+  "(DATA) = LINE" row
+ 
+  parse var data . "%" temp .
+  If temp = "" then iterate
+ 
+  x = pos(".",temp)
+  If x > 2 then
+    parse var temp temp "."
+  x = pos(",",temp)
+  If x > 2 then,
+    parse var temp temp ","
+  x = pos("'",temp)
+  If x > 2 then,
+    parse var temp temp "'"
+  x = pos('"',temp)
+  If x > 2 then
+    parse var temp temp '"'
+  x = pos("%",temp)
+  If x > 2 then
+    parse var temp temp "%"
+  x = pos("(",temp)
+  If x > 2 then,
+    parse var temp temp "(" .
+  x = pos(")",temp)
+  If x > 2 then,
+    parse var temp temp ")" .
+  If temp <> "" then do
+    name = strip(temp,"b")
+    return_code = 0
+    save_maxcc = maxcc
+    name2 = mvsvar('SYMDEF',name)
+    If return_code > 4 then do
+      Say pgmname member "NAME =" name "DATA =" data
+      maxcc = save_maxcc
+      end
+    If return_code = 0 & name2 <> " " then do
+      "CHANGE ALL '%"name".' '"name2"'"
+      "CHANGE ALL '%"name"' '"name2"'"
+      end
+    end
+  end
+"CHANGE ALL X'6C' X'50'"         /* CHANGE ALL '%' '&' */
+ 
+ 
+NEXT_1:
+return_code = 0
+If resvol <> " " then,
+  "CHANGE '(******)' '("resvol")' ALL"
+If catvol <> " " then,
+  "CHANGE '(*MCAT*)' '("catvol")' ALL"
+"CURSOR = 1 0"
+modify = ""
+ 
+ 
+LOOPER:
+do until return_code > 0
+  return_code = 0
+  "FIND '"scan"' 1 10"
+  If return_code > 0 then leave
+  "(ROW,COL) = CURSOR"
+  "(DATA) = LINE" row
+  If left(data,1) = "*" then iterate
+  x = pos("/*",data)
+  If x > 0 & x < col then iterate
+  If pos(" ADD" ,data,col) = 0 then iterate
+ 
+ 
+LOOK_AHEAD:
+  do next = row + 1 to lastline
+    "(DATA2) = LINE" next
+    If scan = "APF" & pos("LNKLST",data2) > 0 then leave
+    If scan = "LNKLST" & pos("APF",data2) > 0 then leave
+    If pos(scan,data2) > 0 then leave
+    data = data" "data2
+    end
+ 
+ 
+REMOVE_COM:
+  do until pos("/*",data) = 0
+    parse var data data1 "/*" . "*/" data2
+    data = data1 data2
+    end
+ 
+  dataset = ""
+  vol = " "
+  reason = ""
+  dsnx = pos(" DSN",data)
+  libx = pos(" LIB",data)
+  If dsnx <> 0 then,
+    x = dsnx
+  Else,
+    If libx <> 0 then,
+      x = libx
+    Else,
+      iterate
+  parse var data . =(x) . "(" dataset ")" .
+  dataset = strip(dataset,"B")
+  smsx = pos(" SMS" ,data)
+  parse var data . "VOL(" vol ")" .
+  return_code = 0
+  msg = msg('OFF')
+  If vol <> " " then,
+    lst = listdsi("'"dataset"'" "VOLUME("vol")")
+  Else,
+    lst = listdsi("'"dataset"'")
+  msg = msg(msg)
+  If sysreason = 0 then iterate
+  vol = left(vol,6)
+  dataset = left(dataset,44)
+  If mbrmsg = "ON" then,
+    Say pgmname member "Dsn="dataset "Vol="vol "Sr="sysreason
+  reason = sysmsglvl2
+  If sysreason = 1 & pos("?",dataset) > 0 then do
+    reason = "IKJ58401I INVALID DATASET NAME, SYMDEF not defined or",
+      "is invalid)"
+    dataset = translate(dataset,"?","&")
+    end
+ 
+  If sysreason = 24 & vol <> " " then,
+    reason = "IKJ58424I DATA SET NOT FOUND ON VOLUME" vol
+  If vol = " " & smsx <> 0 then,
+    vol = "SMS   "
+  If sysreason > 0 then do
+    If modify <> "YES" then do
+      ac = "The following inaccessible APF-authorized library(ies)",
+        "exist on this system:"
+      return_code = 0
+      Address ISPEXEC "LMPUT DATAID("temp8") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)") MEMBER("vmember")"
+      If return_code <> 0 then do
+        Say pgmname "LMPUT TEMP8" vmember "RC =" return_code zerrsm
+        return_code = return_code + 16
+        SIGNAL ERR_EXIT
+        end
+      ac = " "
+      return_code = 0
+      Address ISPEXEC "LMPUT DATAID("temp8") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)") MEMBER("vmember")"
+      If return_code <> 0 then do
+        Say pgmname "LMPUT TEMP8" vmember "RC =" return_code zerrsm
+        return_code = return_code + 16
+        SIGNAL ERR_EXIT
+        end
+      ac = "     "parmdsn"("vmember")"
+      return_code = 0
+      Address ISPEXEC "LMPUT DATAID("temp8") MODE(INVAR) DATALOC(AC)",
+        "DATALEN("length(ac)") MEMBER("vmember")"
+      If return_code <> 0 then do
+        Say pgmname "LMPUT TEMP8" vmember "RC =" return_code zerrsm
+        return_code = return_code + 16
+        SIGNAL  ERR_EXIT
+        end
+      end
+ 
+    ac = "          "dataset vol reason
+    return_code = 0
+    Address ISPEXEC "LMPUT DATAID("temp8") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)") MEMBER("vmember")"
+    If return_code <> 0 then do
+      Say pgmname "LMPUT TEMP8" vmember "RC =" return_code zerrsm
+      return_code = return_code + 16
+      SIGNAL ERR_EXIT
+      end
+    modify = "YES"
+    pdierror = 8
+    If pdiname <> " " then do
+      Address ISPEXEC "VPUT (AC PDIERROR) ASIS"
+      return_code = 0
+      Address ISPEXEC "EDIT DATAID("pdidd") MACRO("cacm040a")",
+        "MEMBER("pdiname")"
+      If return_code > 4 then do
+        Say pgmname "EDIT PDI" pdiname "RC =" return_code zerrsm
+        return_code = return_code + 16
+        SIGNAL  ERR_EXIT
+        end
+      end
+    end
+  end
+/*******************************************/
+/* END PROCESSES                           */
+/*******************************************/
+ 
+ 
+END_EDIT:
+return_code = 0
+If modify = "YES" then do
+  return_code = 0
+  Address ISPEXEC "LMMADD DATAID("temp8") MEMBER("vmember")"
+  If return_code = 4 then do            /* member already exists */
+    return_code = 0
+    Address ISPEXEC "LMMREP DATAID("temp8") MEMBER("vmember")"
+    If return_code <> 0 then do
+      Say pgmname "LMMREP_TEMP8_RCODE =" return_code vmember zerrsm
+      end
+    end
+  Else do
+    If return_code <> 0 then
+      Say pgmname "LMMADD_TEMP8_RCODE =" return_code vmember zerrsm
+    end
+  end
+return_code = 0
+ 
+ 
+ERR_EXIT:
+If maxcc > 16 | return_code > 0 then do
+  Address ISPEXEC "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then
+    zispfrc = maxcc
+  Else,
+    zispfrc = return_code
+  Address ISPEXEC "VPUT (ZISPFRC) SHARED"
+  Say pgmname "ZISPFRC =" zispfrc
+  end
+ 
+cm010rc = return_code
+Address ISPEXEC "VPUT (CM10VGET CM010RC) ASIS"
+"END"
+Exit 0
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname "REXX error" rc "in line" sigl":" strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC >= 16 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname "REXX error" rc "in line" sigl":" ERRORTEXT(rc)
+  say SOURCELINE(sigl)
+  end
+if return_code > maxcc then
+  maxcc = return_code
+return
+ 
+ 

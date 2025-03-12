@@ -1,0 +1,33 @@
+//DIALOGDS SET DIALOG=&SRRHLQ..DATA         <<---- CHANGE TO DIALOG DS
+//FSOJCL    JCLLIB ORDER=(&SRRHLQ..CNTL)
+//*--------------------------------------------------------------------
+//*-------------------------->> CARJ0004 <<----------------------------
+//*--------------------------------------------------------------------
+//*                RACF SETROPTS FINDING CHECK
+//*
+//*  IMPORTANT:  Copy member JOBCARD to the beginning of this job.
+//*
+//*  THIS JOB EXECUTES STEPS THAT PERFORM INQUIRIES AGAINST
+//*  RACF SETROPTS THAT IS ALREADY CREATED/MODIFIED.
+//*
+//*  STEP3:           OBTAINS SETROPTS LIST AND DETERMINES STATUS
+//*                   OF SPECIFIC FINDINGS FOR RACF.
+//*
+//*  ===> NOTE:  STEP3 MAY END WITH A CONDITION CODE OF 0
+//*              ALTHOUGH ERRORS OCCURRED.  REVIEW THE ISPLOG AND
+//*              SYSTSPRT FILES OF EACH REPORT STEP, ALONG WITH THE
+//*              JOBLOG OR JESLOG FILES, FOR ERROR MESSAGES AND TO
+//*              ENSURE SUCCESSFUL EXECUTION.
+//*--------------------------------------------------------------------
+//STEP3     EXEC EXAMRPTS,
+//             CNTL=&SRRHLQ..CNTL
+//TEMP9     DD DSN=&SRRHLQ..TEMP9,
+//             DISP=OLD
+//DIALOG    DD DSN=&DIALOG,
+//             DISP=SHR
+//PDIDD     DD DSN=&SRRHLQ..PDI,
+//             DISP=OLD
+//SYSTSIN   DD *
+  ISPSTART CMD(%CARC0005 TERMMSGS(ON) TEST(MOD))
+/*
+//*

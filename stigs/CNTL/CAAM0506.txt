@@ -1,0 +1,355 @@
+/* REXX */
+/* CLS2REXXed by UMLA01S on 18 Jun 2021 at 11:21:30  */
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+Address ISREDIT
+ 
+"MACRO"               /* CAAM0506 EDIT MACRO */
+/*********************************************************************/
+/* 03/01/2006 C Stern Created from CAAM0006 for ACF0300.             */
+/* 05/31/2006 C Stern Changes per FSO.                               */
+/* 06/06/2006 C Stern Changes per FSO to include ZSMSA008 and        */
+/*            ZUSSA060.                                              */
+/* 07/11/2007 CL Fenton Changes to remove blank line after CLASMAP.  */
+/* 06/18/2021 CL Fenton Converted script from CLIST to REXX.         */
+/* 06/29/2021 CL Fenton Chgs to remove ACF0300, STS-026845.          */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname = "CAAM0506 06/29/21"
+Address ISPEXEC "CONTROL NONDISPL ENTER"
+Address ISPEXEC "CONTROL ERRORS RETURN"
+/*******************************************/
+/* This EDIT MACRO provides the finding    */
+/* details for ACF2 SHOW CLASMAP command   */
+/*******************************************/
+table = "MGMTCLAS MGM ZSMSA008 STORCLAS STR ZSMSA008 UNIXPRIV UNI",
+        "ZUSSA060"
+ 
+return_code = 0
+maxcc       = 0
+zerrlm      = ""
+zerrsm      = ""
+/*******************************************/
+/* VARIABLES ARE PASSED TO THIS MACRO      */
+/* CONSLIST                                */
+/* COMLIST                                 */
+/* SYMLIST                                 */
+/* TERMPRO                                 */
+/* TERMMSGS                                */
+/*******************************************/
+Address ISPEXEC "VGET (CONSLIST COMLIST SYMLIST TERMMSGS",
+  "TEMPS PDIDD) ASIS"
+  am06vge = 0
+If return_code <> 0 then do
+  am06vge = return_code
+  Say pgmname "VGET RC =" return_code zerrsm
+  Say pgmname "CONSLIST/"conslist "COMLIST/"comlist
+  Say pgmname "SYMLIST/"symlist "TERMMSGS/"termmsgs "TEMPS/"temps
+  Say pgmname "PDIDD/"pdidd
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" ,
+  then Trace ?r
+ 
+return_code = 0
+ 
+/*******************************************/
+/* Turn on messages                        */
+/*******************************************/
+syssymlist = symlist                    /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist                   /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist                       /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs                       /* CONTROL MSG/NOMSG         */
+sysprompt = "OFF"                       /* CONTROL NOPROMPT          */
+sysasis = "ON"                          /* CONTROL ASIS - caps off   */
+ 
+/*******************************************/
+/* MAIN PROCESS                            */
+/*******************************************/
+"(ROW) = LINENUM .ZLAST"
+ 
+a = 0
+b = 0
+c = 0
+d = 0
+e = 0
+f = 0
+zsmsa008_pdi_finding_switch = "N"
+zussa060_pdi_finding_switch = "N"
+found_previous = 0
+zsmsa008_nfvarres. = ""
+zsmsa008_nfvartyp. = ""
+zsmsa008_varres. = ""
+zsmsa008_vartyp. = ""
+zsmsa008_varfnd. = ""
+zussa060_nfvarres. = ""
+zussa060_nfvartyp. = ""
+zussa060_varres. = ""
+zussa060_vartyp. = ""
+zussa060_varfnd. = ""
+ 
+Address ISPEXEC "LMOPEN DATAID("pdidd") OPTION(OUTPUT)"
+return_code = 0
+"CURSOR = 1 0"
+"FIND '========' FIRST 12"
+If return_code <> 0 then do
+  Say pgmname "FIND STATUS RC =" return_code  zerrsm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+"(ROW) = LINENUM .ZCSR"
+ 
+ 
+READRF:
+Do forever
+  return_code = 0
+  row = row + 1
+  "(DATA) = LINE" row
+  If left(data,8) = "        " then,
+    leave
+  /*SIGNAL ENDIT*/
+ 
+  Call table_search
+  If found_rc = 12 then,
+    iterate
+  /*SIGNAL READRF*/
+ 
+ 
+TEST_PDIMBR:
+  If pdimbr = "ZSMSA008" then,
+    Call TEST_ZSMSA008
+  If pdimbr = "ZUSSA060" then,
+    Call TEST_ZUSSA060
+  end
+ 
+ 
+ENDIT:
+If zsmsa008_pdi_finding_switch = "Y" then,
+  Call ZSMSA008_FINDING
+If zsmsa008_pdi_finding_switch = "N" then,
+  Call ZSMSA008_NO_FINDING
+If zussa060_pdi_finding_switch = "Y" then,
+  Call ZUSSA060_FINDING
+If zussa060_pdi_finding_switch = "N" then,
+  Call ZUSSA060_NO_FINDING
+/*SIGNAL ENDITALL*/
+return_code = 0
+ 
+ 
+ERR_EXIT:
+zispfrc = return_code
+Address ISPEXEC "VPUT (ZISPFRC) SHARED"
+ 
+ 
+ENDITALL:
+Address ISPEXEC "VPUT (AM06VGE) ASIS"
+"END"
+Exit
+ 
+ 
+/*******************************************/
+/*  SYSCALL SUBROUTINES                    */
+/*******************************************/
+TEST_ZSMSA008:
+If typecode = substr(data,24,3) then do
+  c = c + 1
+  zsmsa008_nfvarres.c = resclass
+  zsmsa008_nfvartyp.c = typecode
+  end
+Else do
+  d = d + 1
+  zsmsa008_varres.d = resclass
+  zsmsa008_vartyp.d = typecode
+  zsmsa008_varfnd.d = substr(data,24,3)
+  zsmsa008_pdi_finding_switch = "Y"
+  End
+Return
+ 
+ 
+TEST_ZUSSA060:
+If typecode = substr(data,24,3) then do
+  e = e + 1
+  zussa060_nfvarres.e = resclass
+  zussa060_nfvartyp.e = typecode
+  end
+Else do
+  f = f + 1
+  zussa060_varres.f = resclass
+  zussa060_vartyp.f = typecode
+  zussa060_varfnd.f = substr(data,24,3)
+  zussa060_pdi_finding_switch = "Y"
+  end
+Return
+ 
+ 
+ZSMSA008_FINDING:
+pdimbr = "ZSMSA008"
+ac = "The following GSO record value(s) is (are) set improperly:"
+Call put_it
+Call blank_line
+ac = "     CLASMAP"
+Call put_it
+Do count = 1 to d
+  x1 = zsmsa008_varres.count
+  x2 = zsmsa008_vartyp.count
+  x3 = zsmsa008_varfnd.count
+  x1 = left(x1,8)
+  ac = "          "x1" Found Resource TYPECODE" x3".  Should be" x2"."
+  Call put_it
+  end
+Call add_member
+zsmsa008_pdi_finding_switch = "Z"
+Return
+/*SIGNAL ENDIT*/
+ 
+ 
+ZUSSA060_FINDING:
+pdimbr = "ZUSSA060"
+ac = "The following GSO record value(s" "is (are) set improperly:)"
+Call put_it
+Call blank_line
+ac = "     CLASMAP"
+Call put_it
+Do count = 1 to f
+  x1 = zussa060_varres.count
+  x2 = zussa060_vartyp.count
+  x3 = zussa060_varfnd.count
+  x1 = left(x1,8)
+  ac = "          "x1" Found Resource TYPECODE" x3".  Should be" x2"."
+  Call put_it
+  end
+Call add_member
+zussa060_pdi_finding_switch = "Z"
+Return
+/*SIGNAL ENDIT*/
+ 
+ 
+ZSMSA008_NO_FINDING:
+pdimbr = "ZSMSA008"
+If pdimbr <> "ZSMSA008" then,
+  SIGNAL NO_FINDING_ZUSSA060
+ac = "Not a Finding"
+Call put_it
+Call blank_line
+ac = "     CLASMAP"
+Call put_it
+Do count = 1 to c
+  x1 = zsmsa008_nfvarres.count
+  x2 = zsmsa008_nfvartyp.count
+  x1 = left(x1,8)
+  ac = "          "x1" Resource TYPECODE is" x2"."
+  Call put_it
+  end
+Call blank_line
+ac = "All CLASMAP GSO record value(s) is (are) set properly."
+Call put_it
+Call add_member
+zsmsa008_pdi_finding_switch = "Z"
+Return
+/*SIGNAL ENDIT*/
+ 
+ 
+ZUSSA060_NO_FINDING:
+pdimbr = "ZUSSA060"
+If pdimbr <> "ZUSSA060" then,
+  SIGNAL ENDITALL
+ac = "Not a Finding"
+Call put_it
+Call blank_line
+ac = "     CLASMAP"
+Call put_it
+Do count = 1 to e
+  x1 = zussa060_nfvarres.count
+  x2 = zussa060_nfvartyp.count
+  x1 = left(x1,8)
+  ac = "          "x1" Resource TYPECODE is" x2"."
+  Call put_it
+  end
+Call blank_line
+ac = "All CLASMAP GSO record value(s) is (are) set properly."
+Call put_it
+Call add_member
+zussa008_pdi_finding_switch = "Z"
+Return
+/*SIGNAL ENDIT*/
+ 
+ 
+ADD_MEMBER:
+return_code = 0
+Address ISPEXEC "LMMADD DATAID("pdidd") MEMBER("pdimbr")"
+If return_code = 4 then do
+  return_code = 0
+  Address ISPEXEC "LMMREP DATAID("pdidd") MEMBER("pdimbr")"
+  If return_code <> 0 then do
+    Say pgmname "LMMREP_PDI_RCODE =" return_code pdimbr zerrsm
+    end
+  end
+Else do
+  If return_code <> 0 then,
+    Say pgmname "LMMADD_PDI_RCODE =" return_code pdimbr  zerrsm
+  end
+ 
+ 
+TABLE_SEARCH:
+found_rc = 12
+If found_previous = 12 then do
+  found_previous = 0
+/*SIGNAL TABLE_END*/
+  end
+Else Do X = 1 to words(table) by 3
+  resclass = word(table,x)
+  typecode = word(table,x+1)
+  pdimbr = word(table,x+2)
+  If substr(data,12,8) = resclass then do
+    found_rc = 0
+    found_previous = 12
+    leave
+/*  SIGNAL TABLE_END*/
+    end
+  end
+ 
+ 
+TABLE_END:
+Return
+ 
+ 
+BLANK_LINE:
+ac = " "
+Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+  "DATALEN("length(ac)") MEMBER("pdimbr")"
+Return
+ 
+ 
+PUT_IT:
+Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+  "DATALEN("length(ac)") MEMBER("pdimbr")"
+Return
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL end_it
+ 
+ 
+Error:
+return_code = RC
+if RC >= 16 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+  say SOURCELINE(sigl)
+  end
+return
+ 
+ 

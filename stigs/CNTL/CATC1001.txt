@@ -1,0 +1,172 @@
+/* REXX */
+/* CLS2REXXed by UMLA01S on 29 Mar 2024 at 16:43:51  */
+/*Trace ?r*/
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+ 
+/*********************************************************************/
+/* This script (CATC1001) generates reports for selected resources   */
+/* through the use of TSS commands, (i.e. TSS WHOHAS and TSS         */
+/* WHOOWNS commands).                                                */
+/*********************************************************************/
+/* 03/29/2024 CL Fenton Converted script from CLIST to REXX.         */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+CONSLIST = "OFF"                  /* DEFAULT IS OFF                  */
+COMLIST  = "OFF"                  /* DEFAULT IS OFF                  */
+SYMLIST  = "OFF"                  /* DEFAULT IS OFF                  */
+TERMPRO  = "OFF"                  /* DEFAULT IS OFF                  */
+TERMMSGS = "OFF"                  /* DEFAULT IS OFF                  */
+sysflush = 'OFF'
+CACC1000 = "CACC1000"             /* Edit macro for CACC1000         */
+TRACE    = "OFF"                  /* TRACE ACTIONS AND ERRORS        */
+pgmname = "CATC1001 03/29/24"
+ 
+sysprompt = "OFF"                 /* CONTROL NOPROMPT                */
+sysflush = "OFF"                  /* CONTROL NOFLUSH                 */
+sysasis = "ON"                    /* CONTROL ASIS - caps off         */
+Numeric digits 10                 /* default of 9 not enough         */
+maxcc = 0
+ 
+Arg OPTION
+do until OPTION = ""
+  parse var OPTION key"("val")" OPTION
+  val = strip(val,"b","'")
+  val = strip(val,"b",'"')
+  optcmd = key '= "'val'"'
+  interpret optcmd
+  end
+ 
+Address ISPEXEC
+"CONTROL NONDISPL ENTER"
+"CONTROL ERRORS RETURN"
+return_code = 0
+If trace = "ON" then do            /* TURN messages on          */
+  termmsgs = "ON"                  /* CONTROL MSG               */
+  comlist = "ON"                   /* CONTROL LIST              */
+  conslist = "ON"                  /* CONTROL CONLIST           */
+  symlist = "ON"                   /* CONTROL SYMLIST           */
+  end
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" | TRACE = "ON",
+  then Trace ?r
+ 
+syssymlist = symlist          /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist         /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist             /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs             /* CONTROL MSG/NOMSG         */
+ 
+ 
+MESSAGE_HOUSEKEEPING:
+return_code = 0
+"SELECT CMD("cacc1000 "ACP)"
+"VPUT (CONSLIST COMLIST SYMLIST TERMPRO TERMMSGS) ASIS"
+ 
+/********************************************************************/
+/* MAIN PROCESS LOOP                                                */
+/********************************************************************/
+ 
+return_code = 0                         /* SET RETURN CODE TO 0 */
+lminit_cntl_rc = "N/A"
+lmopen_cntl_rc = "N/A"
+vget_rc = "N/A"
+lminit_output_rc = "N/A"
+lmfree_cntl_rc = "N/A"
+lmfree_output_rc = "N/A"
+zispfrc = 0
+"VPUT (ZISPFRC) SHARED"
+ 
+return_code = 0
+"LMINIT DATAID(CNTL) DDNAME(CNTL)"
+lminit_cntl_rc = return_code
+If return_code <> 0 then,
+  SIGNAL ERR_EXIT    /* EXIT */
+ 
+/*******************************************/
+/* GET TABLE VALUES                        */
+/*******************************************/
+ 
+"EDIT DATAID("cntl") MACRO(CATM1005) MEMBER(CATT1001)"
+edit_cntl_rc = return_code
+If return_code > 4 then,
+  SIGNAL ERR_EXIT    /* EXIT */
+ 
+return_code = 0
+"VGET (TABLE) ASIS"
+vget_rc = return_code
+If return_code > 0 then,
+  SIGNAL ERR_EXIT     /* EXIT */
+ 
+return_code = 0
+"LMINIT DATAID(OUTPUT) DDNAME(OUTPUT) ENQ(EXCLU)"
+lminit_output_rc = return_code
+Do INDEX = 1 to length(table) by 15
+  resource = substr(table,index,15)
+  "VPUT (RESOURCE OUTPUT) ASIS"
+  member = strip("WHOO"substr(resource,9,4),"T")
+  "EDIT DATAID("output") MACRO(CATM1001) MEMBER("member")"
+  return_code = 0
+  "LMCOMP DATAID("output")"
+  End
+ 
+return_code = 0
+"LMFREE DATAID("cntl")"
+lmfree_cntl_rc = return_code
+ 
+return_code = 0
+"LMFREE DATAID("output")"
+lmfree_output_rc = return_code
+ 
+ 
+ERR_EXIT:
+If maxcc >= 16 | return_code > 0 then do
+  "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then,
+    zispfrc = maxcc
+  Else,
+    zispfrc = return_code
+  "VPUT (ZISPFRC) SHARED"
+  Say pgmname "ZISPFRC =" zispfrc
+  end
+If termmsgs = "ON" then do
+  Say
+  Say "==============================================================="
+  Say pgmname "LMINIT_CNTL_RC           " lminit_cntl_rc
+  Say pgmname "LMINIT_OUTPUT_RC         " lminit_output_rc
+  Say pgmname "VGET_RC                  " vget_rc
+  Say pgmname "LMFREE_CNTL_RC           " lmfree_cntl_rc
+  Say pgmname "LMFREE_OUTPUT_RC         " lmfree_output_rc
+  Say "==============================================================="
+  end
+Exit
+ 
+ 
+/*******************************************/
+/*  SYSCALL SUBROUTINES                    */
+/*******************************************/
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC > 4 & RC <> 8 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+  say SOURCELINE(sigl)
+  end
+if return_code > maxcc then
+  maxcc = return_code
+return
+ 
+ 

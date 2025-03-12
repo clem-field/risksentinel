@@ -1,0 +1,931 @@
+/* REXX */
+/* CLS2REXXed by FSOX001 on 5 Jun 2017 at 11:21:52  */
+/*trace ?r*/
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+Address ISREDIT
+ 
+"MACRO"               /* CARM0120 EDIT TEMP5(*)  */
+/*********************************************************************/
+/* 09/10/2007 CL Fenton Copied from CARM0420 to evaluate resources.  */
+/* 11/30/2007 CL Fenton Added analysis for resource will not be      */
+/*            defined.                                               */
+/* 01/31/2008 CL Fenton Chgd contents of 3, 4, and 5 records         */
+/*            written to TEMP6.  Record not includes fixed length    */
+/*            RESOURCE field.  Removed DUP_USERS variable.           */
+/* 04/29/2008 CL Fenton Changes in the evaluation of audit logging.  */
+/* 07/16/2009 CL Fenton Changes to bypass GENERIC testing.           */
+/* 05/30/2012 CL Fenton Chgs to allow use of AUACCESS for            */
+/*            authorized users list to prevent the possible          */
+/*            "IKJ56548I INSUFFICIENT STORAGE FOR CLIST TO           */
+/*            CONTINUE" message from occurring when a DIALOG user    */
+/*            group contains an excessive number of user,            */
+/*            CSD-AR003400969.                                       */
+/* 06/06/2012 CL Fenton Corrected 852 and 932 errors on REC2TBL      */
+/*            on resources that have special characters (+, -, *,    */
+/*            and /), CSD-AR003419256.                               */
+/* 09/18/2012 CL Fenton Corrected 860 errors on RESNAME in the       */
+/*            collection of REC3TBL entries with special             */
+/*            characters (+, -, *, and /).                           */
+/* 04/10/2013 CL Fenton Corrected possible error on FIND             */
+/*            &RESOURCE when cursor position is past where record    */
+/*            is found.                                              */
+/* 03/31/2016 CL Fenton Changes to not specify empty groups in       */
+/*            finding details, STS-013692.                           */
+/* 04/04/2016 CL Fenton Changes to ensure UACC(NONE) is specified    */
+/*            and testing to review GENERIC, *, access,              */
+/*            STS-013858.                                            */
+/* 03/08/2017 CL Fenton Changes made to process all profiles         */
+/*            identified for a specific resources, STS-016365.       */
+/* 05/23/2017 CL Fenton Converted script from CLIST to REXX.         */
+/*            Also added GROUPID user list processing (CARM0005),    */
+/*            STS-017060.                                            */
+/* 11/01/2017 CL Fenton Corrected issue with everyone (*) having     */
+/*            access in profile and requirements specify everyones   */
+/*            access as NONE, STS-018586.                            */
+/* 02/16/2018 CL Fenton Streamlined and rearranged several processes */
+/*            and verified permissions of GENERIC where requirements */
+/*            specified NONE, STS-019211.                            */
+/* 02/27/2018 CL Fenton Corrected issue with multiple resources      */
+/*            using the same profile and identifying additional      */
+/*            resources.                                             */
+/* 10/26/2018 CL Fenton Corrected issue when user is directly        */
+/*            permitted and permitted through a group to ignore the  */
+/*            group permission, STS-020788.                          */
+/* 06/05/2019 CL Fenton Chgs to evaluate ZCIC0021 for system that    */
+/*            are running both production and test/developement      */
+/*            CICS regions, STS-021044.                              */
+/* 07/19/2019 CL Fenton Chgs correct possible "Control stack full"   */
+/*            error by changing SIGNAL statements in do loop         */
+/*            properly leave the loop, STS-022967.                   */
+/* 07/19/2019 CL Fenton Changes include a limit of 1000 userids      */
+/*            being extracted until all userids are collected for    */
+/*            groups with excessive number of userids to avoid an    */
+/*            error on variable LIDLIST, STS-022967.                 */
+/* 05/01/2020 CL Fenton Added additional resources to reduce time in */
+/*            analysis and changes to reduce the number of IOs to    */
+/*            read the same information multiple times, STS-024509.  */
+/* 09/28/2020 CL Fenton Changes made to initialize a variable to     */
+/*            prevent errors, STS-025321.                            */
+/* 06/16/2021 CL Fenton Changes made to initialize a zerr variables  */
+/*            to prevent errors and 013-18 abends, STS-026455.       */
+/* 02/21/2023 CL Fenton Changes made to correct issue with REC2TBL   */
+/*            having too much information passed via a VPUT,         */
+/*            causing a RC of 20 error, STS-029346.                  */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname = "CARM0120 02/21/23"
+sysprompt = "OFF"                /* CONTROL NOPROMPT          */
+sysflush = "OFF"                 /* CONTROL NOFLUSH           */
+sysasis = "ON"                   /* CONTROL ASIS - caps off   */
+Address ISPEXEC "CONTROL NONDISPL ENTER"
+Address ISPEXEC "CONTROL ERRORS RETURN"
+ 
+/*******************************************/
+/* VARIABLES ARE PASSED TO THIS MACRO      */
+/*******************************************/
+maxcc = 0
+return_code = 0
+Address ISPEXEC "VGET (CONSLIST COMLIST SYMLIST TERMMSGS",
+  "CACM042R CACT0008 AUACCESS CNTL SENSITVE TEMP6 BTITLE ODSNAME",
+  "RACFRPT CARM0005 LISTGRP) ASIS"
+rm20vget = return_code
+If return_code <> 0 then do
+  Say pgmname "VGET RC =" return_code
+  Say pgmname "CONSLIST/"conslist "COMLIST/"comlist "SYMLIST/"symlist,
+    "TERMMSGS/"termmsgs
+  Say pgmname "CACM042R/"cacm042r "CACT0008/"cact0008,
+    "AUACCESS/"auaccess "CNTL/"cntl "SENSITVE/"sensitve
+  Say pgmname "TEMP6/"temp6 "BTITLE/"btitle "ODSNAME/"odsname,
+    "RACFRPT/"racfrpt "CARM0005/"carm0005 "LISTGRP/"listgrp
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON" ,
+  then Trace ?r
+ 
+/*******************************************/
+/* SET MESSAGES                            */
+/*******************************************/
+tblusr = "#"
+syssymlist = symlist          /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist         /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist          /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs         /* CONTROL MSG/NOMSG         */
+return_code = 0
+zerrmsg = ""
+zerrsm = ""
+zerrlm = ""
+sortsw = "D"
+"(OMEMBER) = MEMBER"
+"(DSNAME) = DATASET"
+headlin2 = left(" ",130,"=")
+tst = listdsi("AUACCESS FILE")
+auaccessdsn = sysdsname
+ 
+ 
+/*******************************************/
+/* Expand GROUPIDs                         */
+/*******************************************/
+"CURSOR = 1 0"
+return_code = 0
+do until return_code > 0
+  lidrc = 0
+  lidline = 1
+  "FIND 'GROUPID(' NX"
+  If return_code > 0 then leave
+  "(CURLINE) = LINENUM .ZCSR"
+  "(DATA) = LINE" curline
+  parse var data . "GROUPID(" uzid ")" .
+  do until lidrc > 0
+    Address ISPEXEC "VPUT (UZID SORTSW LIDRC LIDLINE) ASIS"
+    Address ISPEXEC "EDIT DATAID("racfrpt") MACRO("carm0005")",
+      "MEMBER("listgrp")"
+    Address ISPEXEC "VGET (LIDLIST LIDRC LIDLINE) ASIS"
+    Call Process_groupid
+    lidline = lidline + 1
+    end
+  "EXCLUDE 'GROUPID("left(uzid,8)")' ALL"
+  end
+ 
+"RESET"
+ 
+rectype = 2
+pdiname = omember
+resname = ""
+Address ISPEXEC "VPUT (RECTYPE PDINAME RESNAME) ASIS"
+return_code = 0
+rec2ln = 0
+rec2a = ""
+do until rec2ln = 1
+  Address ISPEXEC "VIEW DATAID("cntl") MEMBER("cact0008")",
+    "MACRO("cacm042r")"
+  view_cact0008_rc = return_code
+  If view_cact0008_rc > 4 then do
+    Say pgmname "VIEW CNTL" cact0008 "RC =" view_cact0008_rc
+    return_code = return_code + 16
+    SIGNAL ERR_EXIT
+    end
+  Address ISPEXEC "VGET (REC2TBL REC2LN) ASIS"
+/*say pgmname "REC2LN:"rec2ln return_code*/
+  rec2a = rec2a""rec2tbl
+  end
+rec2tbl = rec2a
+Call Process_pdimbr
+ 
+ 
+/*******************************************/
+/* COPY REPORT                             */
+/*******************************************/
+COPY_REPORT:
+return_code = 0
+"RESET"
+"CURSOR = 1 0"
+headline = "                    "omember "-" btitle
+ac = headline
+Address ISPEXEC "LMPUT DATAID("sensitve") MODE(INVAR) DATALOC(AC)",
+  "DATALEN("length(ac)") MEMBER("omember")"
+ac = headlin2       /* ==== */
+Address ISPEXEC "LMPUT DATAID("sensitve") MODE(INVAR) DATALOC(AC)",
+  "DATALEN("length(ac)") MEMBER("omember")"
+ac = " "
+Address ISPEXEC "LMPUT DATAID("sensitve") MODE(INVAR) DATALOC(AC)",
+  "DATALEN("length(ac)") MEMBER("omember")"
+ud1 = ""
+Do CURLINE = 1 to ender
+  "(X) = XSTATUS" curline
+  If x = "NX" then do
+    "(AC) = LINE" curline
+    If left(ac,10) = " " then do
+      ac = substr(ac,52)
+      If ud1 <> "X" then do
+        ud1 = "X"
+        msg = "Resource is not defined."
+        Address ISPEXEC "LMPUT DATAID("sensitve") MODE(INVAR)",
+          "DATALOC(MSG) DATALEN("length(msg)") MEMBER("omember")"
+        end
+      end
+    Else,
+      If ud1 = "X" then do
+        ud1 = ""
+        msg = " "
+        Address ISPEXEC "LMPUT DATAID("sensitve") MODE(INVAR)",
+          "DATALOC(MSG) DATALEN("length(msg)") MEMBER("omember")"
+        end
+    Address ISPEXEC "LMPUT DATAID("sensitve") MODE(INVAR)",
+      "DATALOC(AC) DATALEN("length(ac)") MEMBER("omember")"
+    If pos("GROUPID(",ac) > 0 & pos("USER=",ac) > 0 then do
+      grp = substr(ac,5,25)
+      usr = substr(ac,38,16)
+      "EXCLUDE P'"grp"========"usr"' 5 ALL"
+      end
+    end
+  End
+return_code = 0
+Address ISPEXEC "LMMADD DATAID("sensitve") MEMBER("omember")"
+If return_code = 4 then do
+  return_code = 0
+  Address ISPEXEC "LMMREP DATAID("sensitve") MEMBER("omember")"
+  If return_code <> 0 then do
+    Say pgmname "LMMREP_SENSITVE_RC =" return_code omember zerrsm
+    end
+  end
+Else do
+  If return_code <> 0 then,
+    Say pgmname "LMMADD_SENSITVE_RC =" return_code omember zerrsm
+  end
+ 
+ 
+END_EDIT:
+return_code = 0
+ 
+ 
+ERR_EXIT:
+If maxcc >= 16 | return_code > 0 then do
+  Address ISPEXEC "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then,
+    zispfrc = maxcc
+  Else,
+    zispfrc = return_code
+  Address ISPEXEC "VPUT (ZISPFRC) SHARED"
+  Say pgmname "ZISPFRC =" zispfrc
+  end
+rm420rc = return_code
+Address ISPEXEC "VPUT (RM20VGET RM420RC) ASIS"
+"CANCEL"
+Exit 0
+ 
+ 
+Process_groupid:
+return_code = 0
+"FIND 'GROUPID("left(uzid,8)")' LAST"
+If return_code > 0 then return /* Return 0 */
+do until return_code <> 0
+  "(DATA) = LINE .ZCSR"
+  if pos("USER=",data) > 0 then,
+    "FIND '"left(data,38)"    ' 1 PREV"
+  data1 = left(data,38)
+  "(CURLN) = LINENUM .ZCSR"
+  "FIND 'UACC(' PREV 54"
+  "(DATA) = LINE .ZCSR"
+  parse var data profile 45 .
+  do xx = 1 to length(lidlist) by 28
+    parse var lidlist . =(xx) user +8 name +20 .
+    ac = left(data1,38) "USER="user "NAME="name profile
+    "LINE_AFTER" curln "= (AC)"
+    end
+  "CURSOR =" curln 0
+  "FIND 'GROUPID("left(uzid,8)")' PREV NX"
+  end
+"EXCLUDE ') USER=' 38 ALL"
+"CURSOR =" curline 50
+return_code = 0
+return /* Return 1 */
+ 
+ 
+Process_pdimbr:
+auuacc_lvl = 0
+auuacc = "NONE"
+aulog_lvl = 0
+aulog = "NONE"
+return_code = 0
+ 
+/*******************************************/
+/* PUT HEADINGS OUT                        */
+/*******************************************/
+headline = "                    "omember "-" btitle
+ac = headline
+Address ISPEXEC "LMPUT DATAID("temp6") MODE(INVAR) DATALOC(AC)",
+  "DATALEN("length(ac)") MEMBER("omember")"
+ac = headlin2       /* ==== */
+Address ISPEXEC "LMPUT DATAID("temp6") MODE(INVAR) DATALOC(AC)",
+  "DATALEN("length(ac)") MEMBER("omember")"
+ac = " "
+Address ISPEXEC "LMPUT DATAID("temp6") MODE(INVAR) DATALOC(AC)",
+  "DATALEN("length(ac)") MEMBER("omember")"
+headline = "SRR START      AULOG =" left(aulog,10) "AUUACC =" auuacc
+ac = headline
+Address ISPEXEC "LMPUT DATAID("temp6") MODE(INVAR) DATALOC(AC)",
+  "DATALEN("length(ac)") MEMBER("omember")"
+ 
+/*****************/
+/* CHECK ERRORS  */
+/*****************/
+"CURSOR = 1 0"
+std_error = "N"
+std_notap = "N"
+ 
+ 
+NEXT_ERROR:
+return_code = 0
+do until return_code > 0
+  return_code = 0
+  "FIND '"left(" ",50)"' 1"
+  If return_code <> 0 then leave
+  "(DATA) = LINE .ZCSR"
+  parse var data . 54 resource .
+  If pos("X"resource" ",rec2tbl" ") = 0 then do
+    ac = left("SRR YES0",54)resource
+    Address ISPEXEC "LMPUT DATAID("temp6") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)") MEMBER("omember")"
+    end
+  If pos(data,"YES") = 5 then std_error = "Y"
+  If pos(data,"N/A") = 5 then std_notap = "Y"
+  end
+ 
+ 
+END_ERROR:
+return_code = 0
+If std_error = "Y" then do
+  ac = "SRR STD0 DISA recommendation RDEFINE -"
+  ac = ac" System resources will be protected."
+  Address ISPEXEC "LMPUT DATAID("temp6") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER("omember")"
+  end
+ 
+ 
+/*******************************************/
+/* Authorized user checks                  */
+/*******************************************/
+Do XX = 1 to length(strip(rec2tbl,"T"))
+  y = pos(" ",rec2tbl,xx+9)
+  test_text = substr(rec2tbl,xx+8,1)
+  If test_text = " " then do
+    xx = y + 1
+    iterate
+    end
+  parse var rec2tbl . =(xx) . +9 resource .
+  "CURSOR = 1 0"
+  return_code = 0
+  "EXCLUDE '"resource" ' 3"
+  If return_code > 0 then do
+    xx = y + 1
+    iterate
+    end
+  "EXCLUDE 'UACC(' 54 PREV"
+  "(DATA) = LINE .ZCSR"
+  profile = left(data,44)
+  If pos(resource,profile) > 0 then do
+    ac = left("SRR YES0" profile,54)resource
+    Address ISPEXEC "LMPUT DATAID("temp6") MODE(INVAR)",
+      "DATALOC(AC) DATALEN("length(ac)") MEMBER("omember")"
+    end
+  end
+ 
+"DELETE ALL X"
+"(ENDER) = LINENUM .ZLAST"
+ 
+Do XX = 1 to length(strip(rec2tbl,"T"))
+  y = pos(" ",rec2tbl,xx+9)
+  parse var rec2tbl . =(xx) . +8 test_text +1 resource .
+  parse var rec2tbl . =(xx) resa =(y) .
+  xx = y + 1
+  If test_text = " " then call Process_info
+  end
+ 
+/********************************/
+/* Check for generic RACF rules */
+/********************************/
+"CURSOR = 1 0"
+std_read = "N"
+ 
+return_code = 0
+If std_read = "Y" then do
+  ac2 = "ALTER"
+  If auuacc_lvl < 5 then,
+    ac2 = "UPDATE and/or" ac2
+  If auuacc_lvl < 3 then,
+    ac2 = "READ," ac2
+  If auuacc_lvl = 0 then,
+    ac2 = "EXECUTE," ac2
+  ac = "SRR STD29DISA recommendation - GENERIC USERID's should",
+    "not be used for ACCESS of" ac2
+  Address ISPEXEC "LMPUT DATAID("temp6") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER("omember")"
+  end
+ 
+/*******************************************/
+/* Check Auditing                          */
+/*******************************************/
+"CURSOR = 1 0"
+std_audit = "N"
+Do X = 1 to length(rec2tbl)
+  parse var rec2tbl . =(x) aulog +7 . +2 resource .
+  Select
+    When aulog = "        " then aulog_lvl = 0
+    When aulog = "NONE    " then aulog_lvl = 0
+    When aulog = "EXECUTE " then do
+      aulog_lvl = 3
+      aulog = "READ    "
+      end
+    When aulog = "READ    " then aulog_lvl = 3
+    When aulog = "UPDATE  " then aulog_lvl = 5
+    When aulog = "CONTROL " then aulog_lvl = 6
+    When aulog = "ALTER   " then aulog_lvl = 9
+    Otherwise do
+      Say pgmname "Unknown access" access "not found in list 540",
+        omember
+      aulog_lvl = 9
+      end
+    end
+  y = pos(" ",rec2tbl,x+9)
+  x = y + 1
+  std_audit = "N"
+  If aulog_lvl = 0 then iterate
+  return_code = 0
+  "FIND '"resource "' 3 FIRST"
+  If return_code <> 0 then iterate
+  return_code = 0
+  "FIND 'UACC' 54 PREV"
+  If return_code <> 0 then iterate
+  "(DATA) = LINE .ZCSR"
+  profile = left(data,44)
+  audit = "  "
+  pauds = "ER"
+  paudf = "ER"
+  If substr(data,76,5) = "AUDIT" then,
+    audit = substr(data,76,42)
+  si = pos("SUCCESS",audit)
+  fi = pos("FAILURES",audit)
+  ai = pos("ALL",audit)
+  sx = "NONE"
+  fx = "NONE"
+  If si > 0 then,
+    parse var audit . "SUCCESS(" sx ")" .
+  If fi > 0 then,
+    parse var audit . "FAILURES(" fx ")" .
+  If ai > 0 then do
+    parse var audit . "ALL(" sx ")" .
+    fx = sx
+    end
+  Select
+    When fx = "NONE    " then lvl = 0
+    When fx = "EXECUTE " then lvl = 1
+    When fx = "READ    " then lvl = 3
+    When fx = "UPDATE  " then lvl = 5
+    When fx = "CONTROL " then lvl = 6
+    When fx = "ALTER   " then lvl = 9
+    Otherwise do
+      Say pgmname "Unknown access" fx "not found in list 615" omember
+      lvl = 0
+      end
+    end
+  If lvl <= aulog_lvl &  lvl <> 0 then,
+    paudf = "OK"
+  Select
+    When sx = "NONE    " then lvl = 0
+    When sx = "EXECUTE " then lvl = 1
+    When sx = "READ    " then lvl = 3
+    When sx = "UPDATE  " then lvl = 5
+    When sx = "CONTROL " then lvl = 6
+    When sx = "ALTER   " then lvl = 9
+    Otherwise do
+      Say pgmname "Unknown access" sx "not found in list 632" omember
+      lvl = 0
+      end
+    end
+  If lvl <= aulog_lvl &  lvl <> 0 then,
+    pauds = "OK"
+  If pauds <> "OK" | paudf <> "OK" then do
+    ac = "SRR YES3" profile left(resource,44) audit
+    Address ISPEXEC "LMPUT DATAID("temp6") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)") MEMBER("omember")"
+    std_audit = "Y"
+    end
+  end
+ 
+ 
+END_UACC3:
+return_code = 0
+If std_audit = "Y" then do
+  aulogt = aulog
+  ac = "SRR STD39DISA recommendation - AUDIT("
+  ac = ac"SUCCESS("aulogt")FAILURES(READ))"
+  Address ISPEXEC "LMPUT DATAID("temp6") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER("omember")"
+  end
+ 
+/**************************/
+/* Check RACF Warn option */
+/**************************/
+"CURSOR = 1 0"
+std_warn = "N"
+ 
+ 
+NEXT_UACC4:
+do until return_code > 0
+  return_code = 0
+  "FIND 'UACC'          54"
+  If return_code <> 0 then leave
+  "(DATA) = LINE .ZCSR"
+  parse var data profile 44 . warn .
+  wi = pos("(N)",warn)
+  If wi = 0 then do
+    ac = "SRR YES4" profile" "left(resource,44) warn
+    Address ISPEXEC "LMPUT DATAID("temp6") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)") MEMBER("omember")"
+    std_warn = "Y"
+    end
+  end
+ 
+ 
+END_UACC4:
+return_code = 0
+If std_warn  = "Y" then do
+  ac = "SRR STD49DISA recommendation - WARN(N)"
+  Address ISPEXEC "LMPUT DATAID("temp6") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER("omember")"
+  end
+ 
+/***********************************/
+/* Check RACF UACC univeral access */
+/***********************************/
+"CURSOR = 1 0"
+std_uacc = "N"
+ 
+ 
+NEXT_UACC5:
+do until return_code > 0
+  return_code = 0
+  "FIND 'UACC'          54"
+  If return_code <> 0 then leave
+  "(DATA) = LINE .ZCSR"
+  parse var data profile 44 . 54 uacc .
+  parse var data . "UACC(" uacc_txt ")" .
+  If pos("NONE",uacc) > 0 then iterate
+  Select
+    When uacc_txt = "NONE    " then lvl = 0
+    When uacc_txt = "EXECUTE " then lvl = 1
+    When uacc_txt = "READ    " then lvl = 3
+    When uacc_txt = "UPDATE  " then lvl = 5
+    When uacc_txt = "CONTROL " then lvl = 6
+    When uacc_txt = "ALTER   " then lvl = 9
+    Otherwise do
+      Say pgmname "Unknown access" uacc_txt "not found in list 747" omember
+      lvl = 9
+      end
+    end
+  ac = "SRR YES5" profile" "left(resource,44) uacc
+  Address ISPEXEC "LMPUT DATAID("temp6") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER("omember")"
+  std_uacc = "Y"
+  end
+ 
+ 
+END_UACC5:
+return_code = 0
+If std_uacc  = "Y" then do
+  ac = "SRR STD59DISA recommendation - UACC(NONE)"
+  Address ISPEXEC "LMPUT DATAID("temp6") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER("omember")"
+  end
+headline = "SRR END"
+ac = headline
+Address ISPEXEC "LMPUT DATAID("temp6") MODE(INVAR) DATALOC(AC)",
+  "DATALEN(" length(ac)") MEMBER("omember")"
+ac = headlin2       /* ==== */
+Address ISPEXEC "LMPUT DATAID("temp6") MODE(INVAR) DATALOC(AC)",
+  "DATALEN("length(ac)") MEMBER("omember")"
+ac = " "
+Address ISPEXEC "LMPUT DATAID("temp6") MODE(INVAR) DATALOC(AC)",
+  "DATALEN("length(ac)") MEMBER("omember")"
+ 
+/*************************************/
+/* Copy Update only entries for PDIs */
+/*************************************/
+cnt = 0
+ud1 = ""
+Do curline = 1 to ender
+  "(AC) = LINE" curline
+  If left(ac,10) = " " then do
+    ac = substr(ac,52)
+    If ud1 <> "X" then do
+      ud1 = "X"
+      msg = "Resource is not defined."
+      Address ISPEXEC "LMPUT DATAID("temp6") MODE(INVAR)",
+        "DATALOC(MSG) DATALEN("length(msg)") MEMBER("omember")"
+      end
+    end
+  Else
+    If ud1 = "X" then do
+      ud1 = ""
+      msg = " "
+      Address ISPEXEC "LMPUT DATAID("temp6") MODE(INVAR)",
+        "DATALOC(MSG) DATALEN("length(msg)") MEMBER("omember")"
+      end
+  If left(ac,7) = "SRR N/A" then iterate
+  If substr(ac,23,6) = "ACCESS" then do
+    access = substr(ac,30,8)
+    Select
+      When access = "NONE    " then lvl = 0
+      When access = "EXECUTE " then lvl = 1
+      When access = "READ    " then lvl = 3
+      When access = "UPDATE  " then lvl = 5
+      When access = "CONTROL " then lvl = 6
+      When access = "ALTER   " then lvl = 9
+      Otherwise do
+        Say pgmname "Unknown access" access "not found in list 828" omember
+        lvl = 0
+        end
+      end
+  If lvl <= auuacc_lvl |,
+    substr(ac,30,2) = " " |,
+    (substr(ac,05,5) = "GROUP" &,
+    substr(ac,40,5) = "USER=") then iterate
+  end
+  Address ISPEXEC "LMPUT DATAID("temp6") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER("omember")"
+  cnt = cnt + 1
+  If cnt > 25 then leave
+  end
+ 
+ 
+CLOSE_SRR:
+return_code = 0
+ac = " "
+Address ISPEXEC "LMPUT DATAID("temp6") MODE(INVAR) DATALOC(AC)",
+  "DATALEN("length(ac)") MEMBER("omember")"
+ac = "For complete details see" odsname"("omember")."
+Address ISPEXEC "LMPUT DATAID("temp6") MODE(INVAR) DATALOC(AC)",
+  "DATALEN("length(ac)") MEMBER("omember")"
+return_code = 0
+Address ISPEXEC "LMMADD DATAID("temp6") MEMBER("omember")"
+If return_code = 4 then do
+  return_code = 0
+  Address ISPEXEC "LMMREP DATAID("temp6") MEMBER("omember")"
+  If return_code <> 0 then do
+    Say pgmname "LMMREP_TEMP6_RC =" return_code omember zerrsm
+    end
+  end
+Else do
+  If return_code <> 0 then,
+    Say pgmname "LMMADD_TEMP6_RC =" return_code omember zerrsm
+  end
+return_code = 0
+Return 0  /* Return 2 */
+ 
+ 
+Process_info:
+resline = 1
+dashline = 1
+rectype = 3
+resname = resource
+Address ISPEXEC "VPUT (RECTYPE PDINAME RESNAME) ASIS"
+Address ISPEXEC "VPUT (RESA) ASIS" /* Added default access and resname */
+return_code = 0
+Address ISPEXEC "VIEW DATAID("cntl") MEMBER("cact0008")",
+  "MACRO("cacm042r")"
+view_cact0008_rc = return_code
+If view_cact0008_rc > 4 then do
+  Say pgmname "VIEW CNTL" cact0008 "RC =" view_cact0008_rc
+  return /* Return 3 */
+  end
+Address ISPEXEC "VGET (REC3TBL AUACCCNT) ASIS"
+If auacccnt > 50 then do
+  return_code = 0
+  Address ISPEXEC "LMCLOSE DATAID("auaccess")"
+  lmclose_pdidd_rc = return_code
+  If return_code <> 0 then do
+    Say pgmname "LMCLOSE_AUACCESS_RC" return_code zerrsm
+    end
+  return_code = 0
+  Address ISPEXEC "LMCOMP DATAID("auaccess")"
+  lmcomp_auaccess_rc = return_code
+  If return_code <> 0 then do
+    Say pgmname "LMCOMP_AUACCESS_RC" return_code zerrsm
+    end
+  return_code = 0
+  Address ISPEXEC "LMOPEN DATAID("auaccess") OPTION(INPUT)"
+  lmopen_auaccess_rc = return_code
+  If return_code <> 0 then do
+    Say pgmname "LMOPEN_AUACCESS_RC" return_code zerrsm
+    end
+  auacccnt = 0
+  Address ISPEXEC "VPUT (AUACCCNT) ASIS"
+  end
+Address ISPEXEC "VERASE (REC3TBL) ASIS"
+if sysdsn("'"auaccessdsn"("pdiname")'") = "OK" then do
+  Address TSO "ALLOC FI(DD1) DA('"auaccessdsn"("pdiname")') SHR REUSE"
+  Address TSO "execio * diskr DD1 (finis stem AUREC."
+  Address TSO "FREE FI(DD1)"
+  end
+else do
+  say pgmname auaccessdsn"("pdiname") :",
+    sysdsn("'"auaccessdsn"("pdiname")'")
+  end
+ 
+ 
+REPEAT_RESOURCE:
+ZEDSMSG = "Start"
+ZEDLMSG = "Starting Repeat Resources process."
+Address ISPEXEC "LOG MSG(ISRZ000)"
+return_code = 0
+do until return_code > 0
+  "RESET"
+  "CURSOR =" resline 40
+  return_code = 0
+  "FIND '"resource "' 3"
+  If return_code > 0 then iterate
+  "(RESLINE) = CURSOR"
+  "FIND '- - - - - ' 1 PREV"
+  If return_code = 0 then do
+    "(DASHLINE) = CURSOR"
+    "CURSOR =" resline 3
+    end
+  "FIND 'UACC(' 54 PREV"
+  "(UACCLINE) = CURSOR"
+  If dashline > uaccline then,
+    "(DATA) = LINE" dashline + 1
+  Else,
+    "(DATA) = LINE .ZCSR"
+  res_profile = left(data,44)
+  return_code = 0
+  "EXCLUDE ALL ' '"
+  "FIND ALL '"res_profile"' 80"
+  If return_code > 0 then iterate
+  auuacc_lvl = 0
+  x = pos("*       ",rec3tbl)
+  If x > 0 then,
+    parse var rec3tbl . =(x) . +8 auuacc_lvl +1 .
+  std_user = "N"
+  ds_rule = " "
+ 
+  Call Auth_user_check
+ 
+ 
+END_USER:
+  return_code = 0
+  If std_user = "Y" then do
+    ac2 = "ALTER"
+    If auuacc_lvl < 6 then,
+      ac2 = "CONTROL and/or" ac2
+    If auuacc_lvl < 5 then,
+      ac2 = "UPDATE," ac2
+    If auuacc_lvl < 3 then,
+      ac2 = "READ," ac2
+    If auuacc_lvl = 0 then,
+      ac2 = "EXECUTE," ac2
+    ac = "SRR STD19DISA recommendation USERID -"
+    ac = ac" Users and Started tasks should be in the"
+    ac = ac" authorized user list for ACCESS of" ac2
+    Address ISPEXEC "LMPUT DATAID("temp6") MODE(INVAR)",
+      "DATALOC(AC) DATALEN("length(ac)") MEMBER("omember")"
+    end
+  end
+ZEDSMSG = "Finish"
+ZEDLMSG = "Finished Repeat Resources process."
+Address ISPEXEC "LOG MSG(ISRZ000)"
+Return /* Return 4 */
+ 
+ 
+/*******************************************/
+/* Authorized user checks                  */
+/*******************************************/
+Auth_user_check:
+Address ISPEXEC "LMMFIND DATAID("auaccess") MEMBER("pdiname")"
+If return_code > 0 then do
+  return_code = 0
+  "CURSOR = 1 0"
+  scmd = "'USER=' 40"
+  Call USERID_NOTAUTH
+  Return 0
+  end
+std_user = "N"
+ 
+ 
+READ_AUACCESS:
+do aua = 1 to aurec.0
+  aurec = aurec.aua
+  return_code = 0
+  If left(aurec,8) = "*" then,
+    "FIND ALL 'GENERIC("left(aurec,8)"' 5 NX"
+  Else,
+    "FIND ALL 'USER="left(aurec,8)"' 40 NX"
+  If return_code <> 0 then iterate
+  aulid = left(aurec,8)
+  aulvl = substr(aurec,9,1)
+  "CURSOR = 1 0"
+  return_code = 0
+ 
+ 
+NEXT_USER:
+  do until return_code <> 0
+    return_code = 0
+    If left(aurec,8) = "*" then,
+      "FIND 'GENERIC("aulid"' 5 NX"
+    Else,
+      "FIND 'USER="aulid"' 40 NX"
+    If return_code <> 0 then leave
+    "(DATA) = LINE .ZCSR"
+    parse var data . 30 access 38 . 80 profile .
+    Select
+      When access = "NONE    " then alvl = 0
+      When access = "EXECUTE " then alvl = 1
+      When access = "READ    " then alvl = 3
+      When access = "UPDATE  " then alvl = 5
+      When access = "CONTROL " then alvl = 6
+      When access = "ALTER   " then alvl = 9
+      Otherwise do
+        Say pgmname "Unknown access" access "not found in list 383" omember
+        alvl = 9
+        end
+      end
+ 
+/*******************************************/
+/* CHECK USER IN AUTH USER LIST            */
+/*******************************************/
+    If alvl <= auuacc_lvl | alvl <= aulvl then do
+      "XSTATUS .ZCSR = X"
+      end
+    end
+  end
+ 
+"EXCLUDE 'USER=Empty*' ALL 40"
+return_code = 0
+"FIND '"res_profile"' 80 ALL NX"
+"(A) = FIND_COUNTS"
+"CURSOR = 1 0"
+scmd = "'USER=' 40"
+Call USERID_NOTAUTH
+ 
+Return /* Return 5 */
+ 
+ 
+USERID_NOTAUTH:
+do until return_code <> 0
+  return_code = 0
+  "FIND" scmd "NX"
+  If return_code <> 0 then do
+    If scmd = "'USER=' 40" then do
+      "CURSOR = 1 0"
+      scmd = "'GENERIC(' 5"
+      return_code = 0
+      end
+    iterate
+    end
+  "(DATA) = LINE .ZCSR"
+  parse var data . 30 access 38 . 80 profile +45 .
+  parse var data . 5 info 80 .
+  Select
+    When access = "NONE    " then alvl = 0
+    When access = "EXECUTE " then alvl = 1
+    When access = "READ    " then alvl = 3
+    When access = "UPDATE  " then alvl = 5
+    When access = "CONTROL " then alvl = 6
+    When access = "ALTER   " then alvl = 9
+    Otherwise do
+      Say pgmname "Unknown access" access "not found in list 422" omember
+      alvl = 9
+      end
+    end
+  If alvl <= auuacc_lvl then iterate
+/* Following information added to remove users in group if permitted directly*/
+  If pos("GROUPID(",data) = 5 then do
+    "(CURLN) = LINENUM .ZCSR"
+    parse var data . 40 test
+    parse var test "USER=" user .
+    return_code = 0
+    "SEEK '"test"' 40 ALL"
+    If return_code = 0 then do
+      "(DATA1) = LINE .ZCSR"
+      "CURSOR =" curln 60
+      If pos("USERID("left(user,8)")",data1) = 6 then,
+        iterate
+      end
+    "CURSOR =" curln 60
+    return_code = 0
+    end
+  ac = "SRR YES1" left(profile,44) left(resource,44) info
+  Address ISPEXEC "LMPUT DATAID("temp6") MODE(INVAR) DATALOC(AC)",
+     "DATALEN("length(ac)") MEMBER("omember")"
+  std_user = "Y"
+  end
+Return /* Return 6 */
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC >= 16 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+  say SOURCELINE(sigl)
+  end
+if return_code > maxcc then,
+  maxcc = return_code
+return /* Return 7 */
+ 
+ 

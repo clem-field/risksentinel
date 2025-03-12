@@ -1,0 +1,70 @@
+* THIS TABLE IS TO ASSOCIATE PDI KEYS WITH SCREEN ORDER NAMES
+*
+* 03/07/2005 JL Nelson Created from CACM000B in stream table.
+* 03/09/2005 JL Nelson Added TSS0505, ACP00135, AAMV0325
+* 04/28/2005 JL Nelson Added ZICSTCP?025, no pdi key yet.
+* 07/08/2005 JL Nelson Changed RACF0555 to RACF0330 per Charles.
+* 03/02/2007 CL Fenton Added additional vulnerabilities.
+* 05/29/2014 CL Fenton Chgs made to add Dialog information for CSFTP,
+*            CSTCP, and CSTNT, STS-000653.
+* 05/04/2015 CL Fenton Removed DBMS and IDMS from automation, STS-007219
+*            and STS-007637.
+* 10/22/2015 CL Fenton Changed all references for VMS to DPMS.
+* 11/08/2016 CL Fenton Removed DFSMS entries, STS-015211.
+* 07/24/2020 CL Fenton Removed CICS, FEP, MQS, and WAS.
+*
+* An * (asterisk) at the beginning of a line will be ignored.
+*
+* The following information is to explain this file:
+*
+* POS 01-08 - Product Name
+* POS 10    - OS and ACP identifier, values as follows:
+*               0 - OS/390 & ZOS
+*               1 - ACF2
+*               2 - RACF
+*               3 - TSS
+* POS 12-19 - PDI MEMBER
+*
+* NOTE:  DO NOT ADD PDI'S FOR PRODUCTS THAT HAVE THIER OWN TARGETS IN DPMS.
+*
+*
+*
+*PROD    I PDI
+*NAME    D MEMBER
+*....... . ........
+CSFTP    1 IFTP0010
+CSFTP    2 IFTP0010
+CSFTP    3 IFTP0010
+CSFTP    0 IFTP0020
+CSFTP    0 IFTP0030
+CSFTP    0 IFTP0040
+CSFTP    0 IFTP0050
+CSFTP    0 IFTP0060
+CSFTP    0 IFTP0070
+CSFTP    0 IFTP0080
+CSFTP    1 IFTP0090
+CSFTP    2 IFTP0090
+CSFTP    3 IFTP0090
+CSFTP    0 IFTP0100
+CSFTP    0 IFTP0110
+CSTCP    0 ITCP0010
+CSTCP    0 ITCP0020
+CSTCP    0 ITCP0025
+CSTCP    0 ITCP0030
+CSTCP    0 ITCP0040
+CSTCP    1 ITCP0050
+CSTCP    2 ITCP0050
+CSTCP    3 ITCP0050
+CSTCP    2 ITCPR052
+CSTCP    1 ITCP0060
+CSTCP    2 ITCP0060
+CSTCP    3 ITCP0060
+CSTCP    0 ITCP0070
+CSTNT    0 ITNT0010
+CSTNT    0 ITNT0020
+CSTNT    0 ITNT0030
+CSTNT    1 ITNT0040
+CSTNT    2 ITNT0040
+CSTNT    3 ITNT0040
+CSTNT    0 ITNT0050
+CSTNT    0 ITNT0060

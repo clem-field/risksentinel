@@ -1,0 +1,232 @@
+/* REXX */
+/* CLS2REXXed by UMLA01S on 3 Nov 2023 at 15:47:13  */
+/*trace ?r*/
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+Address ISREDIT
+ 
+"MACRO"               /* CARM0061 EDIT MACRO */
+/*********************************************************************/
+/* 04/13/2018 CL.FENTON Corrected issue with a single ampersand.     */
+/*            when setting the UZID field, STS-019759.               */
+/* 11/03/2023 CL Fenton Converted script from CLIST to REXX.         */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+pgmname = "CARM0061 11/03/23"
+sysprompt = 'OFF'
+syssymlist = 'OFF'
+sysconlist = 'OFF'
+syslist = 'OFF'
+sysmsg = 'ON'
+return_code = 0   /* SET RETURN CODE TO 0 */
+maxcc = 0
+zerrsm = " "
+ 
+/*******************************************/
+/* VARIABLES ARE PASSED TO THIS MACRO      */
+/* CONSLIST                                */
+/* COMLIST                                 */
+/* SYMLIST                                 */
+/* TERMMSGS                                */
+/*******************************************/
+Address ISPEXEC "VGET (SENSITVE APREFIX ALPHA XTITLE CONSLIST",
+  "COMLIST SYMLIST TERMMSGS) ASIS"
+cbvgerr = return_code
+ 
+If return_code <> 0 then do
+  Say pgmname "VGET RC =" return_code zerrsm
+  Say pgmname "CONSLIST/"conslist "COMLIST/"comlist,
+    "SYMLIST/"symlist "TERMMSGS/"termmsgs
+  Say pgmname "SENSITIVE/"sensitive "APREFIX/"aprefix,
+    "ALPHA/"alpha "XTITLE/"xtitle
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+If CONSLIST = "ON" | COMLIST = "ON" | SYMLIST = "ON",
+  then Trace ?r
+ 
+/*******************************************/
+/* TURN ON MESSAGES                        */
+/*******************************************/
+syssymlist = symlist           /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist          /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist              /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs              /* CONTROL MSG/NOMSG         */
+ 
+Address ISPEXEC "CONTROL NONDISPL ENTER"
+Address ISPEXEC "CONTROL ERRORS RETURN"
+"(MEMBER) = MEMBER"
+loop_cnt = 0
+ 
+/*******************************************/
+/* PUT HEADINGS OUT                        */
+/*******************************************/
+headline = "              "member
+ac = headline
+Address ISPEXEC "LMPUT DATAID("sensitve") MODE(INVAR) DATALOC(AC)",
+  "DATALEN("length(ac)") MEMBER("member")"
+headline = " ======================================="
+headline = headline"==============================="
+headline = headline"==============================="
+headline = headline"==============================="
+headline = left(' ',133,'=')
+ac = headline
+Address ISPEXEC "LMPUT DATAID("sensitve") MODE(INVAR) DATALOC(AC)",
+  "DATALEN("length(ac)") MEMBER("member")"
+ac = " "
+Address ISPEXEC "LMPUT DATAID("sensitve") MODE(INVAR) DATALOC(AC)",
+  "DATALEN("length(ac)") MEMBER("member")"
+ 
+"(ENDER) = LINENUM .ZLAST"
+ 
+/*******************************************/
+/* MAIN LOOP                               */
+/*******************************************/
+ 
+ 
+LOOP:
+do curline = 1 to ender
+  "(DATA) = LINE" curline
+ 
+/*******************************************/
+/* CHECK 1 POSITION                        */
+/*******************************************/
+  data_indicate = substr(data,1,1)
+ 
+  If data_indicate = "L" then do
+    ac = " "
+    Address ISPEXEC "LMPUT DATAID("sensitve") MODE(INVAR)",
+      "DATALOC(AC) DATALEN("length(ac)") MEMBER("member")"
+    loop_cnt = 0
+    /*SIGNAL  LINED*/
+    end
+ 
+  If data_indicate = "D" then,
+    call STRIPD
+ 
+  If data_indicate = " " then do
+    uzid = strip(substr(data,40),"T")
+    ac = "               "uzid
+    Address ISPEXEC "LMPUT DATAID("sensitve") MODE(INVAR) DATALOC(AC)",
+      "DATALEN("length(ac)") MEMBER("member")"
+/*  curline = curline + 1
+    SIGNAL  STRIPU*/
+    end
+  /*SIGNAL  LOOP*/
+  end
+ 
+return_code = 0
+Address ISPEXEC "LMMADD DATAID("sensitve") MEMBER("member")"
+If return_code = 4 then do
+  return_code = 0
+  Address ISPEXEC "LMMREP DATAID("sensitve") MEMBER("member")"
+  If return_code <> 0 then do
+    Say pgmname "LMMREP_SENSITVE_RC =" return_code member zerrsm
+    end
+  end
+Else do
+  If return_code <> 0 then,
+    Say pgmname "LMMADD_SENSITVE_RC =" return_code member zerrsm
+  end
+ 
+ 
+ERR_EXIT:
+If maxcc >= 16 | return_code > 0 then do
+  Address ISPEXEC "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then,
+    zispfrc = maxcc
+  Else,
+    zispfrc = return_code
+  Address ISPEXEC "VPUT (ZISPFRC) SHARED"
+  Say pgmname "ZISPFRC =" zispfrc
+  end
+Address ISPEXEC "VPUT (CBVGERR) ASIS"
+/*******************************************/
+/* SAVE OUTPUT                             */
+/*******************************************/
+"END"
+Exit (0)
+ 
+/*******************************************/
+/* STRIP DATA                              */
+/*******************************************/
+ 
+ 
+STRIPD:
+loop_cnt = loop_cnt + 1
+dsname = substr(data,11,51)
+uzid = substr(data,62,9)
+group = substr(data,81,1)
+acc1 = substr(data,71,9)
+warn1 = substr(data,84,1)
+uacc1 = substr(data,87,8)
+audit1 = substr(data,96)
+If loop_cnt = 1 then do
+  ac = substr(dsname,1,67)
+  ac = "     "ac" UACC("uacc1") WARN("warn1")" audit1
+  Address ISPEXEC "LMPUT DATAID("sensitve") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER("member")"
+  end
+ 
+If group = "G" then,
+  uzid1 = "GROUPID("uzid")"
+Else
+  If group = "U" then,
+    uzid1 = " USERID("uzid")"
+  Else
+      uzid1 = "  UNDEF("uzid")"
+ac = "          "uzid1" ACCESS("acc1")"
+If uzid <> " " then,
+  Address ISPEXEC "LMPUT DATAID("sensitve") MODE(INVAR) DATALOC(AC)",
+    "DATALEN("length(ac)") MEMBER("member")"
+ 
+/*curline = curline + 1
+  SIGNAL  LOOP*/
+Return
+ 
+ 
+STRIPU:
+uzid = strip(substr(data,40),"T")
+ac = "               "uzid
+Address ISPEXEC "LMPUT DATAID("sensitve") MODE(INVAR) DATALOC(AC)",
+  "DATALEN("length(ac)") MEMBER("member")"
+/*curline = curline + 1
+  SIGNAL  LOOP*/
+Return
+ 
+ 
+LINED:
+line1 = substr(data,2)
+ac = " "
+Address ISPEXEC "LMPUT DATAID("sensitve") MODE(INVAR) DATALOC(AC)",
+  "DATALEN("length(ac)") MEMBER("member")"
+loop_cnt = 0
+/*curline = curline + 1
+  SIGNAL  LOOP*/
+Return
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname "REXX error" rc "in line" sigl":" strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC >= 16 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname "REXX error" rc "in line" sigl":" ERRORTEXT(rc)
+  say SOURCELINE(sigl)
+  end
+if return_code > maxcc then,
+  maxcc = return_code
+return

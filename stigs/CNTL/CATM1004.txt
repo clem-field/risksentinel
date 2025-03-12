@@ -1,0 +1,384 @@
+/* REXX */
+/* CLS2REXXed by UMLA01S on 24 Oct 2022 at 13:49:57  */
+/*trace r?*/
+Signal On NoValue
+Call On Error
+Signal On Failure
+Signal On Syntax
+Parse source opsys . exec_name .
+Address ISREDIT
+ 
+"MACRO"             /* CATM1004 EDIT MACRO */
+/*********************************************************************/
+/* 05/01/2009 CL Fenton corrected script for empty dataset.          */
+/* 10/25/2019 CL Fenton Added automation for ACP00310 and            */
+/*            generate finding details, STS-023407.                  */
+/* 08/19/2020 CL Fenton Chgs made to correct CC 900, STS-025132.     */
+/* 10/24/2022 CL.FENTON Converted script from CLIST to REXX.         */
+/* 10/24/2022 CL Fenton Changes made to add non-interactive user     */
+/*            group, NONINTER, for ACP00310, STS-028849.             */
+/*                                                                   */
+/*                                                                   */
+/*                                                                   */
+/*********************************************************************/
+ 
+/********************************************************************/
+/* This edit macro reads a formatted report created by CATC1002     */
+/* CLIST of selected ACIDS that have beed unsued for more that      */
+/* the value of variable CHKDATE.  Those records that have been     */
+/* identified as unused will be written to the output file.         */
+/********************************************************************/
+/******************************************/
+/* VARIABLES ARE PASSED TO THIS MACRO     */
+/* CONSLIST                               */
+/* COMLIST                                */
+/* SYMLIST                                */
+/* TERMMSGS                               */
+/* CHKDATE                                */
+/* PDIDD                                  */
+/******************************************/
+pgmname = "CATM1004 10/24/22"
+return_code = 0                   /* SET RETURN CODE TO 0  */
+maxcc  = 0
+pdimbr = "ACP00310"
+DATADDN  = "DIALOG"           /* Dialog DD name for review           */
+grpmbr = "NONINTER"
+lminit_dialog_rc  = "N/A"
+lmopen_dialog_rc  = "N/A"
+lmmfind_dialog_rc = "N/A"
+lmclose_dialog_rc = "N/A"
+lmfree_dialog_rc  = "N/A"
+Address ISPEXEC "CONTROL NONDISPL ENTER"
+Address ISPEXEC "CONTROL ERRORS RETURN"
+Address ISPEXEC "VGET (CONSLIST COMLIST SYMLIST TERMMSGS CHKDATE",
+  "PDIDD) ASIS"
+ 
+If return_code <> 0 then do
+  Say pgmname "VGET RC =" return_code zerrsm
+  Say pgmname "CONSLIST/"conslist "COMLIST/"comlist "SYMLIST/"symlist ,
+    "TERMMSGS/"termmsgs
+  Say pgmname "CHKDATE/"chkdate "PDIDD/"pdidd
+  end
+tm4vge = return_code
+ 
+syssymlist = symlist          /* CONTROL SYMLIST/NOSYMLIST */
+sysconlist = conslist         /* CONTROL CONLIST/NOCONLIST */
+syslist = comlist          /* CONTROL LIST/NOLIST       */
+sysmsg = termmsgs         /* CONTROL MSG/NOMSG         */
+sysasis = "ON"                /* CONTROL ASIS - caps off   */
+ 
+tst = listdsi(dataddn "FILE")
+datadsn = sysdsname
+ 
+Address ISPEXEC "LMINIT DATAID(DATAID) DDNAME("dataddn")"
+lminit_dialog_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMINIT_DIALOG_RC =" return_code zerrsm
+  Say pgmname zerrlm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+return_code = 0
+Address ISPEXEC "LMOPEN DATAID("dataid")"
+lmopen_dialog_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMOPEN_DIALOG_RC =" return_code zerrsm
+  Say pgmname zerrlm
+  return_code = return_code + 16
+  SIGNAL ERR_EXIT
+  end
+ 
+return_code = 0
+Address ISPEXEC "LMMFIND DATAID("dataid") MEMBER("grpmbr")"
+lmmfind_dialog_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "The following members are missing from the",
+    "Dialog data set" datadsn"."
+  Say pgmname "  "grpmbr"   - Member containing Non-interactive",
+    "users."
+  Say pgmname "    To correct the above enter the Dialog",
+    "process and select the following options:"
+  Say pgmname "      Option C - Review reports for Findings,",
+    "User access & Dataset rules."
+  Say pgmname "      Option E - Verify and update Authorized user",
+    "groups"
+  Say pgmname "        Edit the member, add Users IDs (if",
+    "needed), and Save the member."
+  end
+Else do
+  do while return_code = 0
+    return_code = 0
+    Address ISPEXEC "LMGET DATAID("dataid") MODE(INVAR)",
+      "DATALOC(TRECORD) MAXLEN(80) DATALEN(LRECL)"
+    If return_code = 8 then,
+      leave
+    "EXCLUDE ALL '"left(trecord,8)"' 2"
+    end
+  end
+ 
+return_code = 0
+Address ISPEXEC "LMCLOSE DATAID("dataid")"
+lmclose_dialog_rc = return_code
+If return_code <> 0 then do
+  Say pgmname "LMCLOSE_DIALOG_RC =" return_code zerrsm
+  Say pgmname zerrlm
+  end
+ 
+return_code = 0
+Address ISPEXEC "LMFREE DATAID("dataid")"
+lmfree_dialog_rc = return_code
+ 
+return_code = 0
+ 
+"DELETE ALL X"
+ 
+/******************************************************************/
+/*  THE FOLLOWING IS TO SETUP PROCESS TO GENERATE THE REPORT      */
+/******************************************************************/
+ 
+return_code = 0
+"FIND '0' 1 ALL"
+find_0_sw = return_code
+ 
+If return_code > 0 then do
+  ac = "Not a Finding."
+  Call put_it
+  Call add_member
+  end
+Else do
+  ac = "ACIDS found inactive for more than 35 days and not suspended."
+  Call put_it
+  end
+ 
+return_code = 0
+"SORT 1 9 A"
+return_code = 0
+"CURSOR = .ZLAST 1"
+"(ROW,COL) = CURSOR"
+"CURSOR = 1 1"
+line = 1
+typcnt = 0
+typ = ""
+chkdater = substr(chkdate,5,2)"/"substr(chkdate,7,2)
+chkdater = chkdater"/"substr(chkdate,3,2)
+ 
+outfile = " USER ID'S that are unused as of" chkdater
+queue OUTFILE
+return_code = 0                         /* SET RETURN CODE TO 0  */
+ 
+ 
+LOOP:
+do until return_code > 0
+  return_code = 0                         /* SET RETURN CODE TO 0  */
+  If line > row then leave
+ 
+  "(DATA) = LINE" line
+  If left(data,1) <> typ then do
+    typ = left(data,1)
+    If typcnt > 0 then do
+      outfile = " "
+      queue OUTFILE
+      outfile = " **** Total for above group of USERS is" typcnt" ****"
+      queue OUTFILE
+      typcnt = 0
+      end
+ 
+    outfile = " "
+    queue OUTFILE
+ 
+    If typ = 2 then,
+      outfile = " The following records have attribute of ASUSPEND",
+        "and exceed 35 days."
+    Else,
+      If typ = 1 then,
+        outfile = " The following records have attribute of SUSPEND",
+          "and exceed 35 days."
+      Else,
+        outfile = " The following records exceed 35 days."
+ 
+    queue OUTFILE
+    end
+ 
+  outfile = " "
+  queue OUTFILE
+  If typ = 0 then do
+    ac = "    "outfile
+    Call put_it
+    end
+ 
+  acid = substr(data,2,8)
+  name = substr(data,10,32)
+ 
+  outfile = " ACCESSORID =" acid "NAME       =" name
+  queue OUTFILE
+  If typ = 0 then do
+    ac = "    "outfile
+    Call put_it
+    end
+ 
+  acidtyp = substr(data,42,8)
+  outfile = " TYPE       =" acidtyp
+  queue OUTFILE
+  If typ = 0 then do
+    ac = "    "outfile
+    Call put_it
+    end
+ 
+  If typ = 2 then,
+    suspend = "ASUSPEND"
+  Else
+    If typ = 1 then,
+      suspend = "SUSPEND"
+    Else
+      suspend = ""
+  if suspend <> "" then do
+    outfile = " ATTRIBUTES =" suspend
+    queue OUTFILE
+ 
+    If typ = 0 then do
+      ac = "    "outfile
+      Call put_it
+      end
+    end
+ 
+  crdate = substr(data,50,8)
+  moddate = substr(data,58,8)
+  outfile = " CREATED    =" crdate "LAST MOD   =" moddate
+  queue OUTFILE
+ 
+  If typ = 0 then do
+    ac = "    "outfile
+    Call put_it
+    end
+ 
+  lastused = substr(data,66,8)
+  count = substr(data,74,5)
+  if lastused <> "00/00/00" then do
+    outfile = " LAST USED  =" lastused "COUNT("count")"
+    queue OUTFILE
+ 
+    If typ = 0 then do
+      ac = "    "outfile
+      Call put_it
+      end
+    end
+ 
+  srctxt = " SOURCES    ="
+  sources = ""
+  srccnt = 0
+  If length(data) >= 81 then,
+    Do X = 81 to 180 by 9 until substr(data,x,1) = " "
+      src_data = substr(data,x,8)
+      If srccnt = 4 then do
+        srccnt = 0
+        outfile = srctxt""sources
+        queue OUTFILE
+        If typ = 0 then do
+          ac = "    "outfile
+          Call put_it
+          end
+        srctxt = "             "
+        sources = ""
+        end
+      sources = sources src_data"   "
+      srccnt = srccnt + 1
+      end
+ 
+  If sources <> " " then do
+    outfile = srctxt""sources
+    queue OUTFILE
+    If typ = 0 then do
+      ac = "    "outfile
+      Call put_it
+      end
+    end
+  typcnt = typcnt + 1
+  line = line + 1
+  end
+/*SIGNAL LOOP*/
+ 
+ 
+END_EDIT:
+outfile = " "
+queue OUTFILE
+outfile = " **** Total for above group of USERS is" typcnt "****"
+queue OUTFILE
+outfile = ""
+queue OUTFILE
+Address TSO "EXECIO * DISKW OUTFILE (FINIS"
+If find_0_sw = 0 then,
+  Call add_member
+ 
+ 
+ERR_EXIT:
+If maxcc >= 16 | return_code > 0 then do
+  "VGET (ZISPFRC) SHARED"
+  If maxcc > zispfrc then,
+    zispfrc = maxcc
+  Else,
+    zispfrc = return_code
+  "VPUT (ZISPFRC) SHARED"
+  Say pgmname "ZISPFRC =" zispfrc
+  end
+ 
+If termmsgs = "ON" then do
+  Say "==============================================================="
+  Say pgmname "LMINIT_DIALOG_RC                 " lminit_dialog_rc
+  Say pgmname "LMOPEN_DIALOG_RC                 " lmopen_dialog_rc
+  Say pgmname "LMMFIND_DIALOG_RC                " lmmfind_dialog_rc
+  Say pgmname "LMCLOSE_DIALOG_RC                " lmclose_dialog_rc
+  Say pgmname "LMFREE_DIALOG_RC                 " lmfree_dialog_rc
+  Say "==============================================================="
+  end
+ 
+Address ISPEXEC "VPUT (TM4VGE) ASIS"
+"END"
+Exit
+ 
+ 
+/*******************************************/
+/*  SYSCALL SUBROUTINES                    */
+/*******************************************/
+ADD_MEMBER:
+return_code = 0
+Address ISPEXEC "LMMADD DATAID("pdidd") MEMBER("pdimbr")"
+If return_code = 4 then do
+  return_code = 0
+  Address ISPEXEC "LMMREP DATAID("pdidd") MEMBER("pdimbr")"
+  If return_code <> 0 then,
+    Say pgmname "LMMREP_PDI_RC =" return_code pdimbr zerrsm
+  end
+Else do
+  If return_code <> 0 then,
+    Say pgmname "LMMADD_PDI_RC =" return_code pdimbr zerrsm
+  end
+return
+ 
+ 
+PUT_IT:
+Address ISPEXEC "LMPUT DATAID("pdidd") MODE(INVAR) DATALOC(AC)",
+  "DATALEN("length(ac)") MEMBER("pdimbr")"
+Return
+ 
+ 
+NoValue:
+Failure:
+Syntax:
+say pgmname 'REXX error' rc 'in line' sigl':' strip(ERRORTEXT(rc))
+say SOURCELINE(sigl)
+SIGNAL ERR_EXIT
+ 
+ 
+Error:
+return_code = RC
+if RC > 4 & RC <> 8 then do
+  say pgmname "LASTCC =" RC strip(zerrlm)
+  say pgmname 'REXX error' rc 'in line' sigl':' ERRORTEXT(rc)
+  say SOURCELINE(sigl)
+  end
+if return_code > maxcc then
+  maxcc = return_code
+return
+ 
+ 

@@ -1,0 +1,35 @@
+)PANEL
+)ATTR
+ _ TYPE(INPUT)  INTENS(HIGH) CAPS(ON) PADC(_)
+ # TYPE(OUTPUT) INTENS(HIGH) SKIP(ON) COLOR(RED) CAPS(OFF)
+ @ TYPE(OUTPUT) INTENS(LOW)  SKIP(ON) CAPS(OFF)
+)BODY WIDTH(80) EXPAND("")
+%"-" Security Readiness Review Self-Audit "-"+
+%" "Verify and update Authorized user groups" "+
+@PGM8     %" "Version:@SRRVERS +
+%Command ===>_ZCMD                                            %Scroll ===>_ZUSC+
+%
+%  View or Update the Authorized user groups
+%  Line Commands:
+%  S+or%B+for%Browse+|%E+for%Edit+|%V+for%View                            Status
+%===============================================================================
+)MODEL
+ _S@MBRNAME   @MBRDESC                                                   #MBRS +
+)INIT
+ .CURSOR = ZCMD
+ &S      = ' '
+ 
+)REINIT
+ REFRESH *
+ &S      = ' '
+ 
+)PROC
+ VER (&S,LIST,B,S,E,V)
+)END
+/*
+/* 05/09/2005 JL.Nelson Created for dialog - Update auth user lists
+/* VER (&S,LIST,B,S,E,MSG=SRR002)
+/*
+/* SAMPLE MODEL LINE FOLLOWS:
+/* &MODLINE
+/*
