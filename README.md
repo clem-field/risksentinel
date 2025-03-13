@@ -3,9 +3,10 @@ This repository hosts python scripts that will allow a user to retrieve the uncl
 
 ## Highlights
 - Retrieves the updated zip file
+   - Dynamically checks for previous 3 months
 - Unzips the file to a temp location
 - Sorts the zipped SRG's and STIG's to their appropriate folders
-- Unzips all packages
+- Unzips all SRG's and STIG's
 - Moves the xccdf files to their final location
 - Cleans up (deletes) all temp files that are not needed
 
@@ -21,22 +22,20 @@ This repository hosts python scripts that will allow a user to retrieve the uncl
    ```
 
 2. **Run the Script**:
-   - Use `get_srg_stig.py`
-        - example: `python3 get_srg_stig.py` in terminal of your choice and from `mitre_work` folder
+   - Option 1:
+         - Use `get_srg_stig.py`
+            - example: `python3 get_srg_stig.py` in terminal of your choice and from `mitre_work` folder
+   - Option 2:
+         1. Run `setup_environment.py`
+            - This will check for a venv and initiate it if not
+         2. Follow prompts
 
 ## Dependencies
 Specified in `requirements.txt`:
 - `requests`
-- `bs4`
-- `urllib`
-- `ZipFile`
-- `os`
-- `Path`
-- `shutil`
 - `colorama`
-- `datetime`
-- `sys`
 
+These are only required if running locally. The virtual environment (venv) will install these when activated.
 
 ## File Structure
 ```
@@ -62,8 +61,8 @@ mitre_work/
 |   |--.gitignore
 |   |--pyvenv.cfg
 |--config.json
-|--get_srg_stig.py - performs all functions of the individual scripts in `/modules`
-|--data_fetcher_ky.py
+|--get_srg_stig.py - performs all functions of the individual scripts in `/modules` and in local python
+|--data_fetcher.py - requires venv to be running
 |--license
 |--README.MD (You are Here)
 |--requirements.txt - required libraries for running python
@@ -72,6 +71,8 @@ mitre_work/
 ```
 ## Contributing
 Contributions are welcome! Open issues or submit pull requests to enhance features, fix bugs, or optimize performance.
+
+Thank you to all of those that have already contributed to the features of this repo.
 
 ## License
 This project is licensed under the Apache License 2.0. See the `LICENSE` file for details.

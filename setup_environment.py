@@ -6,7 +6,7 @@ import platform
 # Define paths and settings
 VENV_DIR = "venv"  # Name of the virtual environment directory
 REQUIREMENTS_FILE = "requirements.txt"
-MAIN_SCRIPT = "data_fetcher_kw.py"  # Main script to run after setup
+MAIN_SCRIPT = "data_fetcher.py"  # Main script to run after setup
 
 def is_venv_active():
     """Check if a virtual environment is currently active.
