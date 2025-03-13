@@ -2,14 +2,11 @@
 ###           Extract and move files           ###
 ##################################################
 ### required libs
-from bs4 import BeautifulSoup as bs
-from zipfile import ZipFile as zf
 import zipfile
 import os
-from pathlib import Path
 import shutil
 from colorama import Fore, Style
-import sys
+import json
 
 
 def load_config(config_file="config.json"):
@@ -78,7 +75,7 @@ def extract_and_sort_files(config, disa_file, base_path):
                 if f.endswith(config["xml_suffix"]):
                     print(Fore.LIGHTYELLOW_EX + f"Moving {f} to {folder}")
                     shutil.move(os.path.join(subdir, f), folder + f)
-pring(Style.RESET_ALL)
+print(Style.RESET_ALL)
 
 # ---- Old Code ---
 
