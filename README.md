@@ -40,25 +40,25 @@ Specified in `requirements.txt`:
 
 ## File Structure
 ```
-mitre_work 
-|--catalogs
+mitre_work/
+|--catalogs/
 |   |--test.sh - This is a place holder until control catalogs are imported
-|--file-imports
-|   |--*** Various temp files and folders during import and file parsing ***
+|--file-imports/
+|   |--```<span style="color:blue">*** Various temp files and folders during import and file parsing ***</span>```
 |   |--*** Files stored here will be deleted when executing clean_repo   ***
-|--modules
+|--modules/
 |   |--clean_repo.py - module that cleans the file-imports, srgs and stigs folders
 |   |--data_fetcher.py - retrieves and stores files from various sources
 |   |--extract_data.py - extracts zip files to srgs and stigs then moves xccdf files
-|--srgs
+|--srgs/
 |   |--*** Stores the Security Requirement Guides in xccdf.xml ***
-|--stigs
+|--stigs/
 |   |--*** Stores the Security Technical Implementation Guides (STIGs) in xccdf.xml ****
-|--venv - folders and resources for setting up a virtual environment
-|   |--bin
-|   |--include
-|   |--lib
-|   |--share
+|--venv/ - folders and resources for setting up a virtual environment
+|   |--bin/
+|   |--include/
+|   |--lib/
+|   |--share/
 |   |--.gitignore
 |   |--pyvenv.cfg
 |--config.json
