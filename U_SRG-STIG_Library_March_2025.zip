@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en-US" class="html_stretched responsive av-preloader-disabled av-custom-lightbox  html_header_top html_logo_left html_main_nav_header html_menu_right html_slim html_header_sticky html_header_shrinking_disabled html_header_topbar_active html_mobile_menu_tablet html_header_searchicon html_content_align_center html_header_unstick_top_disabled html_header_stretch html_minimal_header html_minimal_header_shadow html_av-overlay-side html_av-overlay-side-classic html_av-submenu-noclone html_entry_id_35626 av-no-preview html_text_menu_active ">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="robots" content="index, follow" />
+    <!-- mobile setting -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <!-- Scripts/CSS and wp_head hook -->
+    <title>DoD Cyber Exchange &#8211; DoD Cyber Exchange</title>
+    <style>
+      body{
+        margin:0;
+        font-family:Arial;
+        color:#444;
+      }
+      p{
+        font-size:16px;
+        line-height:26px;
+      }
+      .logo{
+        padding:5px;
+      }
+      .grayWrapper{
+        background:transparent;
+        position:relative;
+        z-index:1;
+        clear: both;
+        width: 100%;
+        float: left;
+        min-height: 100px;
+      }
+      .grayWrapper:after {
+        content: "";
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+        clip-path: polygon(0 0, 100% 0, 100% 100%, 0 80%);
+        background: #dadce0;
+        z-index:1;
+      }
+      .banner{
+        position:relative;
+        opacity: 1; 
+        background-image: url(https://dl.dod.cyber.mil/img/interior_bg_1600x700_72dpi.jpg); 
+        background-repeat: repeat;
+        background-position: top center;
+        background-attachment: fixed;
+        background-size: cover;
+        clip-path: polygon(0 0, 100% 0, 100% 80%, 0% 100%);
+        z-index: 2;
+      }
+      .bannerText{
+        width:80%;
+        font-size:36px;
+        margin:0 auto;
+        text-align:center;
+        color:white;
+        text-transform:uppercase;	
+        font-weight:normal;
+        padding:70px 0px;
+      }
+      #main{
+        width:80%;
+        margin:0 auto;
+        margin-top: 350px;
+        margin-bottom:50px;
+      }
+      .buttons{
+        text-align:center;
+      }
+      .buttons a{
+        padding: 13px 20px;
+        display:inline-block;
+        min-width: 150px;
+        background: #feca5c;
+        border: 2px solid #feca5c;
+        color: #010000;
+        margin:5px;
+        text-decoration:none;
+        transition: box-shadow 1s;
+      }
+      .buttons a:hover{
+        box-shadow: 0 0 15px #AAA;
+      }
+      .lockicon{
+        background-image:   url("https://dl.dod.cyber.mil/img/css-sprite-lock.png");
+        display: inline-block;
+        height: 15px;
+        width: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>	
+      <div class="logo">
+        <img class="default_logo" src="https://dl.dod.cyber.mil/img/DoD-Cyber-Exchange-LogoPUBLIC.png" border="0" />
+      </div>
+    </header>
+    <div class="grayWrapper">
+      <div class="banner">
+        <h2 class="bannerText">The page or download you are looking for is not available.
+        </h2><!--bannerText-->
+      </div><!--banner-->
+    </div><!--grayWrapper-->
+    <div id="main">
+      <section>
+        <div>
+          <p>
+            There are currently two websites available with the topics listed at top of the page for easy navigation.
+          </p>
+          <p>
+            <strong>DoD Cyber Exchange Public (public.cyber.mil)</strong> – Provides limited access to publicly releasable cyber training and guidance to all Internet users. If you do not have a CAC with DoD Certificates, choose <strong>Public</strong> below.
+          </p>
+          <p>
+            <strong>DoD Cyber Exchange NIPR (cyber.mil)</strong> – Provides exclusive access to cyber training and guidance to users with DoD Public Key Infrastructure (PKI) credentials (or equivalent). If you have a CAC with DoD Certificates, choose <strong>Login with CAC</strong> below.
+          </p>
+        </div>
+      </section>
+      <div class="buttons">
+        <a href="https://public.cyber.mil/" >
+          <span>
+            Public
+          </span>
+        </a>
+        <a href="https://cyber.mil/">
+          <span>
+            Login with CAC
+          </span>
+          <span class="lockicon" data-av_icon=""></span>
+        </a>
+      </div><!-- buttons -->
+      <div" >
+        <p style="text-align: center;">
+          If you experience issues connecting to DoD Cyber Exchange NIPR, please 
+          <a href="https://public.cyber.mil/knowledge-base/access-denied-f5-errors/">
+            Click here
+          </a>.
+        </p>
+        <p style="text-align: center;">
+          If you would like to know about the DoD Cyber Exchange, please <a href="https://public.cyber.mil/about-cyber/">Click here</a>.
+        </p>
+      </div>
+    </div><!--main-->
+  </body>
+</html>
