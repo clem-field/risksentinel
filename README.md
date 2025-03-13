@@ -39,43 +39,37 @@ Specified in `requirements.txt`:
 
 
 ## File Structure
-mitre_work
-|   
-|   catalogs
-|   |-   test.sh - This is a place holder until control catalogs are imported
-|   file-imports
+```
+mitre_work 
+|--catalogs
+|   |--test.sh - This is a place holder until control catalogs are imported
+|--file-imports
 |   |--*** Various temp files and folders during import and file parsing ***
 |   |--*** Files stored here will be deleted when executing clean_repo   ***
-|   modules
+|--modules
 |   |--clean_repo.py - module that cleans the file-imports, srgs and stigs folders
 |   |--data_fetcher.py - retrieves and stores files from various sources
 |   |--extract_data.py - extracts zip files to srgs and stigs then moves xccdf files
-|   srgs
-|   |
-|   |   *** Stores the Security Requirement Guides in xccdf.xml ***
-|   |
-|   stigs
-|   |
-|   |   *** Stores the Security Technical Implementation Guides (STIGs) in xccdf.xml ****
-|   |
-|   venv - folders and resources for setting up a virtual environment
-|   |
-|   -   bin
-|   -   include
-|   -   lib
-|   -   share
-|   -   .gitignore
-|   -   pyvenv.cfg
-|   |
--   config.json
--   get_srg_stig.py - performs all functions of the individual scripts in `/modules`
--   data_fetcher_ky.py
--   license
--   README.MD (You are Here)
--   requirements.txt - required libraries for running python
--   setup_demo.py
--   setup_environment.py
-
+|--srgs
+|   |--*** Stores the Security Requirement Guides in xccdf.xml ***
+|--stigs
+|   |--*** Stores the Security Technical Implementation Guides (STIGs) in xccdf.xml ****
+|--venv - folders and resources for setting up a virtual environment
+|   |--bin
+|   |--include
+|   |--lib
+|   |--share
+|   |--.gitignore
+|   |--pyvenv.cfg
+|--config.json
+|--get_srg_stig.py - performs all functions of the individual scripts in `/modules`
+|--data_fetcher_ky.py
+|--license
+|--README.MD (You are Here)
+|--requirements.txt - required libraries for running python
+|--setup_demo.py
+|--setup_environment.py
+```
 ## Contributing
 Contributions are welcome! Open issues or submit pull requests to enhance features, fix bugs, or optimize performance.
 
