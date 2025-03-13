@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <link rel="stylesheet" href="style.css"
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" 
+          content="width=device-width, 
+                   initial-scale=1.0" />
+    <style>
+        
+    </style>
+</head>
+
+<body>
+
+    <h1 style="color: red" {text-align: center;}>
+        Welcome to the NIST Compliance Retrieve, Analyze, Generate (RAG) support application. 
+    </h1>
+    
+        <div class="sidenav">
+            <a href="https://public.cyber.mil/stigs/">DoD Cyber Exchange</a>
+            <a href="https://stigviewer.com/">STIG Viewer</a>
+            <a href="https://saf.mitre.org/getting-started">MITRE SAF</a>
+            <a href="https://www.nist.gov/privacy-framework/nist-privacy-framework-and-cybersecurity-framework-nist-special-publication-800-53">NIST 800-53 Rev 5</a>
+            <a href="https://www.cisecurity.org/cis-benchmarks">CIS Benchmarks</a>
+        </div>
+        <div class="content">
+        <p style="color: black">
+            This application supports a Large Language Model (LLM) that consists of: <br>
+            <ul>
+                <li>NIST 800-53</li>
+                <li>From public.cyber.mil</li>
+                <ul>
+                    <li>Unclassified Security Requirements Guides (SRGs)</li>
+                    <li>Unclassified Security Technical Implementation Guides</li>
+                </ul>
+                <li>Common Control Indicators (CCIs) for Multiple Revisions</li>
+            </ul>
+            These sources are automatically updated and are then able to be searched using different engines:
+            <ul>
+                <li>all-MiniLM-L12-v2 - A fast and lightweight (12 layers). Great for quick testing, but less accurate on complex queries.</li>
+                <li>all-mpnet-base-v2 - For balanced performance and speed. Strong general-purpose model, recommended for most use cases.</li>
+                <li>multi-qa-MiniLM-L6-cos-v1", "Optimized for question-answering (6 layers). Fast, but may miss nuanced relationships.</li>
+                <li>all-distilroberta-v1 - A distilled RoBERTa model. Good accuracy, slower than MiniLM, but better for detailed text.</li>
+                <li>paraphrase-MiniLM-L6-v2 - A lightweight (6 layers), excels at paraphrasing. Fast, but less robust for technical queries.</li>
+                <li>all-roberta-large-v1 - Higher accuracy, large model. Best for complex queries, but slowest and memory-intensive.</li>
+            </ul>
+            By continuing use the user accepts that: 
+            <ul>
+                <li>Use of this site is for demonstration purposes only</li>
+                <li>The providers do not assert that the information shared is completely accurate and it is upon the user to validate the information provided.</li>
+            </ul>
+            The data was last updated: 
+        <p id="time"></p>
+        <script>
+        const d = new Date();
+        document.getElementById("time").innerHTML = d;
+        </script>
+        <body>
+            <button id="fetch_data">Update Data</button>
+            <div id="output"></div>
+        </body>
+        <br>
+        <body>
+            <button id="start_llm">Initialize NIST RAG</button>
+            <div id="output"></div>
+        </body>
+    </div>
+    
+    
+</body>
+
+</html>
