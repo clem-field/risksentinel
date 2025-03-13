@@ -1,15 +1,12 @@
 ### required libs
 import requests
-from bs4 import BeautifulSoup as bs
-import urllib.request
 from zipfile import ZipFile as zf
 import zipfile
 import os
-from pathlib import Path
 import shutil
 from colorama import Fore, Back, Style
 from datetime import datetime
-import sys
+
 
 ##################################################
 ###             Get data from DISA             ###

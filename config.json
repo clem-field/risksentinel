@@ -1,5 +1,5 @@
 {
-    "disa_url": "https://dl.dod.cyber.mil/wp-content/uploads/stigs/zip/U_SRG-STIG_Library_January_2025.zip",
+    "disa_url": "f'https://dl.dod.cyber.mil/wp-content/uploads/stigs/zip/U_SRG-STIG_Library_{month}_{year}.zip'",
     "file_imports_dir": "file-imports",
     "srg_dir": "srgs",
     "stig_dir": "stigs",

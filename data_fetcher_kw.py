@@ -4,6 +4,8 @@ import shutil
 import zipfile
 import json
 from colorama import Fore, Back, Style
+from datetime import datetime
+
 
 def load_config(config_file="config.json"):
     """Load configuration settings from a JSON file.
@@ -38,6 +40,8 @@ def fetch_disa_data(config, base_path):
     Returns:
         str: Path to the downloaded DISA file.
     """
+    month = datetime.now().strftime('%B')
+    year = datetime.now().strftime('%Y')
     disa_url = config["disa_url"]
     print(Back.YELLOW + f"Retrieving file from {disa_url}")
     get_disa_file = requests.get(disa_url)
