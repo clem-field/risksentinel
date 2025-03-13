@@ -44,7 +44,7 @@ mitre_work/
 |--catalogs/
 |   |--test.sh - This is a place holder until control catalogs are imported
 |--file-imports/
-|   |--```<span style="color:blue">*** Various temp files and folders during import and file parsing ***</span>```
+|   |--*** Various temp files and folders during import and file parsing ***
 |   |--*** Files stored here will be deleted when executing clean_repo   ***
 |--modules/
 |   |--clean_repo.py - module that cleans the file-imports, srgs and stigs folders
