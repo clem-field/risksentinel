@@ -76,13 +76,11 @@ def fetch_disa_data(config, base_path):
     month = datetime.now().strftime('%B')
     year = datetime.now().strftime('%Y')
     
-    # Try current month and two previous months
     for i in range(3):
         disa_url = disa_url_template.format(month=month, year=year)
         print(f"Attempting to retrieve file from {disa_url}")
         response = requests.get(disa_url)
         
-        # Validate HTTP response and content type
         if response.status_code == 200 and 'application/zip' in response.headers.get('Content-Type', ''):
             disa_file = disa_url.split('/')[-1]
             with open(disa_file, 'wb') as output_file:
@@ -90,7 +88,6 @@ def fetch_disa_data(config, base_path):
             print(f"Stored {disa_file} in {base_path}")
             return disa_file
         
-        # If retrieval fails, try the previous month
         month, year = get_previous_month(month, year, 1)
     
     raise ValueError("No valid ZIP file found in the last 3 months")
@@ -160,6 +157,86 @@ def fetch_nist_mapping(config, base_path):
     
     return nist_file
 
+def fetch_cci_list(config, base_path):
+    """
+    Fetch the CCI list ZIP file if it doesn't exist or is outdated, and extract it.
+
+    This function checks the 'Last-Modified' header of the remote CCI list ZIP file
+    and compares it with the local '.last_modified' file in the CCI list directory.
+    If the remote file is newer or the local file doesn't exist, it downloads and
+    extracts the ZIP file to the specified directory.
+
+    Args:
+        config (dict): Configuration settings from the config file.
+        base_path (str): Base directory path for file operations.
+
+    Returns:
+        str: Path to the downloaded CCI ZIP file, or None if no download occurred.
+    """
+    cci_url = config["cci_list_url"]
+    cci_dir = os.path.join(base_path, config["cci_list_dir"])
+    last_modified_file = os.path.join(cci_dir, ".last_modified")
+    
+    # Ensure CCI directory exists
+    os.makedirs(cci_dir, exist_ok=True)
+    
+    # Get remote file's last modified date
+    response = requests.head(cci_url)
+    if response.status_code != 200:
+        print(Fore.RED + f"Error: Could not access {cci_url} (Status: {response.status_code})")
+        return None
+    
+    remote_date_str = response.headers.get('Last-Modified')
+    if not remote_date_str:
+        print(Fore.YELLOW + "Warning: No Last-Modified header found, attempting download anyway")
+        remote_date = datetime.now()
+    else:
+        remote_date = datetime.strptime(remote_date_str, "%a, %d %b %Y %H:%M:%S GMT")
+    
+    # Check if .last_modified exists and its modification time
+    should_download = False
+    if not os.path.exists(last_modified_file):
+        print(Fore.CYAN + f"No local CCI list found in {cci_dir}")
+        should_download = True
+    else:
+        local_date = datetime.fromtimestamp(os.path.getmtime(last_modified_file))
+        if remote_date > local_date:
+            print(Fore.CYAN + f"Remote CCI list ({remote_date}) is newer than local ({local_date})")
+            should_download = True
+        else:
+            print(Fore.GREEN + f"Local CCI list ({local_date}) is up to date")
+    
+    if should_download:
+        # Download the ZIP
+        cci_zip_file = os.path.join(base_path, cci_url.split('/')[-1])
+        print(f"Downloading CCI list from {cci_url}")
+        response = requests.get(cci_url)
+        if response.status_code == 200:
+            with open(cci_zip_file, 'wb') as f:
+                f.write(response.content)
+            print(Fore.GREEN + f"Stored CCI list ZIP at {cci_zip_file}")
+            
+            # Extract the ZIP to cci_dir
+            with zipfile.ZipFile(cci_zip_file, 'r') as zip_ref:
+                zip_ref.extractall(cci_dir)
+            print(Fore.MAGENTA + f"Extracted CCI list to {cci_dir}")
+            
+            # Create or update .last_modified file
+            with open(last_modified_file, 'w') as f:
+                f.write(remote_date_str or str(datetime.now()))
+            # Set the modification time
+            if remote_date_str:
+                os.utime(last_modified_file, times=(remote_date.timestamp(), remote_date.timestamp()))
+            else:
+                os.utime(last_modified_file)
+        else:
+            print(Fore.RED + f"Failed to download CCI list (Status: {response.status_code})")
+            return None
+    else:
+        cci_zip_file = None  # No download occurred
+    
+    return cci_zip_file
+
 def extract_and_sort_files(config, disa_file, base_path):
     """
     Extract the DISA ZIP file and sort contents into SRG and STIG directories.
@@ -210,29 +287,33 @@ def extract_and_sort_files(config, disa_file, base_path):
                     print(Fore.LIGHTYELLOW_EX + f"Moving {f} to {folder}")
                     shutil.move(os.path.join(subdir, f), folder + f)
 
-def clean_up_files(config, disa_file, base_path):
+def clean_up_files(config, disa_file, cci_zip_file, base_path):
     """
-    Remove temporary files and directories, keeping only XML files.
+    Remove temporary files and directories, keeping only XML files and extracted CCI list.
 
-    This function removes the downloaded DISA ZIP file and cleans up the SRG and STIG
+    This function removes the downloaded DISA and CCI ZIP files and cleans up the SRG and STIG
     directories by deleting any non-XML files and empty directories.
 
     Args:
         config (dict): Configuration settings from the config file.
         disa_file (str): Path to the downloaded DISA ZIP file.
+        cci_zip_file (str): Path to the downloaded CCI ZIP file.
         base_path (str): Base directory path for file operations.
     """
     srg_folder = os.path.join(base_path, config["srg_dir"]) + '/'
     stig_folder = os.path.join(base_path, config["stig_dir"]) + '/'
 
-    # Remove the downloaded ZIP file
-    if os.path.exists(disa_file):
+    # Remove the downloaded DISA ZIP file
+    if disa_file and os.path.exists(disa_file):
         os.remove(disa_file)
         print(Fore.RED + f"Removed {disa_file} from {base_path}")
-    else:
-        print("File does not exist")
 
-    # Clean up non-XML files and empty directories
+    # Remove the downloaded CCI ZIP file
+    if cci_zip_file and os.path.exists(cci_zip_file):
+        os.remove(cci_zip_file)
+        print(Fore.RED + f"Removed {cci_zip_file} from {base_path}")
+
+    # Clean up non-XML files and empty directories in SRG and STIG folders
     for folder in [srg_folder, stig_folder]:
         for subdir, dirs, files in os.walk(folder):
             for f in files:
@@ -241,7 +322,6 @@ def clean_up_files(config, disa_file, base_path):
                     print(Fore.RED + f"Deleting {f} from {folder}")
                     os.remove(file_path)
 
-        # Remove empty directories
         for root, dirs, _ in os.walk(folder, topdown=False):
             for directory in dirs:
                 dirpath = os.path.join(root, directory)
@@ -251,12 +331,12 @@ def clean_up_files(config, disa_file, base_path):
 
 def main():
     """
-    Main function to fetch, extract, and clean DISA data and NIST mapping.
+    Main function to fetch, extract, and clean DISA data, NIST mapping, and CCI list.
 
     This function orchestrates the entire process:
     1. Loads configuration settings.
     2. Creates necessary directories.
-    3. Fetches DISA data and NIST mapping files.
+    3. Fetches DISA data, NIST mapping, and CCI list files.
     4. Extracts and sorts DISA files.
     5. Cleans up temporary files.
 
@@ -270,14 +350,15 @@ def main():
     config = load_config()
 
     # Create required directories if they don't exist
-    for dir_key in ["file_imports_dir", "srg_dir", "stig_dir"]:
+    for dir_key in ["file_imports_dir", "srg_dir", "stig_dir", "cci_list_dir"]:
         os.makedirs(os.path.join(base_path, config[dir_key]), exist_ok=True)
 
     # Execute the workflow
     disa_file = fetch_disa_data(config, base_path)
     nist_file = fetch_nist_mapping(config, base_path)
+    cci_zip_file = fetch_cci_list(config, base_path)
     extract_and_sort_files(config, disa_file, base_path)
-    clean_up_files(config, disa_file, base_path)
+    clean_up_files(config, disa_file, cci_zip_file, base_path)
     print(Style.RESET_ALL)
 
 if __name__ == "__main__":
