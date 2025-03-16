@@ -1,5 +1,6 @@
 {
     "disa_url": "https://dl.dod.cyber.mil/wp-content/uploads/stigs/zip/U_SRG-STIG_Library_{month}_{year}.zip",
+    "nist_800_53_attack_mapping_url": "https://center-for-threat-informed-defense.github.io/mappings-explorer/data/nist_800_53/attack-14.1/nist_800_53-rev5/enterprise/nist_800_53-rev5_attack-14.1-enterprise_json.json",
     "file_imports_dir": "file-imports",
     "srg_dir": "srgs",
     "stig_dir": "stigs",

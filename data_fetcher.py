@@ -7,13 +7,18 @@ from colorama import Fore, Style
 from datetime import datetime, timedelta
 
 def load_config(config_file="config.json"):
-    """Load configuration settings from a JSON file.
+    """
+    Load configuration settings from a JSON file.
+
+    This function reads the configuration file specified by `config_file` and returns
+    the settings as a dictionary. If the file is not found or contains invalid JSON,
+    it raises an appropriate exception.
 
     Args:
         config_file (str): Path to the configuration file. Defaults to 'config.json'.
 
     Returns:
-        dict: Configuration settings.
+        dict: Configuration settings loaded from the JSON file.
 
     Raises:
         FileNotFoundError: If the config file is not found.
@@ -30,7 +35,11 @@ def load_config(config_file="config.json"):
         raise
 
 def get_previous_month(month, year, steps_back):
-    """Calculate the month and year a specified number of months before the given date.
+    """
+    Calculate the month and year a specified number of months before the given date.
+
+    This function takes a month and year, and calculates the month and year that is
+    `steps_back` months prior. It handles year transitions automatically.
 
     Args:
         month (str): Full month name (e.g., "October").
@@ -42,11 +51,16 @@ def get_previous_month(month, year, steps_back):
     """
     date = datetime.strptime(f"{month} {year}", "%B %Y")
     for _ in range(steps_back):
-        date = date.replace(day=1) - timedelta(days=1)
+        date = date.replace(day=1) - timedelta(days=1)  # Move to last day of previous month
     return date.strftime("%B"), date.strftime("%Y")
 
 def fetch_disa_data(config, base_path):
-    """Fetch DISA data from a URL and save it locally, with fallback to previous months.
+    """
+    Fetch DISA data from a URL and save it locally, with fallback to previous months.
+
+    This function attempts to download the DISA ZIP file for the current month. If the
+    file is not available, it tries the previous two months. It saves the file in the
+    base path and returns the file name.
 
     Args:
         config (dict): Configuration settings from the config file.
@@ -81,8 +95,78 @@ def fetch_disa_data(config, base_path):
     
     raise ValueError("No valid ZIP file found in the last 3 months")
 
+def fetch_nist_mapping(config, base_path):
+    """
+    Fetch the NIST 800-53 ATT&CK mapping file if it doesn't exist or is outdated.
+
+    This function checks if the NIST mapping file exists locally and if it is up to date
+    by comparing the 'Last-Modified' header of the remote file with the local file's
+    modification time. If the local file is missing or outdated, it downloads the remote file.
+
+    Args:
+        config (dict): Configuration settings from the config file.
+        base_path (str): Base directory path for file operations.
+
+    Returns:
+        str: Path to the local NIST mapping file, or None if download fails.
+    """
+    nist_url = config["nist_800_53_attack_mapping_url"]
+    data_folder = os.path.join(base_path, "data")
+    nist_file = os.path.join(data_folder, nist_url.split('/')[-1])
+    
+    # Ensure data folder exists
+    os.makedirs(data_folder, exist_ok=True)
+    
+    # Get remote file's last modified date
+    response = requests.head(nist_url)
+    if response.status_code != 200:
+        print(Fore.RED + f"Error: Could not access {nist_url} (Status: {response.status_code})")
+        return None
+    
+    remote_date_str = response.headers.get('Last-Modified')
+    if not remote_date_str:
+        print(Fore.YELLOW + "Warning: No Last-Modified header found, attempting download anyway")
+        remote_date = datetime.now()
+    else:
+        remote_date = datetime.strptime(remote_date_str, "%a, %d %b %Y %H:%M:%S GMT")
+    
+    # Check local file
+    should_download = False
+    if not os.path.exists(nist_file):
+        print(Fore.CYAN + f"No local NIST mapping found at {nist_file}")
+        should_download = True
+    else:
+        local_date = datetime.fromtimestamp(os.path.getmtime(nist_file))
+        if remote_date > local_date:
+            print(Fore.CYAN + f"Remote NIST file ({remote_date}) is newer than local ({local_date})")
+            should_download = True
+        else:
+            print(Fore.GREEN + f"Local NIST file ({local_date}) is up to date")
+    
+    # Download if necessary
+    if should_download:
+        print(f"Downloading NIST mapping from {nist_url}")
+        response = requests.get(nist_url)
+        if response.status_code == 200:
+            with open(nist_file, 'wb') as f:
+                f.write(response.content)
+            print(Fore.GREEN + f"Stored NIST mapping at {nist_file}")
+            # Set the local file's modification time to match the remote file
+            if remote_date_str:
+                os.utime(nist_file, times=(remote_date.timestamp(), remote_date.timestamp()))
+        else:
+            print(Fore.RED + f"Failed to download NIST mapping (Status: {response.status_code})")
+            return None
+    
+    return nist_file
+
 def extract_and_sort_files(config, disa_file, base_path):
-    """Extract the DISA ZIP file and sort contents into SRG and STIG directories.
+    """
+    Extract the DISA ZIP file and sort contents into SRG and STIG directories.
+
+    This function extracts the contents of the DISA ZIP file into a temporary directory,
+    then moves SRG and STIG ZIP files into their respective directories. It further extracts
+    these ZIP files and moves the XML files to the root of their directories.
 
     Args:
         config (dict): Configuration settings from the config file.
@@ -93,7 +177,7 @@ def extract_and_sort_files(config, disa_file, base_path):
     srg_folder = os.path.join(base_path, config["srg_dir"]) + '/'
     stig_folder = os.path.join(base_path, config["stig_dir"]) + '/'
 
-    # Extract files from the ZIP
+    # Extract files from the DISA ZIP
     print(Fore.MAGENTA + f"Extracting files to: {file_location}")
     with zipfile.ZipFile(disa_file, 'r') as zObject:
         zObject.extractall(path=file_location)
@@ -117,8 +201,9 @@ def extract_and_sort_files(config, disa_file, base_path):
             file_name = os.path.abspath(folder + item)
             with zipfile.ZipFile(file_name, 'r') as zip_ref:
                 zip_ref.extractall(folder)
-            os.remove(file_name)
+            os.remove(file_name)  # Remove the nested ZIP after extraction
 
+        # Move XML files to the root of the folder
         for subdir, _, files in os.walk(folder):
             for f in files:
                 if f.endswith(config["xml_suffix"]):
@@ -126,7 +211,11 @@ def extract_and_sort_files(config, disa_file, base_path):
                     shutil.move(os.path.join(subdir, f), folder + f)
 
 def clean_up_files(config, disa_file, base_path):
-    """Remove temporary files and directories, keeping only XML files.
+    """
+    Remove temporary files and directories, keeping only XML files.
+
+    This function removes the downloaded DISA ZIP file and cleans up the SRG and STIG
+    directories by deleting any non-XML files and empty directories.
 
     Args:
         config (dict): Configuration settings from the config file.
@@ -152,6 +241,7 @@ def clean_up_files(config, disa_file, base_path):
                     print(Fore.RED + f"Deleting {f} from {folder}")
                     os.remove(file_path)
 
+        # Remove empty directories
         for root, dirs, _ in os.walk(folder, topdown=False):
             for directory in dirs:
                 dirpath = os.path.join(root, directory)
@@ -160,7 +250,15 @@ def clean_up_files(config, disa_file, base_path):
                     print(Fore.RED + f"Deleting: {dirpath}")
 
 def main():
-    """Main function to fetch, extract, and clean DISA data.
+    """
+    Main function to fetch, extract, and clean DISA data and NIST mapping.
+
+    This function orchestrates the entire process:
+    1. Loads configuration settings.
+    2. Creates necessary directories.
+    3. Fetches DISA data and NIST mapping files.
+    4. Extracts and sorts DISA files.
+    5. Cleans up temporary files.
 
     Guide for Developers:
         - Modify 'config.json' to change URLs, directories, or file suffixes.
@@ -177,6 +275,7 @@ def main():
 
     # Execute the workflow
     disa_file = fetch_disa_data(config, base_path)
+    nist_file = fetch_nist_mapping(config, base_path)
     extract_and_sort_files(config, disa_file, base_path)
     clean_up_files(config, disa_file, base_path)
     print(Style.RESET_ALL)
