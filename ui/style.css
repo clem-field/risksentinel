@@ -1,0 +1,173 @@
+/* External CSS */
+/*
+  Color Schema from:
+  https://www.nceas.ucsb.edu/sites/default/files/2022-06/Colorblind%20Safe%20Color%20Schemes.pdf
+*/
+:root{
+  --cream:         rgb(238, 236, 236);
+  --gray:          rgb(221,221,221);
+  --blue:          rgb(046,037,133);
+  --green:         rgb(051,117,056);
+  --purple:        rgb(126,041,084);
+  --light-green:   rgb(093,168,153);
+  --light-blue:    rgb(148,203,236);
+  --light-orange:  rgb(220,205,125);
+  --light-purple:  rgb(159,074,150);
+  --dark-pink:     rgb(194,106,119);
+  --dark-green:    rgb(041,094,017);
+  }
+/* Setup Header */
+.head {
+  height: auto;
+  width: auto;
+  color:var(--green);
+}
+  /* Setup href */
+a {
+  color: var(--blue);
+  text-align: left;
+  padding-left: 10px;
+}
+/* Setup Paragraphs */
+p {
+    color: black;
+    text-align: left;
+    padding-left: 10px;
+}
+/* Setup Headings */
+h1 {
+    color:black;
+    text-align: center;
+    size: 40;
+}
+h2 {
+    color: black;
+    text-align: left;
+    size: 35;
+}
+/* Setup for Popups */
+.popup {
+    position: fixed;
+    z-index: 1;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,
+            0,
+            0,
+            0.4);
+    display: none;
+}
+.popup-content {
+    background-color: white;
+    margin: 10% auto;
+    padding: 20px;
+    border: 1px solid #888888;
+    width: 30%;
+    font-weight: bolder;
+}
+.popup-content button {
+    display: block;
+    margin: 0 auto;
+}
+.show {
+    display: block;
+}
+* {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    font-family: Arial, Helvetica, sans-serif;
+  }
+  /* Style the side navigation */
+  .sidenav {
+    height: 100%;
+    width: 200px;
+    position: fixed;
+    z-index: 1;
+    top: 40;
+    left: 0;
+    background-color: var(--green);
+    overflow-x: hidden;
+  }
+  /* Side navigation links */
+  .sidenav a {
+    color: white;
+    padding-left: 15px;
+    text-decoration: none;
+    display: block;
+  }
+  /* Change color on hover */
+  .sidenav a:hover {
+    background-color: var(--light-green);
+    color: black;
+  }
+  .sidenav p {
+    color: var(--cream);
+    padding-left: 5px;
+    font-weight: bold;
+  }
+  /* Style the content */
+  .content {
+    margin-left: 200px;
+    padding-left: 20px;
+    width: 40%;
+  }
+  .container{
+  display: flex;
+  justify-content: space-between;
+  }
+.btn-group button {
+  background-color: var(--green); 
+  border: 1px solid rgb(0, 24, 0); 
+  color: white; 
+  padding: 10px 24px; 
+  cursor: pointer; 
+  float: left; 
+}
+
+/* Clear floats (clearfix hack) */
+.btn-group:after {
+  content: "";
+  clear: both;
+  display: table;
+}
+
+.btn-group button:not(:last-child) {
+  border-right: none; /* Prevent double borders */
+}
+
+/* Add a background color on hover */
+.btn-group button:hover {
+  background-color: var(--light-green);
+}
+
+/* Set up aside for right pane */
+.aside {
+  height: 100%;
+    width: 40%;
+    position:fixed;
+    z-index: 1;
+    top: 60px;
+    left: 60%;
+    overflow-x: hidden;
+    border: black;
+    border-width: 5px;
+    padding-right: 10px;
+}
+/* Setup footer */
+.footer{ 
+  position: fixed;     
+  text-align: center;
+  font-size: small;
+  padding-left: 10px;
+  bottom: 0px; 
+  width: 100%;
+  color: var(--light-green);
+}
+.footer p {
+  color:rgb(033,031,093);
+}  

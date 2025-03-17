@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<div class="head">
+<head>
+    <link rel="stylesheet" href="style.css"
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" 
+          content="width=device-width, 
+                   initial-scale=1.0" />
+    <h1>Welcome to the NIST Compliance Retrieve, Analyze, Generate (RAG) Demo</h1>
+</head>
+</div>
+<body>
+        <div class="sidenav">
+            <p>STIGs and SRGs</p>
+            	<a href="https://public.cyber.mil/stigs/">DoD Cyber Exchange</a>
+            	<a href="https://stigviewer.com/">STIG Viewer</a>
+            <p>NIST Resources</p>
+            	<a href="https://www.nist.gov/privacy-framework/nist-privacy-framework-and-cybersecurity-framework-nist-special-publication-800-53">NIST 800-53 Rev 5</a>
+            	<a href="https://csrc.nist.gov/pubs/sp/800/37/r2/final">NIST 800-37 Risk Management Framework</a>
+            <p>CIS Resources</p>
+            	<a href="https://www.cisecurity.org/cis-benchmarks">CIS Benchmarks</a>
+            <p>Security Tools</p>
+                <a href="https://saf.mitre.org/getting-started">MITRE SAF</a>
+                <a href="https://attack.mitre.org/">MITRE ATT&CK</a>
+            <div class="footer">
+                <p>Version 2.27</p>
+            </div>
+        </div>
+        <div class="content">
+            <p>
+                This application supports a Large Language Model (LLM) that consists of: <br>
+                <ul>
+                    <li>NIST 800-53 (catalog and assessment)</li>
+                    <li>From public.cyber.mil</li>
+                    <ul>
+                        <li>Unclassified Security Requirements Guides (SRGs)</li>
+                        <li>Unclassified Security Technical Implementation Guides</li>
+                    </ul>
+                    <li>Common Control Indicators (CCIs) for Multiple Revisions</li>
+                </ul>
+            </p>
+            <p>These sources are automatically updated and are then able to be searched using different engines:</p>
+                <ol>
+                    <li><b>all-MiniLM-L12-v2</b> - A fast and lightweight (12 layers). Great for quick testing, but less accurate on complex queries.</li>
+                    <li ><b>all-mpnet-base-v2</b> - For balanced performance and speed. Strong general-purpose model, recommended for most use cases.</li>
+                    <li><b>multi-qa-MiniLM-L6-cos-v1</b> - Optimized for question-answering (6 layers). Fast, but may miss nuanced relationships.</li>
+                    <li><b>all-distilroberta-v1</b> - A distilled RoBERTa model. Good accuracy, slower than MiniLM, but better for detailed text.</li>
+                    <li><b>paraphrase-MiniLM-L6-v2</b> - A lightweight (6 layers), excels at paraphrasing. Fast, but less robust for technical queries.</li>
+                    <li><b>all-roberta-large-v1</b> - Higher accuracy, large model. Best for complex queries, but slowest and memory-intensive.</li>
+                </ol>
+                <form action="start_rag.js">
+                    <label for="rag_engine">Choose an engine:</label>
+                    <select name="rag_engine" id="rag_engine">
+                      <option value="all-MiniLM-L12-v2">1</option>
+                      <option value="all-mpnet-base-v2">2</option>
+                      <option value="multi-qa-MiniLM-L6-cos-v1">3</option>
+                      <option value="all-distilroberta-v1">4</option>
+                      <option value="paraphrase-MiniLM-L6-v2">5</option>
+                      <option value="all-roberta-large-v1">6</option>
+                    </select> 
+                    <br><br>
+                    <input type="submit" value="Start RAG">
+                </form>
+                <br><br>
+                <div class="btn-group">
+                    <button id="fetch_data">Refresh Data Sources</button>
+                    <button id="exit_rag">exit</button>
+                </div>
+                <div class="footer">
+                    <strong><p>Use of this site is for demonstration purposes only and The providers do not assert 
+                        that the information shared is completely accurate and it is upon the user to validate the information provided.</p></strong>
+                </div>
+        </div>
+        <div class="aside">
+            <aside>
+                <h3> Interactive NIST RAG</h3>
+                <p>The data was last updated:</p>
+                    <p id="time"></p>
+                    <script>
+                        const d = new Date();
+                        document.getElementById("time").innerHTML = d;
+                    </script>
+                <ul>
+                    <li>Type 'help' for examples</li>
+                    <li>Input a compliance-related question (e.g., "What risks does AC-3 mitigate?")</li>
+                    <li>Review the response, which may include control details, implementation steps, evidence needs, risk info, or control relationships.</li>
+                    <li>Select `exit` to end the demo or switch engines</li>
+                </ul>
+                <form action="run_rag.js">
+                    <label for="ragInput">What is the compliance-related question:</label>
+                    <input type="text" id="ragInput" name="ragInput"><br><br>
+                    <input type="submit" value="Submit">
+                </form>
+            </aside>
+        </div>
+    </body>
+</html>
