@@ -6,7 +6,8 @@ import platform
 # Define paths and settings
 VENV_DIR = "venv"  # Name of the virtual environment directory
 REQUIREMENTS_FILE = "requirements.txt"
-MAIN_SCRIPT = "data_fetcher.py"  # Main script to run after setup
+DATA_FETCHER_SCRIPT = "data_fetcher.py"  # Script to load data
+COMPLIANCE_LLM_SCRIPT = "modules/compliance_llm.py"  # Script to run LLM
 
 def is_venv_active():
     """Check if a virtual environment is currently active.
@@ -70,28 +71,36 @@ def install_requirements():
     subprocess.check_call([pip_path, "install", "-r", REQUIREMENTS_FILE])
     print("Dependencies installed.")
 
-def run_main_script():
-    """Run the main script in the virtual environment.
+def run_script(script_path):
+    """Run a specified script in the virtual environment.
+
+    Args:
+        script_path (str): Path to the script to execute.
 
     Raises:
         subprocess.CalledProcessError: If the script execution fails.
     """
-    if not os.path.exists(MAIN_SCRIPT):
-        print(f"Error: '{MAIN_SCRIPT}' not found. Skipping execution.")
-        return
+    if not os.path.exists(script_path):
+        print(f"Error: '{script_path}' not found. Skipping execution.")
+        return False
 
     python_path = get_python_path()
-    print(f"Running '{MAIN_SCRIPT}'...")
-    subprocess.check_call([python_path, MAIN_SCRIPT])
-    print(f"Finished running '{MAIN_SCRIPT}'.")
+    print(f"Running '{script_path}'...")
+    try:
+        subprocess.check_call([python_path, script_path])
+        print(f"Finished running '{script_path}'.")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"Error occurred while running '{script_path}': {e}")
+        return False
 
 def main():
-    """Main function to set up environment and run the script.
+    """Main function to set up environment, load data, and run scripts.
 
     Guide for Developers:
         - Ensure Python 3.6+ is installed.
         - Place 'requirements.txt' and 'config.json' in the same directory.
-        - Customize VENV_DIR, REQUIREMENTS_FILE, or MAIN_SCRIPT at the top if needed.
+        - Customize VENV_DIR, REQUIREMENTS_FILE, DATA_FETCHER_SCRIPT, or COMPLIANCE_LLM_SCRIPT at the top if needed.
         - Run with: python setup_environment.py
     """
     if is_venv_active():
@@ -101,16 +110,31 @@ def main():
 
     install_requirements()
 
-    run_script = input(f"Do you want to run '{MAIN_SCRIPT}' now? (y/n): ").strip().lower()
-    if run_script == 'y':
-        run_main_script()
+    # Prompt to run data_fetcher.py to load compliance data
+    run_data_fetcher = input(f"Do you want to run '{DATA_FETCHER_SCRIPT}' to load compliance data now? (y/n): ").strip().lower()
+    data_fetcher_success = False
+    if run_data_fetcher == 'y':
+        data_fetcher_success = run_script(DATA_FETCHER_SCRIPT)
     else:
-        print(f"You can activate the virtual environment and run '{MAIN_SCRIPT}' manually:")
+        print(f"You can activate the virtual environment and run '{DATA_FETCHER_SCRIPT}' manually:")
         if platform.system() == "Windows":
             print(f"  {VENV_DIR}\\Scripts\\activate")
         else:
             print(f"  source {VENV_DIR}/bin/activate")
-        print(f"Then run: python {MAIN_SCRIPT}")
+        print(f"Then run: python {DATA_FETCHER_SCRIPT}")
+
+    # Prompt to run compliance_llm.py if data_fetcher.py ran successfully or user opts to proceed
+    if data_fetcher_success or run_data_fetcher != 'y':
+        run_compliance_llm = input(f"Do you want to run '{COMPLIANCE_LLM_SCRIPT}' to use the Compliance LLM now? (y/n): ").strip().lower()
+        if run_compliance_llm == 'y':
+            run_script(COMPLIANCE_LLM_SCRIPT)
+        else:
+            print(f"You can activate the virtual environment and run '{COMPLIANCE_LLM_SCRIPT}' manually:")
+            if platform.system() == "Windows":
+                print(f"  {VENV_DIR}\\Scripts\\activate")
+            else:
+                print(f"  source {VENV_DIR}/bin/activate")
+            print(f"Then run: python {COMPLIANCE_LLM_SCRIPT}")
 
 if __name__ == "__main__":
     try:

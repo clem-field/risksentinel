@@ -4,3 +4,5 @@ srgs/
 stigs/
 data/
 logs/
+chroma_db/
+config.json
