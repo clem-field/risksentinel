@@ -5,24 +5,21 @@ import zipfile
 import json
 from colorama import Fore, Style
 from datetime import datetime, timedelta
+import logging
+
+# Configure logging to overwrite the log file each time
+log_dir = os.path.join(os.getcwd(), 'logs')
+os.makedirs(log_dir, exist_ok=True)
+logging.basicConfig(
+    filename=os.path.join(log_dir, 'debug.log'),
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    filemode='w'  # Overwrite the log file each time
+)
 
 def load_config(config_file="config.json"):
     """
     Load configuration settings from a JSON file.
-
-    This function reads the configuration file specified by `config_file` and returns
-    the settings as a dictionary. If the file is not found or contains invalid JSON,
-    it raises an appropriate exception.
-
-    Args:
-        config_file (str): Path to the configuration file. Defaults to 'config.json'.
-
-    Returns:
-        dict: Configuration settings loaded from the JSON file.
-
-    Raises:
-        FileNotFoundError: If the config file is not found.
-        json.JSONDecodeError: If the config file contains invalid JSON.
     """
     try:
         with open(config_file, 'r') as f:
@@ -37,163 +34,127 @@ def load_config(config_file="config.json"):
 def get_previous_month(month, year, steps_back):
     """
     Calculate the month and year a specified number of months before the given date.
-
-    This function takes a month and year, and calculates the month and year that is
-    `steps_back` months prior. It handles year transitions automatically.
-
-    Args:
-        month (str): Full month name (e.g., "October").
-        year (str): Four-digit year (e.g., "2023").
-        steps_back (int): Number of months to go back.
-
-    Returns:
-        tuple: (month, year) of the previous month as strings.
     """
     date = datetime.strptime(f"{month} {year}", "%B %Y")
     for _ in range(steps_back):
-        date = date.replace(day=1) - timedelta(days=1)  # Move to last day of previous month
+        date = date.replace(day=1) - timedelta(days=1)
     return date.strftime("%B"), date.strftime("%Y")
 
 def fetch_disa_data(config, base_path):
     """
-    Fetch DISA data from a URL and save it locally, with fallback to previous months.
-
-    This function attempts to download the DISA ZIP file for the current month. If the
-    file is not available, it tries the previous two months. It saves the file in the
-    base path and returns the file name.
-
-    Args:
-        config (dict): Configuration settings from the config file.
-        base_path (str): Base directory path for file operations.
-
-    Returns:
-        str: Path to the downloaded DISA file.
-
-    Raises:
-        ValueError: If no valid ZIP file is found after trying the current and previous months.
+    Fetch DISA STIG ZIP data, checking if the local file is up to date before downloading.
     """
     disa_url_template = config["disa_url"]
-    month = datetime.now().strftime('%B')
-    year = datetime.now().strftime('%Y')
+    stig_zip_dir = os.path.join(base_path, "data", "stig_zips")
+    os.makedirs(stig_zip_dir, exist_ok=True)
     
-    for i in range(3):
+    current_month = datetime.now().strftime('%B')
+    current_year = datetime.now().strftime('%Y')
+    
+    for i in range(3):  # Check current and previous two months
+        month, year = get_previous_month(current_month, current_year, i)
         disa_url = disa_url_template.format(month=month, year=year)
-        print(f"Attempting to retrieve file from {disa_url}")
-        response = requests.get(disa_url)
+        disa_file_name = f"U_SRG-STIG_Library_{month}_{year}.zip"
+        local_file_path = os.path.join(stig_zip_dir, disa_file_name)
         
-        if response.status_code == 200 and 'application/zip' in response.headers.get('Content-Type', ''):
-            disa_file = disa_url.split('/')[-1]
-            with open(disa_file, 'wb') as output_file:
-                output_file.write(response.content)
-            print(f"Stored {disa_file} in {base_path}")
-            return disa_file
-        
-        month, year = get_previous_month(month, year, 1)
+        # Check if the local file exists and is up to date
+        response = requests.head(disa_url)
+        if response.status_code == 200:
+            remote_date_str = response.headers.get('Last-Modified')
+            if remote_date_str:
+                remote_date = datetime.strptime(remote_date_str, "%a, %d %b %Y %H:%M:%S GMT")
+                if os.path.exists(local_file_path):
+                    local_date = datetime.fromtimestamp(os.path.getmtime(local_file_path))
+                    if local_date >= remote_date:
+                        print(Fore.GREEN + f"Local STIG ZIP for {month} {year} is up to date.")
+                        return local_file_path
+                # If local file is outdated or doesn't exist, download it
+                print(Fore.CYAN + f"Downloading STIG ZIP for {month} {year}...")
+                response = requests.get(disa_url)
+                if response.status_code == 200:
+                    with open(local_file_path, 'wb') as output_file:
+                        output_file.write(response.content)
+                    # Set the local file's modification time to match the server's 'Last-Modified' time
+                    os.utime(local_file_path, (remote_date.timestamp(), remote_date.timestamp()))
+                    print(Fore.GREEN + f"Stored {disa_file_name} in {stig_zip_dir}")
+                    return local_file_path
+                else:
+                    print(Fore.RED + f"Failed to download STIG ZIP for {month} {year} (Status: {response.status_code})")
+            else:
+                print(Fore.YELLOW + f"No Last-Modified header for {disa_url}, downloading anyway...")
+                response = requests.get(disa_url)
+                if response.status_code == 200:
+                    with open(local_file_path, 'wb') as output_file:
+                        output_file.write(response.content)
+                    print(Fore.GREEN + f"Stored {disa_file_name} in {stig_zip_dir}")
+                    return local_file_path
+                else:
+                    print(Fore.RED + f"Failed to download STIG ZIP for {month} {year} (Status: {response.status_code})")
+        else:
+            print(Fore.YELLOW + f"STIG ZIP for {month} {year} not found (Status: {response.status_code}), checking previous month...")
     
-    raise ValueError("No valid ZIP file found in the last 3 months")
+    raise ValueError("No valid STIG ZIP file found in the last 3 months")
 
-def fetch_nist_mapping(config, base_path):
+def fetch_file(url, base_path, file_desc):
     """
-    Fetch the NIST 800-53 ATT&CK mapping file if it doesn't exist or is outdated.
-
-    This function checks if the NIST mapping file exists locally and if it is up to date
-    by comparing the 'Last-Modified' header of the remote file with the local file's
-    modification time. If the local file is missing or outdated, it downloads the remote file.
-
-    Args:
-        config (dict): Configuration settings from the config file.
-        base_path (str): Base directory path for file operations.
-
-    Returns:
-        str: Path to the local NIST mapping file, or None if download fails.
+    Fetch a file if it doesn’t exist locally or is outdated, with descriptive messages.
     """
-    nist_url = config["nist_800_53_attack_mapping_url"]
     data_folder = os.path.join(base_path, "data")
-    nist_file = os.path.join(data_folder, nist_url.split('/')[-1])
-    
-    # Ensure data folder exists
     os.makedirs(data_folder, exist_ok=True)
+    local_file = os.path.join(data_folder, url.split('/')[-1])
     
-    # Get remote file's last modified date
-    response = requests.head(nist_url)
+    response = requests.head(url)
     if response.status_code != 200:
-        print(Fore.RED + f"Error: Could not access {nist_url} (Status: {response.status_code})")
+        print(Fore.RED + f"Error: Could not access {url} for {file_desc} (Status: {response.status_code})")
         return None
     
     remote_date_str = response.headers.get('Last-Modified')
-    if not remote_date_str:
-        print(Fore.YELLOW + "Warning: No Last-Modified header found, attempting download anyway")
-        remote_date = datetime.now()
-    else:
-        remote_date = datetime.strptime(remote_date_str, "%a, %d %b %Y %H:%M:%S GMT")
+    remote_date = datetime.strptime(remote_date_str, "%a, %d %b %Y %H:%M:%S GMT") if remote_date_str else datetime.now()
     
-    # Check local file
     should_download = False
-    if not os.path.exists(nist_file):
-        print(Fore.CYAN + f"No local NIST mapping found at {nist_file}")
+    if not os.path.exists(local_file):
+        print(Fore.CYAN + f"No local {file_desc} found at {local_file}")
         should_download = True
     else:
-        local_date = datetime.fromtimestamp(os.path.getmtime(nist_file))
+        local_date = datetime.fromtimestamp(os.path.getmtime(local_file))
         if remote_date > local_date:
-            print(Fore.CYAN + f"Remote NIST file ({remote_date}) is newer than local ({local_date})")
+            print(Fore.CYAN + f"Remote {file_desc} ({remote_date}) is newer than local ({local_date})")
             should_download = True
         else:
-            print(Fore.GREEN + f"Local NIST file ({local_date}) is up to date")
+            print(Fore.GREEN + f"Local {file_desc} ({local_date}) is up to date")
     
-    # Download if necessary
     if should_download:
-        print(f"Downloading NIST mapping from {nist_url}")
-        response = requests.get(nist_url)
+        print(f"Downloading {file_desc} from {url}")
+        response = requests.get(url)
         if response.status_code == 200:
-            with open(nist_file, 'wb') as f:
+            with open(local_file, 'wb') as f:
                 f.write(response.content)
-            print(Fore.GREEN + f"Stored NIST mapping at {nist_file}")
-            # Set the local file's modification time to match the remote file
+            print(Fore.GREEN + f"Stored {file_desc} at {local_file}")
             if remote_date_str:
-                os.utime(nist_file, times=(remote_date.timestamp(), remote_date.timestamp()))
+                os.utime(local_file, (remote_date.timestamp(), remote_date.timestamp()))
         else:
-            print(Fore.RED + f"Failed to download NIST mapping (Status: {response.status_code})")
+            print(Fore.RED + f"Failed to download {file_desc} (Status: {response.status_code})")
             return None
-    
-    return nist_file
+    return local_file
 
 def fetch_cci_list(config, base_path):
     """
-    Fetch the CCI list ZIP file if it doesn't exist or is outdated, and extract it.
-
-    This function checks the 'Last-Modified' header of the remote CCI list ZIP file
-    and compares it with the local '.last_modified' file in the CCI list directory.
-    If the remote file is newer or the local file doesn't exist, it downloads and
-    extracts the ZIP file to the specified directory.
-
-    Args:
-        config (dict): Configuration settings from the config file.
-        base_path (str): Base directory path for file operations.
-
-    Returns:
-        str: Path to the downloaded CCI ZIP file, or None if no download occurred.
+    Fetch the CCI list ZIP file if it doesn’t exist or is outdated, and extract it.
     """
     cci_url = config["cci_list_url"]
     cci_dir = os.path.join(base_path, config["cci_list_dir"])
     last_modified_file = os.path.join(cci_dir, ".last_modified")
     
-    # Ensure CCI directory exists
     os.makedirs(cci_dir, exist_ok=True)
     
-    # Get remote file's last modified date
     response = requests.head(cci_url)
     if response.status_code != 200:
         print(Fore.RED + f"Error: Could not access {cci_url} (Status: {response.status_code})")
         return None
     
     remote_date_str = response.headers.get('Last-Modified')
-    if not remote_date_str:
-        print(Fore.YELLOW + "Warning: No Last-Modified header found, attempting download anyway")
-        remote_date = datetime.now()
-    else:
-        remote_date = datetime.strptime(remote_date_str, "%a, %d %b %Y %H:%M:%S GMT")
+    remote_date = datetime.strptime(remote_date_str, "%a, %d %b %Y %H:%M:%S GMT") if remote_date_str else datetime.now()
     
-    # Check if .last_modified exists and its modification time
     should_download = False
     if not os.path.exists(last_modified_file):
         print(Fore.CYAN + f"No local CCI list found in {cci_dir}")
@@ -207,158 +168,166 @@ def fetch_cci_list(config, base_path):
             print(Fore.GREEN + f"Local CCI list ({local_date}) is up to date")
     
     if should_download:
-        # Download the ZIP
-        cci_zip_file = os.path.join(base_path, cci_url.split('/')[-1])
+        cci_zip_file = os.path.join(base_path, "data", "cci_list.zip")
         print(f"Downloading CCI list from {cci_url}")
         response = requests.get(cci_url)
         if response.status_code == 200:
             with open(cci_zip_file, 'wb') as f:
                 f.write(response.content)
             print(Fore.GREEN + f"Stored CCI list ZIP at {cci_zip_file}")
-            
-            # Extract the ZIP to cci_dir
             with zipfile.ZipFile(cci_zip_file, 'r') as zip_ref:
                 zip_ref.extractall(cci_dir)
             print(Fore.MAGENTA + f"Extracted CCI list to {cci_dir}")
-            
-            # Create or update .last_modified file
             with open(last_modified_file, 'w') as f:
                 f.write(remote_date_str or str(datetime.now()))
-            # Set the modification time
             if remote_date_str:
-                os.utime(last_modified_file, times=(remote_date.timestamp(), remote_date.timestamp()))
-            else:
-                os.utime(last_modified_file)
+                os.utime(last_modified_file, (remote_date.timestamp(), remote_date.timestamp()))
         else:
             print(Fore.RED + f"Failed to download CCI list (Status: {response.status_code})")
             return None
     else:
-        cci_zip_file = None  # No download occurred
-    
+        cci_zip_file = None
     return cci_zip_file
 
 def extract_and_sort_files(config, disa_file, base_path):
     """
     Extract the DISA ZIP file and sort contents into SRG and STIG directories.
-
-    This function extracts the contents of the DISA ZIP file into a temporary directory,
-    then moves SRG and STIG ZIP files into their respective directories. It further extracts
-    these ZIP files and moves the XML files to the root of their directories.
-
-    Args:
-        config (dict): Configuration settings from the config file.
-        disa_file (str): Path to the downloaded DISA ZIP file.
-        base_path (str): Base directory path for file operations.
     """
-    file_location = os.path.join(base_path, config["file_imports_dir"]) + '/'
-    srg_folder = os.path.join(base_path, config["srg_dir"]) + '/'
-    stig_folder = os.path.join(base_path, config["stig_dir"]) + '/'
+    file_location = os.path.join(base_path, config["file_imports_dir"])
+    srg_folder = os.path.join(base_path, config["srg_dir"])
+    stig_folder = os.path.join(base_path, config["stig_dir"])
 
-    # Extract files from the DISA ZIP
-    print(Fore.MAGENTA + f"Extracting files to: {file_location}")
     with zipfile.ZipFile(disa_file, 'r') as zObject:
         zObject.extractall(path=file_location)
 
-    # Sort SRGs and STIGs into respective folders
-    print(Fore.CYAN + f"Checking for SRGs and STIGs in: {file_location}")
     files = os.listdir(file_location)
     for f in files:
         if f.endswith(config["srg_zip_suffix"]):
-            print(Fore.CYAN + f"Moving {f} to {srg_folder}")
-            shutil.move(file_location + f, srg_folder + f)
+            shutil.move(os.path.join(file_location, f), os.path.join(srg_folder, f))
         elif f.endswith(config["zip_suffix"]):
-            print(Fore.CYAN + f"Moving {f} to {stig_folder}")
-            shutil.move(file_location + f, stig_folder + f)
+            shutil.move(os.path.join(file_location, f), os.path.join(stig_folder, f))
 
-    # Extract nested ZIPs and move XML files
-    for folder, suffix in [(srg_folder, "SRG"), (stig_folder, "STIG")]:
+    srg_xml_moved = 0
+    stig_xml_moved = 0
+
+    for folder in [srg_folder, stig_folder]:
         for item in os.listdir(folder):
             if not item.endswith(config["zip_suffix"]):
                 continue
-            file_name = os.path.abspath(folder + item)
+            file_name = os.path.join(folder, item)
             with zipfile.ZipFile(file_name, 'r') as zip_ref:
                 zip_ref.extractall(folder)
-            os.remove(file_name)  # Remove the nested ZIP after extraction
+            os.remove(file_name)
 
-        # Move XML files to the root of the folder
         for subdir, _, files in os.walk(folder):
             for f in files:
                 if f.endswith(config["xml_suffix"]):
-                    print(Fore.LIGHTYELLOW_EX + f"Moving {f} to {folder}")
-                    shutil.move(os.path.join(subdir, f), folder + f)
+                    shutil.move(os.path.join(subdir, f), os.path.join(folder, f))
+                    if folder == srg_folder:
+                        srg_xml_moved += 1
+                    else:
+                        stig_xml_moved += 1
 
-def clean_up_files(config, disa_file, cci_zip_file, base_path):
+    return srg_xml_moved, stig_xml_moved
+
+def clean_up_files(config, cci_zip_file, base_path):
     """
     Remove temporary files and directories, keeping only XML files and extracted CCI list.
-
-    This function removes the downloaded DISA and CCI ZIP files and cleans up the SRG and STIG
-    directories by deleting any non-XML files and empty directories.
-
-    Args:
-        config (dict): Configuration settings from the config file.
-        disa_file (str): Path to the downloaded DISA ZIP file.
-        cci_zip_file (str): Path to the downloaded CCI ZIP file.
-        base_path (str): Base directory path for file operations.
+    Note: STIG ZIP files are no longer deleted here to allow reuse.
     """
-    srg_folder = os.path.join(base_path, config["srg_dir"]) + '/'
-    stig_folder = os.path.join(base_path, config["stig_dir"]) + '/'
+    srg_folder = os.path.join(base_path, config["srg_dir"])
+    stig_folder = os.path.join(base_path, config["stig_dir"])
 
-    # Remove the downloaded DISA ZIP file
-    if disa_file and os.path.exists(disa_file):
-        os.remove(disa_file)
-        print(Fore.RED + f"Removed {disa_file} from {base_path}")
-
-    # Remove the downloaded CCI ZIP file
+    # Remove the downloaded CCI ZIP file if it exists
     if cci_zip_file and os.path.exists(cci_zip_file):
+        logging.debug(f"Removing {cci_zip_file}")
         os.remove(cci_zip_file)
-        print(Fore.RED + f"Removed {cci_zip_file} from {base_path}")
 
-    # Clean up non-XML files and empty directories in SRG and STIG folders
+    srg_files_deleted = 0
+    srg_dirs_deleted = 0
+    stig_files_deleted = 0
+    stig_dirs_deleted = 0
+
     for folder in [srg_folder, stig_folder]:
         for subdir, dirs, files in os.walk(folder):
             for f in files:
                 if not f.endswith(config["xml_suffix"]):
                     file_path = os.path.join(subdir, f)
-                    print(Fore.RED + f"Deleting {f} from {folder}")
+                    logging.debug(f"Deleting {file_path}")
                     os.remove(file_path)
+                    if folder == srg_folder:
+                        srg_files_deleted += 1
+                    else:
+                        stig_files_deleted += 1
 
         for root, dirs, _ in os.walk(folder, topdown=False):
             for directory in dirs:
                 dirpath = os.path.join(root, directory)
                 if not os.listdir(dirpath):
+                    logging.debug(f"Deleting directory: {dirpath}")
                     os.rmdir(dirpath)
-                    print(Fore.RED + f"Deleting: {dirpath}")
+                    if folder == srg_folder:
+                        srg_dirs_deleted += 1
+                    else:
+                        stig_dirs_deleted += 1
+
+    return srg_files_deleted, srg_dirs_deleted, stig_files_deleted, stig_dirs_deleted
+
+def cleanup_old_stig_zips(base_path):
+    """
+    Remove STIG ZIP files older than 120 days to manage storage.
+    """
+    stig_zip_dir = os.path.join(base_path, "data", "stig_zips")
+    max_age_days = 120
+    now = datetime.now()
+    cutoff_time = (now - timedelta(days=max_age_days)).timestamp()
+
+    for file in os.listdir(stig_zip_dir):
+        file_path = os.path.join(stig_zip_dir, file)
+        if os.path.isfile(file_path):
+            mod_time = os.path.getmtime(file_path)
+            if mod_time < cutoff_time:
+                os.remove(file_path)
+                logging.debug(f"Deleted old STIG ZIP file: {file_path}")
 
 def main():
     """
-    Main function to fetch, extract, and clean DISA data, NIST mapping, and CCI list.
-
-    This function orchestrates the entire process:
-    1. Loads configuration settings.
-    2. Creates necessary directories.
-    3. Fetches DISA data, NIST mapping, and CCI list files.
-    4. Extracts and sorts DISA files.
-    5. Cleans up temporary files.
-
-    Guide for Developers:
-        - Modify 'config.json' to change URLs, directories, or file suffixes.
-        - Ensure required directories exist and have write permissions.
-        - Dependencies: requests, colorama (see requirements.txt).
-        - Runs in the current working directory; adjust paths if needed.
+    Main function to fetch, extract, and clean DISA data, NIST mapping, baselines, catalog, and CCI list.
     """
     base_path = os.getcwd()
     config = load_config()
 
-    # Create required directories if they don't exist
     for dir_key in ["file_imports_dir", "srg_dir", "stig_dir", "cci_list_dir"]:
         os.makedirs(os.path.join(base_path, config[dir_key]), exist_ok=True)
 
-    # Execute the workflow
     disa_file = fetch_disa_data(config, base_path)
-    nist_file = fetch_nist_mapping(config, base_path)
+    
+    # Fetch NIST 800-53 attack mapping
+    fetch_file(config["nist_800_53_attack_mapping_url"], base_path, "NIST 800-53 ATT&CK mapping")
+    
+    # Fetch baselines
+    for level, url in config["baselines"].items():
+        fetch_file(url, base_path, f"{level} baseline")
+    
+    # Fetch NIST SP 800-53 control catalog
+    fetch_file(config["nist_sp800_53_catalog_url"], base_path, "NIST SP 800-53 control catalog")
+    
     cci_zip_file = fetch_cci_list(config, base_path)
-    extract_and_sort_files(config, disa_file, base_path)
-    clean_up_files(config, disa_file, cci_zip_file, base_path)
+    srg_xml_moved, stig_xml_moved = extract_and_sort_files(config, disa_file, base_path)
+    srg_files_deleted, srg_dirs_deleted, stig_files_deleted, stig_dirs_deleted = clean_up_files(
+        config, cci_zip_file, base_path
+    )
+    
+    # Clean up old STIG ZIP files older than 120 days
+    cleanup_old_stig_zips(base_path)
+
+    print(Fore.GREEN + "Summary:")
+    print(f" - Moved {srg_xml_moved} XML files to SRG directory")
+    print(f" - Moved {stig_xml_moved} XML files to STIG directory")
+    print(f" - Deleted {srg_files_deleted} files from SRG directory")
+    print(f" - Deleted {stig_files_deleted} files from STIG directory")
+    print(f" - Deleted {srg_dirs_deleted} directories from SRG directory")
+    print(f" - Deleted {stig_dirs_deleted} directories from STIG directory")
     print(Style.RESET_ALL)
 
 if __name__ == "__main__":

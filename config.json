@@ -8,5 +8,11 @@
     "cci_list_dir": "data/cci_lists",
     "srg_zip_suffix": "_SRG.zip",
     "zip_suffix": ".zip",
-    "xml_suffix": ".xml"
+    "xml_suffix": ".xml",
+    "baselines": {
+        "high": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_HIGH-baseline_profile.json",
+        "moderate": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_MODERATE-baseline_profile.json",
+        "low": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_LOW-baseline_profile.json"
+    },
+    "nist_sp800_53_catalog_url": "https://csrc.nist.gov/files/pubs/sp/800/53/r5/upd1/final/docs/sp800-53r5-control-catalog.xlsx"
 }
