@@ -1,15 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
 <div class="head">
-<head>
-    <link rel="stylesheet" href="style.css"
-    <meta charset="UTF-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" 
-          content="width=device-width, 
-                   initial-scale=1.0" />
-    <h1>Welcome to the NIST Compliance Retrieve, Analyze, Generate (RAG) Demo</h1>
-</head>
+    <head>
+        <link rel="stylesheet" href="style.css"
+        <meta charset="UTF-8" />
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <meta name="viewport" 
+            content="width=device-width, 
+                    initial-scale=1.0" />
+        <script src="ui_script.js"></script>
+        <h1 style="padding-bottom: 0px;">Welcome to RiskSentinel </h1>
+        <h3 style="text-align: center; padding-top: 0px;">A Retrieval Augmented Generation (RAG) Demo</h3>
+    </head>
 </div>
 <body>
         <div class="sidenav">
@@ -24,7 +26,7 @@
             <p>Security Tools</p>
                 <a href="https://saf.mitre.org/getting-started">MITRE SAF</a>
                 <a href="https://attack.mitre.org/">MITRE ATT&CK</a>
-            <div class="footer">
+            <div class="footer" style="position:relative;">
                 <p>Version 2.27</p>
             </div>
         </div>
@@ -50,50 +52,129 @@
                     <li><b>paraphrase-MiniLM-L6-v2</b> - A lightweight (6 layers), excels at paraphrasing. Fast, but less robust for technical queries.</li>
                     <li><b>all-roberta-large-v1</b> - Higher accuracy, large model. Best for complex queries, but slowest and memory-intensive.</li>
                 </ol>
-                <form action="start_rag.js">
-                    <label for="rag_engine">Choose an engine:</label>
-                    <select name="rag_engine" id="rag_engine">
-                      <option value="all-MiniLM-L12-v2">1</option>
-                      <option value="all-mpnet-base-v2">2</option>
-                      <option value="multi-qa-MiniLM-L6-cos-v1">3</option>
-                      <option value="all-distilroberta-v1">4</option>
-                      <option value="paraphrase-MiniLM-L6-v2">5</option>
-                      <option value="all-roberta-large-v1">6</option>
-                    </select> 
-                    <br><br>
-                    <input type="submit" value="Start RAG">
-                </form>
+                <form>
+                    Select the engine to use:
+                    <select name="engine_choice" id="engine_choice">
+                        <option value="----" selected>----</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                        <option value="6">6</option>
+                    </select>
+                </form> 
                 <br><br>
                 <div class="btn-group">
-                    <button id="fetch_data">Refresh Data Sources</button>
-                    <button id="exit_rag">exit</button>
+                    <button onclick="fetch_data()">Refresh Data Sources</button>
+                    <button onclick="engine_selected()">start rag</button>
+                    <button onclick="exit_rag()">exit</button>
                 </div>
-                <div class="footer">
-                    <strong><p>Use of this site is for demonstration purposes only and The providers do not assert 
-                        that the information shared is completely accurate and it is upon the user to validate the information provided.</p></strong>
-                </div>
+            <div class="footer">
+                <p>Use of this site is for demonstration purposes only and The providers do not assert 
+                    that the information shared is complete and accurate. <br><br> 
+                    It is upon the user to validate the information provided.</p>
+            </div>
         </div>
         <div class="aside">
             <aside>
-                <h3> Interactive NIST RAG</h3>
-                <p>The data was last updated:</p>
-                    <p id="time"></p>
-                    <script>
-                        const d = new Date();
-                        document.getElementById("time").innerHTML = d;
-                    </script>
+                <p style="color: rgb(159,074,150);">The data was last updated:</p>
+                    <p id="time" style="color: rgb(159,074,150);"></p>
                 <ul>
                     <li>Type 'help' for examples</li>
                     <li>Input a compliance-related question (e.g., "What risks does AC-3 mitigate?")</li>
                     <li>Review the response, which may include control details, implementation steps, evidence needs, risk info, or control relationships.</li>
                     <li>Select `exit` to end the demo or switch engines</li>
                 </ul>
-                <form action="run_rag.js">
-                    <label for="ragInput">What is the compliance-related question:</label>
-                    <input type="text" id="ragInput" name="ragInput"><br><br>
-                    <input type="submit" value="Submit">
-                </form>
+                <div>
+                    <form id="ragForm">
+                        <label>What is the compliance-related question:</label>
+                        <br><br>
+                        <input type="text" id="ragInput" name="ragInput" size="60">
+                    </form>
+                    <script>
+                        document.getElementById('ragInput').onkeypress = function(e) {
+                            var event = e || window.event; 
+                            var charCode = event.which || event.keyCode;
+
+                            if (charCode == '13') {
+                                ask_question()
+                            return false;
+                            } else {
+                                var answerForm = document.getElementById("ragAnswer");
+                                if (answerForm.style.display === "block") {
+                                    answerForm.style.display = "none";
+                                }    
+                            }
+                        };
+                    </script>
+                    <br>
+                    <button onclick="ask_question()">Ask RiskSentinel</button>
+                </div>
+                <div class="box" id="ragAnswer" style="display: none">
+                    <div class="terminal">
+                        <p class="p"> this space for output from RAG:</p>
+                        <p>
+                            At ourselves direction believing do he departure. Celebrated her had sentiments understood are projection set. 
+                            Possession ye no mr unaffected remarkably at. Wrote house in never fruit up. Pasture imagine my garrets an he. 
+                            However distant she request behaved see nothing. Talking settled at pleased an of me brother weather.
+                        </p>
+                        <p>
+                            Call park out she wife face mean. Invitation excellence imprudence understood it continuing to. Ye show done an 
+                            into. Fifteen winding related may hearted colonel are way studied. County suffer twenty or marked no moment in he. 
+                            Meet shew or said like he. Valley silent cannot things so remain oh to elinor. Far merits season better tended any 
+                            age hunted.
+                        </p>
+                        <p>
+                            He oppose at thrown desire of no. Announcing impression unaffected day his are unreserved indulgence. Him hard find 
+                            read are you sang. Parlors visited noisier how explain pleased his see suppose. Do ashamed assured on related 
+                            offence at equally totally. Use mile her whom they its. Kept hold an want as he bred of. Was dashwood 
+                            landlord cheerful husbands two. Estate why theirs indeed him polite old settle though she. In as at regard easily 
+                            narrow roused adieus.
+                        </p>
+                        <p>
+                            Conveying or northward offending admitting perfectly my. Colonel gravity get thought fat smiling add but. Wonder 
+                            twenty hunted and put income set desire expect. Am cottage calling my is mistake cousins talking up. Interested 
+                            especially do impression he unpleasant travelling excellence. All few our knew time done draw ask.
+                        </p>
+                        <p>
+                            Arrived totally in as between private. Favour of so as on pretty though elinor direct. Reasonable estimating be 
+                            alteration we themselves entreaties me of reasonably. Direct wished so be expect polite valley. Whose asked stand 
+                            it sense no spoil to. Prudent you too his conduct feeling limited and. Side he lose paid as hope so face upon be. 
+                            Goodness did suitable learning put.
+                        </p>
+                        <p>
+                            Ten the hastened steepest feelings pleasant few surprise property. An brother he do colonel against minutes uncivil.
+                            Can how elinor warmly mrs basket marked. Led raising expense yet demesne weather musical. Me mr what park next busy 
+                            ever. Elinor her his secure far twenty eat object. Late any far saw size want man. Which way you wrong add shall 
+                            one. As guest right of he scale these. Horses nearer oh elinor of denote.
+                        </p>
+                        <p>
+                            Alteration literature to or an sympathize mr imprudence. Of is ferrars subject as enjoyed or tedious cottage. 
+                            Procuring as in resembled by in agreeable. Next long no gave mr eyes. Admiration advantages no he celebrated so 
+                            pianoforte unreserved. Not its herself forming charmed amiable. Him why feebly expect future now.
+                        </p>
+                        <p>
+                            On then sake home is am leaf. Of suspicion do departure at extremely he believing. Do know said mind do rent they 
+                            oh hope of. General enquire picture letters garrets on offices of no on. Say one hearing between excited evening 
+                            all inhabit thought you. Style begin mr heard by in music tried do. To unreserved projection no introduced invitation.
+                        </p>
+                        <p>
+                            Of be talent me answer do relied. Mistress in on so laughing throwing endeavor occasion welcomed. Gravity sir 
+                            brandon calling can. No years do widow house delay stand. Prospect six kindness use steepest new ask. High gone 
+                            kind calm call as ever is. Introduced melancholy estimating motionless on up as do. Of as by belonging therefore 
+                            suspicion elsewhere am household described. Domestic suitable bachelor for landlord fat.
+                        </p>
+                        <p>
+                            Add you viewing ten equally believe put. Separate families my on drawings do oh offended strictly elegance. Perceive 
+                            jointure be mistress by jennings properly. An admiration at he discovered difficulty continuing. We in building 
+                            removing possible suitable friendly on. Nay middleton him admitting consulted and behaviour son household. Recurred 
+                            advanced he oh together entrance speedily suitable. Ready tried gay state fat could boy its among shall. 
+                        </p>
+                    </div>
+                </div>
             </aside>
         </div>
     </body>
+    
 </html>
