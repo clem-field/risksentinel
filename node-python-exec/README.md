@@ -4,7 +4,7 @@
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
     </head>
-<title>Setting Up for Local Development</title>
+<h1 style="color:blue">Setting Up for Local Development<h1>
 <h1> Using Node.js</h1>
 <p>
     More information about how Node.js works and how to construct it is available at <a href="https://www.geeksforgeeks.org/nodejs/">Geeks for Geeks Node.js</a>
