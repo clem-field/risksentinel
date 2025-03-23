@@ -1,0 +1,10 @@
+{
+  "Rules": [
+    {
+      "Resource": ["index/multi-tenant-rag/tenant_*"],
+      "Permission": ["aoss:*"],
+      "Principal": ["arn:aws:iam::<account-id>:role/lambda-execution-role"]
+    }
+  ],
+  "Description": "Allow Lambda access to tenant indices"
+}
