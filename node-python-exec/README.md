@@ -3,8 +3,8 @@
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Setting Up for Local Development</title>
     </head>
+<title>Setting Up for Local Development</title>
 <h1> Using Node.js</h1>
 <p>
     More information about how Node.js works and how to construct it is available at <a href="https://www.geeksforgeeks.org/nodejs/">Geeks for Geeks Node.js</a>
