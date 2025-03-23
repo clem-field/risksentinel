@@ -2,3 +2,4 @@ requests
 colorama
 openai
 pandas
+openpyxl

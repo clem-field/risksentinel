@@ -14,5 +14,9 @@
         "moderate": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_MODERATE-baseline_profile.json",
         "low": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_LOW-baseline_profile.json"
     },
-    "nist_sp800_53_catalog_url": "https://csrc.nist.gov/files/pubs/sp/800/53/r5/upd1/final/docs/sp800-53r5-control-catalog.xlsx"
+    "nist_sp800_53_catalog_url": "https://csrc.nist.gov/files/pubs/sp/800/53/r5/upd1/final/docs/sp800-53r5-control-catalog.xlsx",
+    "OPENROUTER_API_KEY": "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",
+    "OPENROUTER_BASE_URL": "https://openrouter.ai/api/v1",
+    "DEEPSEEK_MODEL": "deepseek/deepseek-r1:free"
 }
+

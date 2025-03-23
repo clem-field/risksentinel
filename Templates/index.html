@@ -2,13 +2,13 @@
 <html lang="en">
 <div class="head">
     <head>
-        <link rel="stylesheet" href="Static/Styles/style.css"
+        <link rel="stylesheet" href="/static/styles/style.css">
         <meta charset="UTF-8" />
         <meta http-equiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" 
             content="width=device-width, 
                     initial-scale=1.0" />
-        <script src="Static/Styles/ui_script.js"></script>
+        <script src="/static/styles/ui_script.js"></script>
         <h1 style="padding-bottom: 0px;">Welcome to RiskSentinel </h1>
         <h3 style="text-align: center; padding-top: 0px;">A Retrieval Augmented Generation (RAG) Demo</h3>
     </head>
@@ -66,9 +66,25 @@
                 </form> 
                 <br><br>
                 <div class="btn-group">
-                    <button onclick="fetch_data()">Refresh Data Sources</button>
+                    <button id="runPython" onclick="data_response()">Refresh Data Sources</button>
                     <button onclick="engine_selected()">start rag</button>
                     <button onclick="exit_rag()">exit</button>
+                </div>
+                <br><br>
+                <div class="terminal" id="dataResponse" style="display: none;">
+                    <p id="fetchOutput"></p>
+                    <script>
+                        document.getElementById("runPython").addEventListener("click", function () {
+                            fetch("/run-python")
+                                .then(response => response.text())
+                                .then(data => {
+                                    document.getElementById("fetchOutput").innerText = data;
+                                })
+                                .catch(error => {
+                                    document.getElementById("fetchOutput").innerText = "Error: " + error;
+                                });
+                        });
+                    </script>
                 </div>
             <div class="footer">
                 <p>Use of this site is for demonstration purposes only and The providers do not assert 
@@ -173,7 +189,29 @@
                         </p>
                     </div>
                 </div>
+                <div>
+                </div>
             </aside>
+            <h2>Click the button to run the Python script:</h2>
+            <button id="runPython">Run Python</button>
+            <p id="output"></p>
+
+            <script>
+                document.getElementById("runPython").addEventListener("click", function () {
+                    fetch("/run-python")
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.output) {
+                                document.getElementById("output").innerText = data.output;
+                            } else {
+                                document.getElementById("output").innerText = "Error: " + data.error;
+                            }
+                        })
+                        .catch(error => {
+                            document.getElementById("output").innerText = "Request failed: " + error;
+                        });
+                });
+            </script>
         </div>
     </body>
     

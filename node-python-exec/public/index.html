@@ -2,7 +2,7 @@
 <html lang="en">
 <div class="head">
     <head>
-        <link rel="stylesheet" href="style.css"
+        <link rel="stylesheet" href="style.css">
         <meta charset="UTF-8" />
         <meta http-equiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" 
@@ -66,9 +66,25 @@
                 </form> 
                 <br><br>
                 <div class="btn-group">
-                    <button onclick="fetch_data()">Refresh Data Sources</button>
-                    <button onclick="engine_selected()">start rag</button>
+                    <button id="dataFetcher" onclick="data_response()">Refresh Data Sources</button>
+                    <button id="startEngine" onclick="start_engine()">start rag</button>
                     <button onclick="exit_rag()">exit</button>
+                </div>
+                <br><br>
+                <div class="terminal" id="dataResponse" style="display: none;">
+                    <p id="fetchOutput"></p>
+                    <script>
+                        document.getElementById("dataFetcher").addEventListener("click", function () {
+                            fetch("/data-fetcher")
+                                .then(response => response.text())
+                                .then(data => {
+                                    document.getElementById("fetchOutput").innerText = data;
+                                })
+                                .catch(error => {
+                                    document.getElementById("fetchOutput").innerText = "Error: " + error;
+                                });
+                        });
+                    </script>
                 </div>
             <div class="footer">
                 <p>Use of this site is for demonstration purposes only and The providers do not assert 
@@ -172,24 +188,23 @@
                             advanced he oh together entrance speedily suitable. Ready tried gay state fat could boy its among shall. 
                         </p>
                     </div>
+                    <div class="terminal" id="startEngine" style="display: none;">
+                        <p id="engineOutput"></p>
+                        <script>
+                            document.getElementById("startEngine").addEventListener("click", function () {
+                                fetch("/start-engine")
+                                    .then(response => response.text())
+                                    .then(data => {
+                                        document.getElementById("engineOutput").innerText = data;
+                                    })
+                                    .catch(error => {
+                                        document.getElementById("engineOutput").innerText = "Error: " + error;
+                                    });
+                            });
+                        </script>
+                    </div>
                 </div>
                 <div>
-                    <h2>Click the button to run the Python script:</h2>
-                    <button id="runPython">Run Python</button>
-                    <p id="output"></p>
-
-                    <script>
-                        document.getElementById("runPython").addEventListener("click", function () {
-                            fetch("/run-python")
-                                .then(response => response.text())
-                                .then(data => {
-                                    document.getElementById("output").innerText = data;
-                                })
-                                .catch(error => {
-                                    document.getElementById("output").innerText = "Error: " + error;
-                                });
-                        });
-                    </script>
                 </div>
             </aside>
         </div>

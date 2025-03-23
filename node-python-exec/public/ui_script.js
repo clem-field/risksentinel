@@ -12,33 +12,32 @@ const PORT = 3000;
 app.use(express.static(path.join(__dirname, "public")));
 
 // Route to execute the Python script
-app.get("/run-python", (req, res) => {
-    exec("python3 script.py", (error, stdout, stderr) => {
-        if (error) {
-            console.error(`Error executing Python script: ${error}`);
-            res.status(500).send(`Error: ${error.message}`);
-            return;
-        }
-        if (stderr) {
-            console.error(`Python script stderr: ${stderr}`);
-            res.status(500).send(`Error: ${stderr}`);
-            return;
-        }
-        res.send(stdout);
-    });
-});
+// app.get("/run-python", (req, res) => {
+//     exec("python3 data_fetcher.py", (error, stdout, stderr) => {
+//         if (error) {
+//             console.error(`Error executing Python script: ${error}`);
+//             res.status(500).send(`Error: ${error.message}`);
+//             return;
+//         }
+//         if (stderr) {
+//             console.error(`Python script stderr: ${stderr}`);
+//             res.status(500).send(`Error: ${stderr}`);
+//             return;
+//         }
+//         res.send(stdout);
+//     });
+// });
 
 // Start the server
-app.listen(PORT, () => {
-    console.log(`Server running at http://localhost:${PORT}`);
-});
+// app.listen(PORT, () => {
+//     console.log(`Server running at http://localhost:${PORT}`);
+// });
 
 /* event listener */
 
 
 /* fetch data functions */
-function fetch_data() {
-    alert("fetch data function called");
+function refresh_date() {
     const d = new Date();
     document.getElementById("time").innerHTML = d;
 };
@@ -78,7 +77,13 @@ function answer_question() {
         answerForm.style.display = "block";
     } 
 };
-
+/* data Response block */
+function data_response() {
+    var answerForm = document.getElementById("dataResponse");
+    if (answerForm.style.display === "none") {
+        answerForm.style.display = "block";
+    } 
+};
 /* exiting rag */
 function exit_rag() {
     alert("Exiting RAG")
