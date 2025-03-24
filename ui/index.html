@@ -91,6 +91,27 @@
                     <li>Review the response, which may include control details, implementation steps, evidence needs, risk info, or control relationships.</li>
                     <li>Select `exit` to end the demo or switch engines</li>
                 </ul>
+                <p> The DespSeek model tailors responses for the following users:</p>
+                <ol>
+                    <li><b>1</b> - Authorizing Official (AO)</li>
+                    <li><b>2</b> - Assessor</li>
+                    <li><b>3</b> - Application Development Team (ADT)</li>
+                    <li><b>4</b> - Auditor</li>
+                </ol>
+                <form>
+                    Select the user profile:
+                    <select name="user_profile" id="user_profile">
+                        <option value="----" selected>----</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                    </select>
+                </form>
+                <p>Selected User Profile: "${userProfile}"</p>
+                <script>
+                    var userProfile = document.getElementById("user_profile").Selected 
+                </script>
                 <div>
                     <form id="ragForm">
                         <label>What is the compliance-related question:</label>
