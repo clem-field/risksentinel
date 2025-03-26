@@ -3,5 +3,6 @@ colorama
 openai
 pandas
 openpyxl
+lxml
 scheduler
 pytz
