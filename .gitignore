@@ -7,3 +7,4 @@ logs/
 chroma_db/
 config.json
 venv/
+data_update.log
