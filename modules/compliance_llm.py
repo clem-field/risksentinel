@@ -8,6 +8,22 @@ from colorama import Fore, Style
 # Initialize colorama
 colorama.init()
 
+# Make sure the config file is good to go
+def validate_config(config):
+    required_keys = [
+        "timezone", "cci_list_dir", "srg_dir", "stig_dir",
+        "nist_800_53_attack_mapping_url", "baselines",
+        "nist_sp800_53_catalog_url", "cci_list_url",
+        "disa_url", "xml_suffix", "srg_zip_suffix"
+    ]
+    for key in required_keys:
+        if key not in config:
+            raise ValueError(f"Missing required config key: {key}")
+    logging.info("Config validated successfully.")
+
+# Call it after loading config
+validate_config(CONFIG)
+
 # Define roles
 roles = {
     "Authorizing Official": "You can ask for executive summaries or compliance dashboards.",
