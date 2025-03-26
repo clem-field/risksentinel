@@ -1,7 +1,7 @@
 import os
 import json
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import shutil
 from email.utils import parsedate_to_datetime
 import zipfile
@@ -148,10 +148,10 @@ def fetch_data(config_path):
         with open(last_processed_file, 'r') as f:
             last_processed = json.load(f)
             disa_last_processed = tuple(last_processed.get("disa_zip", [0, 0]))
-            nist_mapping_last_modified = datetime.fromisoformat(last_processed.get("nist_mapping", "1970-01-01T00:00:00Z"))
+            nist_mapping_last_modified = datetime.fromisoformat(last_processed.get("nist_mapping", "1970-01-01T00:00:00+00:00"))
     else:
         disa_last_processed = (0, 0)
-        nist_mapping_last_modified = datetime(1970, 1, 1)
+        nist_mapping_last_modified = datetime(1970, 1, 1, tzinfo=timezone.utc)  # UTC-aware default
 
     # Prepare parallel downloads
     download_tasks = []
@@ -239,8 +239,8 @@ def fetch_data(config_path):
     with open(last_processed_file, 'w') as f:
         last_processed = {
             "disa_zip": list(disa_last_processed),
-            "nist_mapping": nist_mapping_last_modified.isoformat() + "Z",
-            "last_updated": datetime.now().isoformat()  # Add last_updated timestamp
+            "nist_mapping": nist_mapping_last_modified.isoformat(),  # No extra Z
+            "last_updated": datetime.now(timezone.utc).isoformat()  # UTC-aware timestamp
         }
         json.dump(last_processed, f)
     print("Data fetch completed. last_processed.json updated.")
