@@ -37,23 +37,23 @@ def check_data_freshness(max_age_days=7):
             logging.warning("No 'last_updated' key in last_processed.json.")
             return False
         last_updated = datetime.fromisoformat(last_updated_str)
-        age = datetime.now(timezone.utc) - last_updated  # Fixed: Use UTC-aware datetime.now()
+        age = datetime.now(timezone.utc) - last_updated
         return age < timedelta(days=max_age_days)
     except (json.JSONDecodeError, ValueError) as e:
         logging.error(f"Error reading last_processed.json: {e}")
         return False
 
-def load_compliance_data(config):
+def load_compliance_data(config, base_path):
     """Load compliance data from directories specified in config.json.
 
     Args:
         config (dict): Configuration dictionary from config.json.
+        base_path (str): Path to the project root directory.
 
     Returns:
         dict: A dictionary containing loaded compliance data.
     """
     data = {}
-    base_path = os.path.dirname(__file__)
 
     # Load STIG data
     stig_dir = os.path.join(base_path, config["stig_dir"])
@@ -67,7 +67,7 @@ def load_compliance_data(config):
         except Exception as e:
             logging.error(f"Failed to parse STIG file {xml_file}: {e}")
 
-    # Placeholder for SRG and CCI data (extend as needed)
+    # Placeholder for SRG and CCI data
     srg_dir = os.path.join(base_path, config["srg_dir"])
     cci_dir = os.path.join(base_path, config["cci_list_dir"])
     # Add parsing logic for SRG and CCI files here if required
@@ -81,12 +81,13 @@ def main():
 
     logging.info("Starting compliance LLM tool.")
 
-    # Load config
+    # Load config and determine project root
     config_path = os.path.join(os.path.dirname(__file__), '../config.json')
     if not os.path.exists(config_path):
         logging.error("config.json not found.")
         print("Error: config.json not found. Exiting.")
         sys.exit(1)
+    base_path = os.path.dirname(os.path.abspath(config_path))  # Project root directory
     with open(config_path, 'r') as f:
         config = json.load(f)
 
@@ -107,17 +108,28 @@ def main():
         print("Warning: Compliance data may be outdated. Consider updating with --update or running data_fetcher.py.")
 
     # Check if critical directories exist
-    base_path = os.path.dirname(__file__)
+    missing_dirs = []
     for dir_key in ["stig_dir", "srg_dir", "cci_list_dir"]:
         dir_path = os.path.join(base_path, config[dir_key])
         if not os.path.exists(dir_path):
-            logging.error(f"{dir_key} not found: {dir_path}")
-            print(f"Error: {dir_key} not found. Please run data_fetcher.py to download the data.")
+            missing_dirs.append(dir_key)
+            logging.warning(f"{dir_key} not found: {dir_path}")
+
+    if missing_dirs:
+        logging.error(f"Missing directories: {', '.join(missing_dirs)}. Attempting to fetch data...")
+        print(f"Error: Missing directories ({', '.join(missing_dirs)}). Running data_fetcher.py to download the data...")
+        try:
+            subprocess.run([sys.executable, "modules/data_fetcher.py"], check=True)
+            logging.info("Data fetched successfully after missing directories detected.")
+            print("Data fetched successfully.")
+        except subprocess.CalledProcessError as e:
+            logging.error(f"Failed to fetch data: {e}")
+            print(f"Error: Failed to fetch data: {e}. Cannot proceed without required directories.")
             sys.exit(1)
 
     # Load compliance data
     logging.info("Loading compliance data...")
-    compliance_data = load_compliance_data(config)
+    compliance_data = load_compliance_data(config, base_path)
     if not compliance_data:
         logging.warning("No compliance data loaded. Functionality may be limited.")
         print("Warning: No compliance data found. Functionality may be limited.")
