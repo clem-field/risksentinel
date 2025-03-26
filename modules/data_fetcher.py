@@ -180,5 +180,5 @@ def fetch_data(config_path):
         print(f"Latest STIG/SRG library {latest_filename} is already processed; skipping.")
 
 if __name__ == "__main__":
-    config_path = os.path.join(os.path.dirname(__file__), 'config.json')
+    config_path = os.path.join(os.path.dirname(__file__), '../config.json')
     fetch_data(config_path)
