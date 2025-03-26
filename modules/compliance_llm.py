@@ -82,7 +82,7 @@ def main():
     logging.info("Starting compliance LLM tool.")
 
     # Load config
-    config_path = os.path.join(os.path.dirname(__file__), 'config.json')
+    config_path = os.path.join(os.path.dirname(__file__), '../config.json')
     if not os.path.exists(config_path):
         logging.error("config.json not found.")
         print("Error: config.json not found. Exiting.")
