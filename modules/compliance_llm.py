@@ -2,7 +2,7 @@ import argparse
 import subprocess
 import sys
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone  # Added timezone import
 import logging
 import os
 import glob
@@ -37,7 +37,9 @@ def check_data_freshness(max_age_days=7):
             logging.warning("No 'last_updated' key in last_processed.json.")
             return False
         last_updated = datetime.fromisoformat(last_updated_str)
-        age = datetime.now() - last_updated
+        # Use UTC timezone for consistency
+        now = datetime.now(timezone.utc)
+        age = now - last_updated
         return age < timedelta(days=max_age_days)
     except (json.JSONDecodeError, ValueError) as e:
         logging.error(f"Error reading last_processed.json: {e}")
@@ -184,9 +186,6 @@ def main():
     else:
         logging.info(f"Loaded {len(compliance_data)} compliance items.")
         print(f"Compliance LLM tool running with {len(compliance_data)} items loaded.")
-        # Optional: Print a sample for verification
-        # for key, value in list(compliance_data.items())[:2]:
-        #     print(f"{key}: {value}")
 
     # Main functionality (placeholder)
     print("Compliance LLM tool running with loaded data.")
