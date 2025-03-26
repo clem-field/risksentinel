@@ -109,15 +109,15 @@ def fetch_data() -> None:
             disa_last_processed = tuple(last_processed.get("disa_zip", [0, 0]))
             nist_mapping_last_modified_str = last_processed.get("nist_mapping", "1970-01-01T00:00:00Z")
             nist_mapping_last_modified = datetime.fromisoformat(nist_mapping_last_modified_str)
-            # If it's naive, localize it to UTC; if already aware, keep it as is
+            # If naive, localize to UTC; if aware but not UTC, convert to UTC
             if nist_mapping_last_modified.tzinfo is None:
                 nist_mapping_last_modified = UTC_TZ.localize(nist_mapping_last_modified)
             elif nist_mapping_last_modified.tzinfo != UTC_TZ:
-                # Convert to UTC if it's in a different timezone
                 nist_mapping_last_modified = nist_mapping_last_modified.astimezone(UTC_TZ)
     else:
         disa_last_processed = (0, 0)
-        nist_mapping_last_modified = UTC_TZ.localize(datetime(1970, 1, 1))
+        nist_mapping_last_modified = UTC_TZ.localize(datetime(1970, 1, 1))  # Safe default
+        logging.info("last_processed.json not found; initializing with default values.")
 
     # Download NIST 800-53 attack mapping
     mapping_url = CONFIG["nist_800_53_attack_mapping_url"]
