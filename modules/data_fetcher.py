@@ -73,7 +73,11 @@ def get_last_modified_date(url: str) -> Optional[datetime]:
         last_modified = response.headers.get("Last-Modified")
         if last_modified:
             dt = parsedate_to_datetime(last_modified)
-            return UTC_TZ.localize(dt)  # Make it UTC-aware
+            # If naive, localize to UTC; if aware, convert to UTC
+            if dt.tzinfo is None:
+                return UTC_TZ.localize(dt)
+            else:
+                return dt.astimezone(UTC_TZ)
         return None
     except requests.exceptions.RequestException as e:
         logging.error(f"Error checking Last-Modified for {url}: {e}")
