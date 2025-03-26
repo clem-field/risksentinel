@@ -59,7 +59,11 @@ def get_last_modified_date(url: str) -> Optional[datetime]:
         last_modified = response.headers.get("Last-Modified")
         if last_modified:
             dt = parsedate_to_datetime(last_modified)
-            return UTC_TZ.localize(dt)  # Make it UTC-aware
+            # If naive, localize to UTC; if aware, convert to UTC
+            if dt.tzinfo is None:
+                return UTC_TZ.localize(dt)
+            else:
+                return dt.astimezone(UTC_TZ)
         return None
     except requests.exceptions.RequestException as e:
         logging.error(f"Error checking Last-Modified for {url}: {e}")
@@ -179,31 +183,4 @@ def fetch_data() -> None:
                 ensure_dir_exists(temp_extract_dir)
                 unzip_file(dest_path, temp_extract_dir)
                 
-                for root, _, files in os.walk(temp_extract_dir):
-                    for file in files:
-                        if file.endswith(CONFIG["xml_suffix"]):
-                            src_path = os.path.join(root, file)
-                            if CONFIG["srg_zip_suffix"].replace(".zip", "") in file:
-                                dest_path = os.path.join(srg_dir, file)
-                            else:
-                                dest_path = os.path.join(stig_dir, file)
-                            shutil.move(src_path, dest_path)
-                            logging.info(f"Moved {file} to {dest_path}")
-                
-                shutil.rmtree(temp_extract_dir)
-                with open(last_processed_file, 'w') as f:
-                    last_processed = {
-                        "disa_zip": list(latest_date),
-                        "nist_mapping": nist_mapping_last_modified.isoformat()
-                    }
-                    json.dump(last_processed, f)
-                logging.info(f"Successfully processed {latest_filename}")
-            except Exception as e:
-                logging.error(f"Error processing {latest_filename}: {e}")
-        else:
-            logging.error(f"Failed to download {latest_filename}")
-    else:
-        logging.info(f"Latest STIG/SRG library {latest_filename} is already processed; skipping.")
-
-if __name__ == "__main__":
-    fetch_data()
+                for root, _, files in os.walk(temp ​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​
