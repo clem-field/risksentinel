@@ -3,3 +3,4 @@ colorama
 openai
 pandas
 openpyxl
+scheduler
