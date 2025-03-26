@@ -15,5 +15,8 @@
         "low": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_LOW-baseline_profile.json"
     },
     "nist_sp800_53_catalog_url": "https://csrc.nist.gov/files/pubs/sp/800/53/r5/upd1/final/docs/sp800-53r5-control-catalog.xlsx",
-    "timezone": "America/New_York"
+    "OPENROUTER_API_KEY": "<YOUR_OPEN_ROUTER_API_KEY>",
+    "OPENROUTER_BASE_URL": "https://openrouter.ai/api/v1",
+    "DEEPSEEK_MODEL": "deepseek/deepseek-r1:free",
+	"timezone": "America/New_York"
 }
