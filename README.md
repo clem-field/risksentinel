@@ -35,6 +35,7 @@ Specified in `requirements.txt`:
 - `requests`
 - `colorama`
 - `openai`
+- `pandas`
 - `openpyxl`
 
 These are only required if running locally. The virtual environment (venv) will install these when activated.
