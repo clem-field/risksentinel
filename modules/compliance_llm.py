@@ -69,15 +69,18 @@ def load_compliance_data(config, base_path):
     for xml_file in stig_files:
         try:
             tree = etree.parse(xml_file)
-            for elem in tree.findall(".//Rule"):
-                control_id = elem.get("id")
-                title = elem.find("title").text
+            # Common STIG XML tags might be <Rule> or <control>
+            rules = tree.findall(".//Rule") or tree.findall(".//control")
+            for elem in rules:
+                control_id = elem.get("id") or elem.findtext("id") or "Unknown ID"
+                title = elem.findtext("title") or "No Title"
                 data[control_id] = {"title": title, "type": "STIG"}
             logging.info(f"Loaded STIG data from {xml_file}")
         except Exception as e:
             logging.error(f"Failed to parse STIG file {xml_file}: {e}")
+            print(f"Error parsing {xml_file}: {e}")
 
-    # Load SRG data (placeholder)
+    # Load SRG data
     srg_dir = os.path.join(base_path, config["srg_dir"])
     print(f"Looking for SRG data in: {srg_dir}")
     logging.info(f"Checking SRG directory: {srg_dir}")
@@ -85,8 +88,23 @@ def load_compliance_data(config, base_path):
     if not srg_files:
         print(f"No .xml files found in {srg_dir}")
         logging.warning(f"No XML files found in {srg_dir}")
+    else:
+        print(f"Found {len(srg_files)} .xml files in {srg_dir}")
+    for xml_file in srg_files:
+        try:
+            tree = etree.parse(xml_file)
+            # Adjust tags based on SRG XML structure (placeholder)
+            rules = tree.findall(".//Rule") or tree.findall(".//control")
+            for elem in rules:
+                control_id = elem.get("id") or elem.findtext("id") or "Unknown ID"
+                title = elem.findtext("title") or "No Title"
+                data[control_id] = {"title": title, "type": "SRG"}
+            logging.info(f"Loaded SRG data from {xml_file}")
+        except Exception as e:
+            logging.error(f"Failed to parse SRG file {xml_file}: {e}")
+            print(f"Error parsing {xml_file}: {e}")
 
-    # Load CCI data (placeholder)
+    # Load CCI data
     cci_dir = os.path.join(base_path, config["cci_list_dir"])
     print(f"Looking for CCI data in: {cci_dir}")
     logging.info(f"Checking CCI directory: {cci_dir}")
@@ -94,8 +112,22 @@ def load_compliance_data(config, base_path):
     if not cci_files:
         print(f"No .xml files found in {cci_dir}")
         logging.warning(f"No XML files found in {cci_dir}")
+    else:
+        print(f"Found {len(cci_files)} .xml files in {cci_dir}")
+    for xml_file in cci_files:
+        try:
+            tree = etree.parse(xml_file)
+            # Adjust tags based on CCI XML structure (e.g., U_CCI_List.xml)
+            ccis = tree.findall(".//cci_item")
+            for elem in ccis:
+                control_id = elem.get("id") or elem.findtext("id") or "Unknown ID"
+                definition = elem.findtext("definition") or "No Definition"
+                data[control_id] = {"title": definition, "type": "CCI"}
+            logging.info(f"Loaded CCI data from {xml_file}")
+        except Exception as e:
+            logging.error(f"Failed to parse CCI file {xml_file}: {e}")
+            print(f"Error parsing {xml_file}: {e}")
 
-    # Add SRG and CCI parsing logic here if files exist
     return data
 
 def main():
