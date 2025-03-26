@@ -54,7 +54,8 @@ def load_compliance_data(config):
         dict: A dictionary containing loaded compliance data.
     """
     data = {}
-    base_path = os.path.dirname(__file__)
+    # Use project root (one level up from modules)
+    base_path = os.path.dirname(os.path.dirname(__file__))
     namespaces = {
         "xccdf": "http://checklists.nist.gov/xccdf/1.1",
         "cci": "http://iase.disa.mil/cci"  # Placeholder for CCI files
@@ -115,7 +116,6 @@ def load_compliance_data(config):
     for xml_file in glob.glob(os.path.join(cci_dir, "*.xml")):
         try:
             tree = etree.parse(xml_file)
-            # Tentative CCI parsing (adjust based on actual CCI XML structure)
             cci_items = tree.findall(".//cci:cci_item", namespaces)
             for cci_item in cci_items:
                 cci_id = cci_item.get("id")
@@ -156,7 +156,8 @@ def main():
     if args.update:
         logging.info("Updating compliance data...")
         try:
-            subprocess.run([sys.executable, "modules/data_fetcher.py"], check=True)
+            # Run data_fetcher.py from the modules directory
+            subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "data_fetcher.py")], check=True)
             logging.info("Data updated successfully.")
             print("Data updated successfully.")
         except subprocess.CalledProcessError as e:
@@ -169,7 +170,7 @@ def main():
         print("Warning: Compliance data may be outdated. Consider updating with --update or running data_fetcher.py.")
 
     # Check if critical directories exist
-    base_path = os.path.dirname(__file__)
+    base_path = os.path.dirname(os.path.dirname(__file__))  # Project root
     print(f"Script base path: {base_path}")
     for dir_key in ["stig_dir", "srg_dir", "cci_list_dir"]:
         dir_path = os.path.join(base_path, config[dir_key])
