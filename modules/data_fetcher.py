@@ -4,6 +4,7 @@ import requests
 import zipfile
 from datetime import datetime, timedelta
 import shutil
+from email.utils import parsedate_to_datetime
 
 def download_file(url, destination):
     """Download a file from a URL to a destination path if it exists."""
@@ -43,6 +44,19 @@ def get_latest_available_zip_info(base_url, max_months_back=12):
             continue
     return None, None, None
 
+def get_last_modified_date(url):
+    """Retrieve the Last-Modified date from the HTTP header of a URL."""
+    try:
+        response = requests.head(url)
+        response.raise_for_status()
+        last_modified = response.headers.get("Last-Modified")
+        if last_modified:
+            return parsedate_to_datetime(last_modified)
+        return None
+    except requests.exceptions.RequestException as e:
+        print(f"Error checking Last-Modified for {url}: {e}")
+        return None
+
 def fetch_data(config_path):
     """Fetch data files based on config.json and save to appropriate directories."""
     # Load config
@@ -63,6 +77,39 @@ def fetch_data(config_path):
     os.makedirs(stig_zips_dir, exist_ok=True)
     os.makedirs(srg_dir, exist_ok=True)
     os.makedirs(stig_dir, exist_ok=True)
+
+    # Load or initialize last processed data
+    last_processed_file = os.path.join(data_dir, "last_processed.json")
+    if os.path.exists(last_processed_file):
+        with open(last_processed_file, 'r') as f:
+            last_processed = json.load(f)
+            disa_last_processed = tuple(last_processed.get("disa_zip", [0, 0]))
+            nist_mapping_last_modified = datetime.fromisoformat(last_processed.get("nist_mapping", "1970-01-01T00:00:00Z"))
+    else:
+        disa_last_processed = (0, 0)
+        nist_mapping_last_modified = datetime(1970, 1, 1)
+
+    # Download NIST 800-53 attack mapping
+    mapping_url = config["nist_800_53_attack_mapping_url"]
+    mapping_filename = mapping_url.split('/')[-1]
+    mapping_dest = os.path.join(data_dir, mapping_filename)
+    current_mapping_modified = get_last_modified_date(mapping_url)
+    if current_mapping_modified and current_mapping_modified > nist_mapping_last_modified:
+        if download_file(mapping_url, mapping_dest):
+            with open(last_processed_file, 'w') as f:
+                last_processed = {
+                    "disa_zip": list(disa_last_processed),
+                    "nist_mapping": current_mapping_modified.isoformat() + "Z"
+                }
+                json.dump(last_processed, f)
+            print(f"Updated {mapping_filename} based on new modification date.")
+        else:
+            print(f"Failed to update {mapping_filename} despite newer modification date.")
+    elif current_mapping_modified:
+        print(f"{mapping_filename} is up to date with modification date {current_mapping_modified}.")
+    else:
+        print(f"Could not determine modification date for {mapping_filename}; downloading anyway.")
+        download_file(mapping_url, mapping_dest)
 
     # Download NIST baselines
     for level, url in config["baselines"].items():
@@ -93,15 +140,7 @@ def fetch_data(config_path):
         print("No recent STIG/SRG library found; skipping STIG/SRG processing.")
         return
 
-    # Load last processed date
-    last_processed_file = os.path.join(data_dir, "last_processed.json")
-    if os.path.exists(last_processed_file):
-        with open(last_processed_file, 'r') as f:
-            last_processed = tuple(json.load(f))  # e.g., (2023, 10)
-    else:
-        last_processed = (0, 0)  # Default to an old date if no record exists
-
-    if latest_date > last_processed:
+    if latest_date > disa_last_processed:
         dest_path = os.path.join(stig_zips_dir, latest_filename)
         if download_file(latest_url, dest_path):
             try:
@@ -127,7 +166,11 @@ def fetch_data(config_path):
                 
                 # Update last processed date after successful extraction
                 with open(last_processed_file, 'w') as f:
-                    json.dump(latest_date, f)  # Stored as [year, month] in JSON
+                    last_processed = {
+                        "disa_zip": list(latest_date),
+                        "nist_mapping": nist_mapping_last_modified.isoformat() + "Z"
+                    }
+                    json.dump(last_processed, f)
                 print(f"Successfully processed {latest_filename}")
             except Exception as e:
                 print(f"Error processing {latest_filename}: {e}")
