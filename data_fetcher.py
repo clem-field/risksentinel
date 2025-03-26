@@ -1,3 +1,5 @@
+# THIS CODE IS DEPRECATED REFER TO THE DATA_FETCHER.PY IN THE MODULES DIRECTORY
+
 import os
 import json
 import requests
