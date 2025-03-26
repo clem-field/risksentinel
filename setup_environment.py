@@ -6,7 +6,7 @@ import platform
 # Define paths and settings
 VENV_DIR = "venv"  # Name of the virtual environment directory
 REQUIREMENTS_FILE = "requirements.txt"
-DATA_FETCHER_SCRIPT = "data_fetcher.py"  # Script to load data
+DATA_FETCHER_SCRIPT = "modules/data_fetcher.py"  # Script to load data
 COMPLIANCE_LLM_SCRIPT = "modules/compliance_llm.py"  # Script to run LLM
 
 def is_venv_active():
