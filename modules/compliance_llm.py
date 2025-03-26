@@ -7,7 +7,7 @@ import logging
 import os
 import glob
 from lxml import etree  # For parsing XML files
-from openai import OpenAI  # For LLM interaction
+from openai import OpenAI  # For OpenRouter API interaction
 
 # Configure logging
 logging.basicConfig(
@@ -38,7 +38,7 @@ def check_data_freshness(max_age_days=7):
             logging.warning("No 'last_updated' key in last_processed.json.")
             return False
         last_updated = datetime.fromisoformat(last_updated_str)
-        age = datetime.now(timezone.utc) - last_updated
+        age = datetime.now(timezone.utc) - last_updated  # Use UTC for consistency
         return age < timedelta(days=max_age_days)
     except (json.JSONDecodeError, ValueError) as e:
         logging.error(f"Error reading last_processed.json: {e}")
@@ -68,7 +68,7 @@ def load_compliance_data(config, base_path):
         except Exception as e:
             logging.error(f"Failed to parse STIG file {xml_file}: {e}")
 
-    # Placeholder for SRG and CCI data
+    # Placeholder for SRG and CCI data (extend as needed)
     srg_dir = os.path.join(base_path, config["srg_dir"])
     cci_dir = os.path.join(base_path, config["cci_list_dir"])
     # Add parsing logic for SRG and CCI files here if required
@@ -159,7 +159,7 @@ def main():
         prompt = (
             "You are a compliance assistant specializing in NIST SP 800-53 and STIGs. "
             "Use the provided compliance data to answer the question accurately. "
-            "If the data lacks sufficient information, say so.\n\n"
+            "If the data lacks sufficient information, say so and provide a general response.\n\n"
             f"Compliance Data:\n{context}\n\n"
             f"Question: {query}\n\nAnswer:"
         )
