@@ -2,12 +2,11 @@ import argparse
 import subprocess
 import sys
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import logging
 import os
 import glob
 from lxml import etree  # For parsing XML files
-from openai import OpenAI  # For OpenRouter API interaction
 
 # Configure logging
 logging.basicConfig(
@@ -38,7 +37,7 @@ def check_data_freshness(max_age_days=7):
             logging.warning("No 'last_updated' key in last_processed.json.")
             return False
         last_updated = datetime.fromisoformat(last_updated_str)
-        age = datetime.now(timezone.utc) - last_updated
+        age = datetime.now() - last_updated
         return age < timedelta(days=max_age_days)
     except (json.JSONDecodeError, ValueError) as e:
         logging.error(f"Error reading last_processed.json: {e}")
@@ -57,7 +56,7 @@ def load_compliance_data(config):
     base_path = os.path.dirname(__file__)
     namespaces = {
         "xccdf": "http://checklists.nist.gov/xccdf/1.1",
-        "cci": "http://iase.disa.mil/cci"  # For CCI files, if applicable
+        "cci": "http://iase.disa.mil/cci"  # Placeholder for CCI files
     }
 
     # Load STIG data
@@ -65,7 +64,8 @@ def load_compliance_data(config):
     for xml_file in glob.glob(os.path.join(stig_dir, "*.xml")):
         try:
             tree = etree.parse(xml_file)
-            for rule in tree.findall(".//xccdf:Group/xccdf:Rule", namespaces):
+            rules = tree.findall(".//xccdf:Group/xccdf:Rule", namespaces)
+            for rule in rules:
                 control_id = rule.get("id")
                 title_elem = rule.find("xccdf:title", namespaces)
                 title = title_elem.text if title_elem is not None else "No title"
@@ -80,7 +80,7 @@ def load_compliance_data(config):
                     "file": os.path.basename(xml_file),
                     "ccis": ccis
                 }
-            logging.info(f"Parsed STIG file {xml_file} with {len(tree.findall('.//xccdf:Rule', namespaces))} rules")
+            logging.info(f"Parsed STIG file {xml_file} with {len(rules)} rules")
         except Exception as e:
             logging.error(f"Failed to parse STIG file {xml_file}: {e}")
 
@@ -89,7 +89,8 @@ def load_compliance_data(config):
     for xml_file in glob.glob(os.path.join(srg_dir, "*.xml")):
         try:
             tree = etree.parse(xml_file)
-            for rule in tree.findall(".//xccdf:Group/xccdf:Rule", namespaces):
+            rules = tree.findall(".//xccdf:Group/xccdf:Rule", namespaces)
+            for rule in rules:
                 control_id = rule.get("id")
                 title_elem = rule.find("xccdf:title", namespaces)
                 title = title_elem.text if title_elem is not None else "No title"
@@ -104,7 +105,7 @@ def load_compliance_data(config):
                     "file": os.path.basename(xml_file),
                     "ccis": ccis
                 }
-            logging.info(f"Parsed SRG file {xml_file} with {len(tree.findall('.//xccdf:Rule', namespaces))} rules")
+            logging.info(f"Parsed SRG file {xml_file} with {len(rules)} rules")
         except Exception as e:
             logging.error(f"Failed to parse SRG file {xml_file}: {e}")
 
@@ -113,8 +114,9 @@ def load_compliance_data(config):
     for xml_file in glob.glob(os.path.join(cci_dir, "*.xml")):
         try:
             tree = etree.parse(xml_file)
-            # Assuming CCI uses <cci_item> structure (to be confirmed with sample)
-            for cci_item in tree.findall(".//cci:cci_item", namespaces):
+            # Tentative CCI parsing (adjust based on actual CCI XML structure)
+            cci_items = tree.findall(".//cci:cci_item", namespaces)
+            for cci_item in cci_items:
                 cci_id = cci_item.get("id")
                 title_elem = cci_item.find("cci:title", namespaces)
                 title = title_elem.text if title_elem is not None else "No title"
@@ -126,7 +128,7 @@ def load_compliance_data(config):
                     "type": "CCI",
                     "file": os.path.basename(xml_file)
                 }
-            logging.info(f"Parsed CCI file {xml_file} with {len(tree.findall('.//cci:cci_item', namespaces))} items")
+            logging.info(f"Parsed CCI file {xml_file} with {len(cci_items)} items")
         except Exception as e:
             logging.error(f"Failed to parse CCI file {xml_file}: {e}")
 
@@ -139,15 +141,12 @@ def main():
 
     logging.info("Starting compliance LLM tool.")
 
-    # Load config and determine project root
+    # Load config
     config_path = os.path.join(os.path.dirname(__file__), '../config.json')
     if not os.path.exists(config_path):
         logging.error("config.json not found.")
         print("Error: config.json not found. Exiting.")
         sys.exit(1)
-    base_path = os.path.dirname(os.path.abspath(config_path))  # Project root directory
-    logging.info(f"Project root base path: {base_path}")
-    print(f"Using project root: {base_path}")
     with open(config_path, 'r') as f:
         config = json.load(f)
 
@@ -168,72 +167,30 @@ def main():
         print("Warning: Compliance data may be outdated. Consider updating with --update or running data_fetcher.py.")
 
     # Check if critical directories exist
-    missing_dirs = []
+    base_path = os.path.dirname(__file__)
     for dir_key in ["stig_dir", "srg_dir", "cci_list_dir"]:
         dir_path = os.path.join(base_path, config[dir_key])
         if not os.path.exists(dir_path):
-            missing_dirs.append(dir_key)
-            logging.warning(f"{dir_key} not found: {dir_path}")
-
-    if missing_dirs:
-        logging.error(f"Missing directories: {', '.join(missing_dirs)}. Attempting to fetch data...")
-        print(f"Error: Missing directories ({', '.join(missing_dirs)}). Running data_fetcher.py to download the data...")
-        try:
-            subprocess.run([sys.executable, "modules/data_fetcher.py"], check=True)
-            logging.info("Data fetched successfully after missing directories detected.")
-            print("Data fetched successfully.")
-        except subprocess.CalledProcessError as e:
-            logging.error(f"Failed to fetch data: {e}")
-            print(f"Error: Failed to fetch data: {e}. Proceeding without local data.")
+            logging.error(f"{dir_key} not found: {dir_path}")
+            print(f"Error: {dir_key} not found. Please run data_fetcher.py to download the data.")
+            sys.exit(1)
 
     # Load compliance data
     logging.info("Loading compliance data...")
-    compliance_data = load_compliance_data(config, base_path)
+    compliance_data = load_compliance_data(config)
     if not compliance_data:
         logging.warning("No compliance data loaded. Functionality may be limited.")
         print("Warning: No compliance data found. Functionality may be limited.")
     else:
         logging.info(f"Loaded {len(compliance_data)} compliance items.")
-        print(f"Loaded {len(compliance_data)} compliance items.")
+        print(f"Compliance LLM tool running with {len(compliance_data)} items loaded.")
+        # Optional: Print a sample for verification
+        # for key, value in list(compliance_data.items())[:2]:
+        #     print(f"{key}: {value}")
 
-    # Initialize OpenRouter client
-    client = OpenAI(
-        api_key=config["OPENROUTER_API_KEY"],
-        base_url=config["OPENROUTER_BASE_URL"]
-    )
-
-    # Interactive LLM loop
-    print("Welcome to the Compliance LLM Tool! Type 'exit' to quit.")
-    while True:
-        query = input("\nEnter your compliance question: ").strip()
-        if query.lower() == 'exit':
-            print("Exiting Compliance LLM Tool.")
-            break
-        if not query:
-            print("Please enter a question.")
-            continue
-
-        # Construct prompt with compliance data
-        context = "\n".join([f"{k}: {v['title']}" for k, v in compliance_data.items()]) if compliance_data else "No local compliance data available."
-        prompt = (
-            "You are a compliance assistant specializing in NIST SP 800-53 and STIGs. "
-            "Use the provided compliance data to answer the question accurately. "
-            "If the data lacks sufficient information, provide a general response based on your knowledge.\n\n"
-            f"Compliance Data:\n{context}\n\n"
-            f"Question: {query}\n\nAnswer:"
-        )
-
-        try:
-            response = client.chat.completions.create(
-                model=config["DEEPSEEK_MODEL"],
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.7
-            )
-            answer = response.choices[0].message.content
-            print(f"\nAnswer: {answer}")
-        except Exception as e:
-            logging.error(f"LLM query failed: {e}")
-            print(f"Error: Failed to get response from LLM: {e}")
+    # Main functionality (placeholder)
+    print("Compliance LLM tool running with loaded data.")
+    # Add your LLM processing logic here using compliance_data
 
 if __name__ == "__main__":
     main()
