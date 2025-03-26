@@ -38,7 +38,7 @@ def check_data_freshness(max_age_days=7):
             logging.warning("No 'last_updated' key in last_processed.json.")
             return False
         last_updated = datetime.fromisoformat(last_updated_str)
-        age = datetime.now(timezone.utc) - last_updated  # Use UTC for consistency
+        age = datetime.now(timezone.utc) - last_updated
         return age < timedelta(days=max_age_days)
     except (json.JSONDecodeError, ValueError) as e:
         logging.error(f"Error reading last_processed.json: {e}")
@@ -58,21 +58,44 @@ def load_compliance_data(config, base_path):
 
     # Load STIG data
     stig_dir = os.path.join(base_path, config["stig_dir"])
-    for xml_file in glob.glob(os.path.join(stig_dir, "*.xml")):
+    print(f"Looking for STIG data in: {stig_dir}")
+    logging.info(f"Checking STIG directory: {stig_dir}")
+    stig_files = glob.glob(os.path.join(stig_dir, "*.xml"))
+    if not stig_files:
+        print(f"No .xml files found in {stig_dir}")
+        logging.warning(f"No XML files found in {stig_dir}")
+    else:
+        print(f"Found {len(stig_files)} .xml files in {stig_dir}")
+    for xml_file in stig_files:
         try:
             tree = etree.parse(xml_file)
             for elem in tree.findall(".//Rule"):
                 control_id = elem.get("id")
                 title = elem.find("title").text
                 data[control_id] = {"title": title, "type": "STIG"}
+            logging.info(f"Loaded STIG data from {xml_file}")
         except Exception as e:
             logging.error(f"Failed to parse STIG file {xml_file}: {e}")
 
-    # Placeholder for SRG and CCI data (extend as needed)
+    # Load SRG data (placeholder)
     srg_dir = os.path.join(base_path, config["srg_dir"])
-    cci_dir = os.path.join(base_path, config["cci_list_dir"])
-    # Add parsing logic for SRG and CCI files here if required
+    print(f"Looking for SRG data in: {srg_dir}")
+    logging.info(f"Checking SRG directory: {srg_dir}")
+    srg_files = glob.glob(os.path.join(srg_dir, "*.xml"))
+    if not srg_files:
+        print(f"No .xml files found in {srg_dir}")
+        logging.warning(f"No XML files found in {srg_dir}")
 
+    # Load CCI data (placeholder)
+    cci_dir = os.path.join(base_path, config["cci_list_dir"])
+    print(f"Looking for CCI data in: {cci_dir}")
+    logging.info(f"Checking CCI directory: {cci_dir}")
+    cci_files = glob.glob(os.path.join(cci_dir, "*.xml"))
+    if not cci_files:
+        print(f"No .xml files found in {cci_dir}")
+        logging.warning(f"No XML files found in {cci_dir}")
+
+    # Add SRG and CCI parsing logic here if files exist
     return data
 
 def main():
@@ -89,6 +112,8 @@ def main():
         print("Error: config.json not found. Exiting.")
         sys.exit(1)
     base_path = os.path.dirname(os.path.abspath(config_path))  # Project root directory
+    logging.info(f"Project root base path: {base_path}")
+    print(f"Using project root: {base_path}")
     with open(config_path, 'r') as f:
         config = json.load(f)
 
@@ -125,8 +150,7 @@ def main():
             print("Data fetched successfully.")
         except subprocess.CalledProcessError as e:
             logging.error(f"Failed to fetch data: {e}")
-            print(f"Error: Failed to fetch data: {e}. Cannot proceed without required directories.")
-            sys.exit(1)
+            print(f"Error: Failed to fetch data: {e}. Proceeding without local data.")
 
     # Load compliance data
     logging.info("Loading compliance data...")
@@ -136,6 +160,7 @@ def main():
         print("Warning: No compliance data found. Functionality may be limited.")
     else:
         logging.info(f"Loaded {len(compliance_data)} compliance items.")
+        print(f"Loaded {len(compliance_data)} compliance items.")
 
     # Initialize OpenRouter client
     client = OpenAI(
@@ -155,11 +180,11 @@ def main():
             continue
 
         # Construct prompt with compliance data
-        context = "\n".join([f"{k}: {v['title']}" for k, v in compliance_data.items()])
+        context = "\n".join([f"{k}: {v['title']}" for k, v in compliance_data.items()]) if compliance_data else "No local compliance data available."
         prompt = (
             "You are a compliance assistant specializing in NIST SP 800-53 and STIGs. "
             "Use the provided compliance data to answer the question accurately. "
-            "If the data lacks sufficient information, say so and provide a general response.\n\n"
+            "If the data lacks sufficient information, provide a general response based on your knowledge.\n\n"
             f"Compliance Data:\n{context}\n\n"
             f"Question: {query}\n\nAnswer:"
         )
