@@ -36,7 +36,7 @@ def check_data_freshness(max_age_days=7):
         if not last_updated_str:
             logging.warning("No 'last_updated' key in last_processed.json.")
             return False
-        last_updated = datetime.fromisoformat(last_processed_str)
+        last_updated = datetime.fromisoformat(last_updated_str)  # Fixed: Use last_updated_str instead of last_processed_str
         age = datetime.now() - last_updated
         return age < timedelta(days=max_age_days)
     except (json.JSONDecodeError, ValueError) as e:
