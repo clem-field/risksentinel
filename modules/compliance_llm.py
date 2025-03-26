@@ -44,89 +44,91 @@ def check_data_freshness(max_age_days=7):
         logging.error(f"Error reading last_processed.json: {e}")
         return False
 
-def load_compliance_data(config, base_path):
+def load_compliance_data(config):
     """Load compliance data from directories specified in config.json.
 
     Args:
         config (dict): Configuration dictionary from config.json.
-        base_path (str): Path to the project root directory.
 
     Returns:
         dict: A dictionary containing loaded compliance data.
     """
     data = {}
+    base_path = os.path.dirname(__file__)
+    namespaces = {
+        "xccdf": "http://checklists.nist.gov/xccdf/1.1",
+        "cci": "http://iase.disa.mil/cci"  # For CCI files, if applicable
+    }
 
     # Load STIG data
     stig_dir = os.path.join(base_path, config["stig_dir"])
-    print(f"Looking for STIG data in: {stig_dir}")
-    logging.info(f"Checking STIG directory: {stig_dir}")
-    stig_files = glob.glob(os.path.join(stig_dir, "*.xml"))
-    if not stig_files:
-        print(f"No .xml files found in {stig_dir}")
-        logging.warning(f"No XML files found in {stig_dir}")
-    else:
-        print(f"Found {len(stig_files)} .xml files in {stig_dir}")
-    for xml_file in stig_files:
+    for xml_file in glob.glob(os.path.join(stig_dir, "*.xml")):
         try:
             tree = etree.parse(xml_file)
-            # Common STIG XML tags might be <Rule> or <control>
-            rules = tree.findall(".//Rule") or tree.findall(".//control")
-            for elem in rules:
-                control_id = elem.get("id") or elem.findtext("id") or "Unknown ID"
-                title = elem.findtext("title") or "No Title"
-                data[control_id] = {"title": title, "type": "STIG"}
-            logging.info(f"Loaded STIG data from {xml_file}")
+            for rule in tree.findall(".//xccdf:Group/xccdf:Rule", namespaces):
+                control_id = rule.get("id")
+                title_elem = rule.find("xccdf:title", namespaces)
+                title = title_elem.text if title_elem is not None else "No title"
+                desc_elem = rule.find("xccdf:description", namespaces)
+                description = desc_elem.text if desc_elem is not None else "No description"
+                cci_elems = rule.findall("xccdf:ident[@system='http://cyber.mil/cci']", namespaces)
+                ccis = [cci.text for cci in cci_elems] if cci_elems else []
+                data[control_id] = {
+                    "title": title,
+                    "description": description,
+                    "type": "STIG",
+                    "file": os.path.basename(xml_file),
+                    "ccis": ccis
+                }
+            logging.info(f"Parsed STIG file {xml_file} with {len(tree.findall('.//xccdf:Rule', namespaces))} rules")
         except Exception as e:
             logging.error(f"Failed to parse STIG file {xml_file}: {e}")
-            print(f"Error parsing {xml_file}: {e}")
 
     # Load SRG data
     srg_dir = os.path.join(base_path, config["srg_dir"])
-    print(f"Looking for SRG data in: {srg_dir}")
-    logging.info(f"Checking SRG directory: {srg_dir}")
-    srg_files = glob.glob(os.path.join(srg_dir, "*.xml"))
-    if not srg_files:
-        print(f"No .xml files found in {srg_dir}")
-        logging.warning(f"No XML files found in {srg_dir}")
-    else:
-        print(f"Found {len(srg_files)} .xml files in {srg_dir}")
-    for xml_file in srg_files:
+    for xml_file in glob.glob(os.path.join(srg_dir, "*.xml")):
         try:
             tree = etree.parse(xml_file)
-            # Adjust tags based on SRG XML structure (placeholder)
-            rules = tree.findall(".//Rule") or tree.findall(".//control")
-            for elem in rules:
-                control_id = elem.get("id") or elem.findtext("id") or "Unknown ID"
-                title = elem.findtext("title") or "No Title"
-                data[control_id] = {"title": title, "type": "SRG"}
-            logging.info(f"Loaded SRG data from {xml_file}")
+            for rule in tree.findall(".//xccdf:Group/xccdf:Rule", namespaces):
+                control_id = rule.get("id")
+                title_elem = rule.find("xccdf:title", namespaces)
+                title = title_elem.text if title_elem is not None else "No title"
+                desc_elem = rule.find("xccdf:description", namespaces)
+                description = desc_elem.text if desc_elem is not None else "No description"
+                cci_elems = rule.findall("xccdf:ident[@system='http://cyber.mil/cci']", namespaces)
+                ccis = [cci.text for cci in cci_elems] if cci_elems else []
+                data[control_id] = {
+                    "title": title,
+                    "description": description,
+                    "type": "SRG",
+                    "file": os.path.basename(xml_file),
+                    "ccis": ccis
+                }
+            logging.info(f"Parsed SRG file {xml_file} with {len(tree.findall('.//xccdf:Rule', namespaces))} rules")
         except Exception as e:
             logging.error(f"Failed to parse SRG file {xml_file}: {e}")
-            print(f"Error parsing {xml_file}: {e}")
 
-    # Load CCI data
+    # Load CCI data (placeholder until CCI XML structure is provided)
     cci_dir = os.path.join(base_path, config["cci_list_dir"])
-    print(f"Looking for CCI data in: {cci_dir}")
-    logging.info(f"Checking CCI directory: {cci_dir}")
-    cci_files = glob.glob(os.path.join(cci_dir, "*.xml"))
-    if not cci_files:
-        print(f"No .xml files found in {cci_dir}")
-        logging.warning(f"No XML files found in {cci_dir}")
-    else:
-        print(f"Found {len(cci_files)} .xml files in {cci_dir}")
-    for xml_file in cci_files:
+    for xml_file in glob.glob(os.path.join(cci_dir, "*.xml")):
         try:
             tree = etree.parse(xml_file)
-            # Adjust tags based on CCI XML structure (e.g., U_CCI_List.xml)
-            ccis = tree.findall(".//cci_item")
-            for elem in ccis:
-                control_id = elem.get("id") or elem.findtext("id") or "Unknown ID"
-                definition = elem.findtext("definition") or "No Definition"
-                data[control_id] = {"title": definition, "type": "CCI"}
-            logging.info(f"Loaded CCI data from {xml_file}")
+            # Assuming CCI uses <cci_item> structure (to be confirmed with sample)
+            for cci_item in tree.findall(".//cci:cci_item", namespaces):
+                cci_id = cci_item.get("id")
+                title_elem = cci_item.find("cci:title", namespaces)
+                title = title_elem.text if title_elem is not None else "No title"
+                desc_elem = cci_item.find("cci:description", namespaces)
+                description = desc_elem.text if desc_elem is not None else "No description"
+                data[cci_id] = {
+                    "title": title,
+                    "description": description,
+                    "type": "CCI",
+                    "file": os.path.basename(xml_file)
+                }
+            logging.info(f"Parsed CCI file {xml_file} with {len(tree.findall('.//cci:cci_item', namespaces))} items")
         except Exception as e:
             logging.error(f"Failed to parse CCI file {xml_file}: {e}")
-            print(f"Error parsing {xml_file}: {e}")
 
     return data
 
