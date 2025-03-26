@@ -7,6 +7,7 @@ import logging
 import os
 import glob
 from lxml import etree  # For parsing XML files
+from openai import OpenAI  # For LLM interaction
 
 # Configure logging
 logging.basicConfig(
@@ -136,9 +137,44 @@ def main():
     else:
         logging.info(f"Loaded {len(compliance_data)} compliance items.")
 
-    # Main functionality (placeholder)
-    print("Compliance LLM tool running with loaded data.")
-    # Add your LLM processing logic here using compliance_data
+    # Initialize OpenRouter client
+    client = OpenAI(
+        api_key=config["OPENROUTER_API_KEY"],
+        base_url=config["OPENROUTER_BASE_URL"]
+    )
+
+    # Interactive LLM loop
+    print("Welcome to the Compliance LLM Tool! Type 'exit' to quit.")
+    while True:
+        query = input("\nEnter your compliance question: ").strip()
+        if query.lower() == 'exit':
+            print("Exiting Compliance LLM Tool.")
+            break
+        if not query:
+            print("Please enter a question.")
+            continue
+
+        # Construct prompt with compliance data
+        context = "\n".join([f"{k}: {v['title']}" for k, v in compliance_data.items()])
+        prompt = (
+            "You are a compliance assistant specializing in NIST SP 800-53 and STIGs. "
+            "Use the provided compliance data to answer the question accurately. "
+            "If the data lacks sufficient information, say so.\n\n"
+            f"Compliance Data:\n{context}\n\n"
+            f"Question: {query}\n\nAnswer:"
+        )
+
+        try:
+            response = client.chat.completions.create(
+                model=config["DEEPSEEK_MODEL"],
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7
+            )
+            answer = response.choices[0].message.content
+            print(f"\nAnswer: {answer}")
+        except Exception as e:
+            logging.error(f"LLM query failed: {e}")
+            print(f"Error: Failed to get response from LLM: {e}")
 
 if __name__ == "__main__":
     main()
