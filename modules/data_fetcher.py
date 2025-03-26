@@ -115,7 +115,7 @@ def download_parallel(urls_destinations):
         urls_destinations (list of tuples): List of (url, destination) pairs to download.
 
     Returns:
-        list: List of booleans indicating success/failure for each download.
+        list: List of tuples (url, dest, success) indicating success/failure for each download.
     """
     results = []
     with ThreadPoolExecutor(max_workers=4) as executor:
@@ -199,13 +199,7 @@ def fetch_data(config_path):
         results = download_parallel(download_tasks)
         for url, dest, success in results:
             if url == mapping_url and success and current_mapping_modified and current_mapping_modified > nist_mapping_last_modified:
-                with open(last_processed_file, 'w') as f:
-                    last_processed = {
-                        "disa_zip": list(disa_last_processed),
-                        "nist_mapping": current_mapping_modified.isoformat() + "Z"
-                    }
-                    json.dump(last_processed, f)
-                print(f"Updated {mapping_filename} based on new modification date.")
+                nist_mapping_last_modified = current_mapping_modified
             elif url == mapping_url and not success:
                 print(f"Failed to update {mapping_filename} despite newer modification date.")
             elif url == mapping_url:
@@ -251,6 +245,16 @@ def fetch_data(config_path):
         print(f"Cleaned up temporary extraction directory: {temp_extract_dir}")
     else:
         print(f"Latest STIG/SRG library {latest_filename} is already processed; skipping.")
+
+    # Update last_processed.json with the current timestamp and updated values
+    with open(last_processed_file, 'w') as f:
+        last_processed = {
+            "disa_zip": list(disa_last_processed),
+            "nist_mapping": nist_mapping_last_modified.isoformat() + "Z",
+            "last_updated": datetime.now().isoformat()  # Add last_updated timestamp
+        }
+        json.dump(last_processed, f)
+    print("Data fetch completed. last_processed.json updated.")
 
 if __name__ == "__main__":
     config_path = os.path.join(os.path.dirname(__file__), '../config.json')
