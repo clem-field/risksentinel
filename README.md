@@ -34,6 +34,8 @@ This repository hosts python scripts that will allow a user to retrieve the uncl
 Specified in `requirements.txt`:
 - `requests`
 - `colorama`
+- `openai`
+- `openpyxl`
 
 These are only required if running locally. The virtual environment (venv) will install these when activated.
 
