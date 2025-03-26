@@ -30,30 +30,23 @@ def unzip_file(zip_path, extract_dir):
         zip_ref.extractall(extract_dir)
     return extract_dir
 
-def get_file_mod_time(filepath):
-    """Get the modification time of a file."""
-    return datetime.fromtimestamp(os.path.getmtime(filepath))
-
-def prune_old_files(directory, days=120):
-    """Remove files older than the specified number of days."""
-    cutoff = datetime.now() - timedelta(days=days)
-    for filename in os.listdir(directory):
-        file_path = os.path.join(directory, filename)
-        if os.path.isfile(file_path) and get_file_mod_time(file_path) < cutoff:
-            os.remove(file_path)
-            print(f"Removed old file: {filename}")
-
-def find_latest_stig_zip(base_url, stig_zips_dir):
-    """Find the latest available STIG/SRG zip by checking recent months."""
+def get_latest_available_zip_info(base_url, max_months_back=12):
+    """Find the latest available zip file by checking recent months."""
     current_date = datetime.now()
-    for i in range(3):  # Check current and past 2 months
+    for i in range(max_months_back):
         check_date = current_date - timedelta(days=30 * i)
-        filename = f"U_SRG-STIG_Library_{check_date.strftime('%B')}_{check_date.year}.zip"
-        url = base_url.format(month=check_date.strftime("%B"), year=check_date.year)
-        dest_path = os.path.join(stig_zips_dir, filename)
-        if download_file(url, dest_path):
-            return dest_path
-    return None
+        month_name = check_date.strftime("%B")  # e.g., "October"
+        year = check_date.year
+        url = base_url.format(month=month_name, year=year)
+        try:
+            response = requests.head(url)
+            if response.status_code == 200:
+                month_num = check_date.month  # e.g., 10 for October
+                filename = f"U_SRG-STIG_Library_{month_name}_{year}.zip"
+                return url, filename, (year, month_num)
+        except requests.exceptions.RequestException:
+            continue
+    return None, None, None
 
 def fetch_data(config_path):
     """Fetch data files based on config.json and save to appropriate directories."""
@@ -61,6 +54,7 @@ def fetch_data(config_path):
     with open(config_path, 'r') as f:
         config = json.load(f)
 
+    # Define directory paths
     root_dir = os.path.dirname(os.path.abspath(config_path))
     data_dir = os.path.join(root_dir, "data")
     cci_list_dir = os.path.join(root_dir, config["cci_list_dir"])
@@ -129,7 +123,7 @@ def fetch_data(config_path):
         shutil.rmtree(temp_extract_dir)
         print(f"Cleaned up temporary extraction directory: {temp_extract_dir}")
     else:
-        print("No recent STIG/SRG library found; skipping STIG/SRG processing.")
+        print(f"Latest STIG/SRG library {latest_filename} is already processed; skipping.")
 
 if __name__ == "__main__":
     config_path = os.path.join(os.path.dirname(__file__), '../config.json')
