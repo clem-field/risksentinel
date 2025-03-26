@@ -8,3 +8,4 @@ chroma_db/
 config.json
 venv/
 data_update.log
+data/last_processed.json
