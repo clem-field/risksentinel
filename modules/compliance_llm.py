@@ -2,7 +2,7 @@ import argparse
 import subprocess
 import sys
 import json
-from datetime import datetime, timedelta, timezone  # Added timezone import
+from datetime import datetime, timedelta, timezone
 import logging
 import os
 import glob
@@ -37,7 +37,6 @@ def check_data_freshness(max_age_days=7):
             logging.warning("No 'last_updated' key in last_processed.json.")
             return False
         last_updated = datetime.fromisoformat(last_updated_str)
-        # Use UTC timezone for consistency
         now = datetime.now(timezone.utc)
         age = now - last_updated
         return age < timedelta(days=max_age_days)
@@ -151,6 +150,7 @@ def main():
         sys.exit(1)
     with open(config_path, 'r') as f:
         config = json.load(f)
+    logging.info(f"Loaded config: {json.dumps(config, indent=2)}")
 
     # Force update if --update flag is provided
     if args.update:
@@ -170,8 +170,10 @@ def main():
 
     # Check if critical directories exist
     base_path = os.path.dirname(__file__)
+    print(f"Script base path: {base_path}")
     for dir_key in ["stig_dir", "srg_dir", "cci_list_dir"]:
         dir_path = os.path.join(base_path, config[dir_key])
+        print(f"Checking {dir_key}: {dir_path}")
         if not os.path.exists(dir_path):
             logging.error(f"{dir_key} not found: {dir_path}")
             print(f"Error: {dir_key} not found. Please run data_fetcher.py to download the data.")
