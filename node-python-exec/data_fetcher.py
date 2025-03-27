@@ -96,36 +96,36 @@ def fetch_data(config_path):
     stig_zip_path = find_latest_stig_zip(config["disa_url"], stig_zips_dir)
     if stig_zip_path:
         # Check if the file is recent enough (30 days)
-        if os.path.exists(stig_zip_path) and (datetime.now() - get_file_mod_time(stig_zip_path)).days < 30:
-            print(f"{os.path.basename(stig_zip_path)} is recent enough; skipping further processing.")
-        else:
-            # Prune files older than 120 days in stig_zips_dir
-            print(f"Pruning files older than 120 days in {stig_zips_dir}...")
-            prune_old_files(stig_zips_dir)
+        #if os.path.exists(stig_zip_path) and (datetime.now() - get_file_mod_time(stig_zip_path)).days < 30:
+        #    print(f"{os.path.basename(stig_zip_path)} is recent enough; skipping further processing.")
+        #else:
+        # Prune files older than 120 days in stig_zips_dir
+        print(f"Pruning files older than 120 days in {stig_zips_dir}...")
+        prune_old_files(stig_zips_dir)
 
-            # Unzip and process STIG/SRG files
-            temp_extract_dir = os.path.join(stig_zips_dir, "temp_extract")
-            os.makedirs(temp_extract_dir, exist_ok=True)
-            unzip_file(stig_zip_path, temp_extract_dir)
+        # Unzip and process STIG/SRG files
+        temp_extract_dir = os.path.join(stig_zips_dir, "temp_extract")
+        os.makedirs(temp_extract_dir, exist_ok=True)
+        unzip_file(stig_zip_path, temp_extract_dir)
 
-            # Move XML files to appropriate directories
-            for root, _, files in os.walk(temp_extract_dir):
-                for file in files:
-                    if file.endswith(config["xml_suffix"]):
-                        src_path = os.path.join(root, file)
-                        if config["srg_zip_suffix"].replace(".zip", "") in file:
-                            dest_path = os.path.join(srg_dir, file)
-                        else:
-                            dest_path = os.path.join(stig_dir, file)
-                        shutil.move(src_path, dest_path)
-                        print(f"Moved {file} to {dest_path}")
+        # Move XML files to appropriate directories
+        for root, _, files in os.walk(temp_extract_dir):
+            for file in files:
+                if file.endswith(config["xml_suffix"]):
+                    src_path = os.path.join(root, file)
+                    if config["srg_zip_suffix"].replace(".zip", "") in file:
+                        dest_path = os.path.join(srg_dir, file)
+                    else:
+                        dest_path = os.path.join(stig_dir, file)
+                    shutil.move(src_path, dest_path)
+                    print(f"Moved {file} to {dest_path}")
 
-            # Clean up temporary extraction directory
-            shutil.rmtree(temp_extract_dir)
-            print(f"Cleaned up temporary extraction directory: {temp_extract_dir}")
+        # Clean up temporary extraction directory
+        shutil.rmtree(temp_extract_dir)
+        print(f"Cleaned up temporary extraction directory: {temp_extract_dir}")
     else:
         print("No recent STIG/SRG library found; skipping STIG/SRG processing.")
 
 if __name__ == "__main__":
-    config_path = os.path.join(os.path.dirname(__file__), 'config.json')
+    config_path = os.path.join(os.path.dirname(__file__), '../config.json')
     fetch_data(config_path)

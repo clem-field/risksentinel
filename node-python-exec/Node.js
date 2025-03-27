@@ -118,8 +118,19 @@ function data_response() {
     var answerForm = document.getElementById("dataResponse");
     if (answerForm.style.display === "none") {
         answerForm.style.display = "block";
-    } 
+    } progress_bar();
 };
+/* Progress Bar Toggle */
+function progress_bar() {
+    var answerForm = document.getElementById("progress");
+    if (answerForm.style.display === "none") {
+        answerForm.style.display = "block";
+    } else {
+        if (answerForm.style.display === "block") {
+            answerForm.style.display = "none";
+    };
+    };
+}; 
 /* Starting Engine block*/
 function start_engine() {
     var answerForm = document.getElementById("engineResponse");
