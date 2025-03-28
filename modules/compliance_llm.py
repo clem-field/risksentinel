@@ -1,3 +1,4 @@
+# compliance_llm.py
 import argparse
 import subprocess
 import sys
@@ -6,9 +7,10 @@ from datetime import datetime, timedelta
 import logging
 import os
 import glob
-from lxml import etree  # For parsing XML files
-import requests  # For OpenRouter API calls
-import pytz  # For timezone handling
+from lxml import etree
+import requests
+import pytz
+from pdf_parser import load_acronym_mapping  # Import from new module
 
 # Configure logging
 logging.basicConfig(
@@ -42,7 +44,7 @@ def check_data_freshness(config, max_age_days=7):
         return False
 
 def load_compliance_data(config):
-    """Load compliance data including NIST ATT&CK mappings based on the specified framework."""
+    """Load compliance data including NIST ATT&CK mappings and acronym mappings."""
     data = {}
     base_path = os.path.dirname(os.path.dirname(__file__))
     namespaces = {
@@ -50,13 +52,17 @@ def load_compliance_data(config):
         "cci": "http://iase.disa.mil/cci"
     }
 
+    # Load acronym mapping from pdf_parser.py
+    acronym_map = load_acronym_mapping()
+    data['acronym_map'] = acronym_map
+
     # Determine the framework and corresponding mapping file
-    framework = config.get("framework", "nist_800_53_rev5")  # Default to Rev5 if not specified
+    framework = config.get("framework", "nist_800_53_rev5")
     mapping_filename = {
         "nist_800_53_rev5": "nist_800_53-rev5_attack-14.1-enterprise_json.json",
         "nist_800_53_rev4": "nist_800_53-rev4_attack-14.1-enterprise_json.json",
         "cis": "cis_json.json"
-    }.get(framework, "nist_800_53-rev5_attack-14.1-enterprise_json.json")  # Fallback to Rev5
+    }.get(framework, "nist_800_53-rev5_attack-14.1-enterprise_json.json")
     mapping_file = os.path.join(base_path, "data", mapping_filename)
 
     # Load NIST ATT&CK Mapping
@@ -161,11 +167,10 @@ def load_compliance_data(config):
                     }
                     for ref in cci_item.findall("cci:references/cci:reference", namespaces)
                 ]
-                # Map ATT&CK techniques via NIST controls in references
                 attack_techniques = []
                 for ref in references:
                     if ref["creator"] == "NIST" and "SP 800-53" in ref["title"]:
-                        nist_control = ref["index"].split()[0]  # e.g., "AC-1" from "AC-1 a 1"
+                        nist_control = ref["index"].split()[0]
                         if nist_control in nist_to_attack:
                             attack_techniques.extend(nist_to_attack[nist_control])
                 data[cci_id] = {
@@ -183,22 +188,39 @@ def load_compliance_data(config):
         except Exception as e:
             logging.error(f"Failed to parse CCI file {xml_file}: {e}")
 
-    # Propagate ATT&CK techniques to STIGs and SRGs via CCIs
+    # Propagate ATT&CK techniques to STIGs and SRGs via CCIs, skipping non-compliance items
     for item_id, item in data.items():
+        if 'type' not in item:  # Skip items like 'acronym_map'
+            continue
         if item["type"] in ["STIG", "SRG"] and "ccis" in item:
             attack_techniques = []
             for cci in item["ccis"]:
                 if cci in data and "attack_techniques" in data[cci]:
                     attack_techniques.extend(data[cci]["attack_techniques"])
-            item["attack_techniques"] = list({t["id"]: t for t in attack_techniques}.values())  # Remove duplicates
+            item["attack_techniques"] = list({t["id"]: t for t in attack_techniques}.values())
 
     return data
 
 def process_llm_prompt(config, compliance_data, prompt):
-    """Process a user prompt using OpenRouter API with compliance data context, including ATT&CK mappings."""
+    """Process a user prompt using OpenRouter API with compliance data context."""
+    acronym_map = compliance_data.get('acronym_map', {})
     context = "Compliance Data Context:\n"
+
+    # Expand acronyms in the prompt
+    expanded_prompt = prompt
+    for acronym, meaning in acronym_map.items():
+        if acronym in prompt.upper():
+            expanded_prompt = expanded_prompt.replace(acronym, f"{acronym} ({meaning})")
+            logging.info(f"Expanded '{acronym}' to '{acronym} ({meaning})' in prompt")
+
     if prompt.startswith("get "):
         item_id = prompt.replace("get ", "").strip()
+        # Check if item_id matches an acronym and expand it
+        for acronym, meaning in acronym_map.items():
+            if item_id.upper() == acronym:
+                item_id = meaning
+                logging.info(f"Resolved '{prompt.replace('get ', '')}' to '{meaning}'")
+                break
         if item_id in compliance_data:
             data = compliance_data[item_id]
             item_type = data["type"]
@@ -230,15 +252,23 @@ def process_llm_prompt(config, compliance_data, prompt):
             return f"No data found for ID: {item_id}"
     elif "search" in prompt:
         keyword = prompt.replace("search ", "").strip()
+        # Expand keyword if it’s an acronym
+        for acronym, meaning in acronym_map.items():
+            if keyword.upper() == acronym:
+                keyword = meaning
+                logging.info(f"Expanded search keyword '{prompt.replace('search ', '')}' to '{meaning}'")
+                break
         matches = [
             (cid, d) for cid, d in compliance_data.items()
-            if keyword.lower() in d.get('title', '').lower() or
-               keyword.lower() in d.get('description', '').lower() or
-               keyword.lower() in d.get('definition', '').lower()
+            if cid != 'acronym_map' and (
+                keyword.lower() in d.get('title', '').lower() or
+                keyword.lower() in d.get('description', '').lower() or
+                keyword.lower() in d.get('definition', '').lower()
+            )
         ]
         if matches:
             context += f"Found {len(matches)} matches for '{keyword}':\n"
-            for cid, d in matches[:3]:  # Limit to 3 for context brevity
+            for cid, d in matches[:3]:  # Limit to 3 for brevity
                 item_type = d["type"]
                 if item_type in ["STIG", "SRG"]:
                     context += f"- {cid} ({item_type}): {d['title'][:100]}...\n"
@@ -247,9 +277,9 @@ def process_llm_prompt(config, compliance_data, prompt):
         else:
             return f"No matches found for '{keyword}'"
     else:
-        context += f"Total items loaded: {len(compliance_data)}\n"
+        context += f"Total items loaded: {len(compliance_data) - 1}\n"  # Subtract acronym_map
 
-    full_prompt = f"{context}\nUser Query: {prompt}\nProvide a concise, accurate response based on the context."
+    full_prompt = f"{context}\nUser Query: {expanded_prompt}\nProvide a concise, accurate response based on the context."
     headers = {
         "Authorization": f"Bearer {config['OPENROUTER_API_KEY']}",
         "Content-Type": "application/json"
@@ -324,18 +354,18 @@ def main():
     # Load compliance data
     logging.info("Loading compliance data...")
     compliance_data = load_compliance_data(config)
-    if not compliance_data:
+    if not compliance_data or len(compliance_data) <= 1:  # Only acronym_map
         logging.warning("No compliance data loaded. Functionality may be limited.")
         print("Warning: No compliance data found. Functionality may be limited.")
         sys.exit(1)
     else:
-        logging.info(f"Loaded {len(compliance_data)} compliance items.")
-        print(f"Compliance LLM tool running with {len(compliance_data)} items loaded.")
+        logging.info(f"Loaded {len(compliance_data) - 1} compliance items.")
+        print(f"Compliance LLM tool running with {len(compliance_data) - 1} items loaded.")
 
     # Interactive LLM prompt loop
     print("Welcome to the Compliance LLM Tool! Type 'exit' to quit.")
-    print("You can query specific items using 'get <ID>', e.g., 'get CCI-000001'.")
-    print("You can also search keywords using 'search <keyword>', e.g., 'search access control'.")
+    print("You can query specific items using 'get <ID>', e.g., 'get CCI-000001' or 'get AAA'.")
+    print("You can also search keywords using 'search <keyword>', e.g., 'search access control' or 'search AAA'.")
     while True:
         prompt = input("Enter your query: ").strip()
         if prompt.lower() == "exit":

@@ -71,7 +71,7 @@ def get_last_modified_date(url):
         response.raise_for_status()
         last_modified = response.headers.get("Last-Modified")
         if last_modified:
-            return parsedate_to_datetime(last_modified)
+            return parsedate_to_datetime(last_modified)  # Offset-aware datetime
         logging.warning(f"No Last-Modified header for {url}")
         return None
     except requests.exceptions.RequestException as e:
@@ -97,12 +97,12 @@ def write_last_processed(last_processed_file, data):
     """Write JSON data to a file atomically to prevent corruption."""
     temp_file = tempfile.NamedTemporaryFile(delete=False, mode='w', dir=os.path.dirname(last_processed_file))
     try:
-        json.dump(data, temp_file, indent=2)
+        json.dump(data, temp_file, indent=2)  # Human-readable format
         temp_file.close()
-        shutil.move(temp_file.name, last_processed_file)
+        shutil.move(temp_file.name, last_processed_file)  # Atomic replace
         logging.info(f"Updated {last_processed_file} safely.")
     except Exception as e:
-        os.unlink(temp_file.name)
+        os.unlink(temp_file.name)  # Clean up on error
         logging.error(f"Failed to write {last_processed_file}: {e}")
         raise
 
@@ -163,27 +163,23 @@ def fetch_data(config_path):
     utc = pytz.UTC
     last_processed_file = os.path.join(data_dir, "last_processed.json")
     default_last_processed = {
-        "disa_zip": [0, 0],  # Year, Month
-        "nist_mapping": utc.localize(datetime(1970, 1, 1)).isoformat()
+        "last_updated": utc.localize(datetime(1970, 1, 1)).isoformat()
     }
     if os.path.exists(last_processed_file):
         try:
             with open(last_processed_file, 'r') as f:
                 last_processed = json.load(f)
-            disa_last_processed = tuple(last_processed.get("disa_zip", [0, 0]))
-            nist_mapping_last_modified_str = last_processed.get("nist_mapping", "1970-01-01T00:00:00Z")
-            dt = datetime.fromisoformat(nist_mapping_last_modified_str.rstrip("Z"))
-            nist_mapping_last_modified = utc.localize(dt) if dt.tzinfo is None else dt.astimezone(utc)
+            last_updated_str = last_processed.get("last_updated", "1970-01-01T00:00:00Z")
+            dt = datetime.fromisoformat(last_updated_str.rstrip("Z"))
+            last_updated = utc.localize(dt) if dt.tzinfo is None else dt.astimezone(utc)
             logging.info(f"Loaded existing {last_processed_file}")
         except (json.JSONDecodeError, ValueError) as e:
             logging.warning(f"Corrupted {last_processed_file}: {e}. Initializing with defaults.")
-            disa_last_processed = (0, 0)
-            nist_mapping_last_modified = utc.localize(datetime(1970, 1, 1))
+            last_updated = utc.localize(datetime(1970, 1, 1))
             write_last_processed(last_processed_file, default_last_processed)
     else:
         logging.info(f"{last_processed_file} not found. Creating with defaults.")
-        disa_last_processed = (0, 0)
-        nist_mapping_last_modified = utc.localize(datetime(1970, 1, 1))
+        last_updated = utc.localize(datetime(1970, 1, 1))
         write_last_processed(last_processed_file, default_last_processed)
 
     # Prepare parallel downloads
@@ -200,33 +196,32 @@ def fetch_data(config_path):
     mapping_filename = mapping_url.split('/')[-1]
     mapping_dest = os.path.join(data_dir, mapping_filename)
     current_mapping_modified = get_last_modified_date(mapping_url)
-    if current_mapping_modified and current_mapping_modified > nist_mapping_last_modified:
+    if current_mapping_modified and current_mapping_modified > last_updated:
         download_tasks.append((mapping_url, mapping_dest))
-    elif not os.path.exists(mapping_dest):
+    elif not os.path.exists(mapping_dest):  # Download if file doesn’t exist
         download_tasks.append((mapping_url, mapping_dest))
 
     # Download NIST baselines
     for level, url in config["baselines"].items():
         filename = url.split('/')[-1]
         dest_path = os.path.join(data_dir, filename)
-        if not os.path.exists(dest_path):
+        if not os.path.exists(dest_path):  # Only download if missing
             download_tasks.append((url, dest_path))
 
     # Download NIST SP 800-53 catalog
     catalog_url = config["nist_sp800_53_catalog_url"]
     catalog_filename = catalog_url.split('/')[-1]
     catalog_dest = os.path.join(data_dir, catalog_filename)
-    if not os.path.exists(catalog_dest):
+    if not os.path.exists(catalog_dest):  # Only download if missing
         download_tasks.append((catalog_url, catalog_dest))
 
     # Execute parallel downloads
     if download_tasks:
         results = download_parallel(download_tasks)
         for url, dest, success in results:
-            if url == mapping_url and success and current_mapping_modified and current_mapping_modified > nist_mapping_last_modified:
+            if url == mapping_url and success and current_mapping_modified and current_mapping_modified > last_updated:
                 last_processed = {
-                    "disa_zip": list(disa_last_processed),
-                    "nist_mapping": current_mapping_modified.isoformat()
+                    "last_updated": current_mapping_modified.isoformat()
                 }
                 write_last_processed(last_processed_file, last_processed)
                 logging.info(f"Updated {mapping_filename} based on new modification date.")
@@ -248,17 +243,16 @@ def fetch_data(config_path):
         logging.warning("No recent STIG/SRG library found; skipping STIG/SRG processing.")
         return
 
-    if latest_date > disa_last_processed:
+    # Compare latest_date (year, month) with last_updated timestamp
+    latest_date_dt = utc.localize(datetime(latest_date[0], latest_date[1], 1))
+    if latest_date_dt > last_updated:
         dest_path = os.path.join(stig_zips_dir, latest_filename)
         if download_file(latest_url, dest_path):
             try:
-                # Extract nested zips and process contents
                 extract_nested_zips(dest_path, stig_zips_dir, stig_dir, srg_dir, docs_dir)
-                
-                # Update last_processed.json
+                # Update last_processed with the current time after successful processing
                 last_processed = {
-                    "disa_zip": list(latest_date),
-                    "nist_mapping": nist_mapping_last_modified.isoformat()
+                    "last_updated": datetime.now(utc).isoformat()
                 }
                 write_last_processed(last_processed_file, last_processed)
                 logging.info(f"Successfully processed {latest_filename}")

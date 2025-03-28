@@ -7,3 +7,5 @@ lxml
 scheduler
 pytz
 fuzzywuzzy
+pdfplumber
+
