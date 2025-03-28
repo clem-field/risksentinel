@@ -1,35 +1,51 @@
 import os
 import json
 import requests
-from datetime import datetime, timedelta
+import tempfile
 import shutil
-from email.utils import parsedate_to_datetime
+from datetime import datetime, timedelta
 import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import pytz  # For timezone handling
+from email.utils import parsedate_to_datetime
+import pytz
+import logging
+
+# Configure logging
+logging.basicConfig(
+    filename='data_fetcher.log',
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 
 def download_file(url, destination):
-    """Download a file from a URL to a destination path if it exists."""
+    """Download a file from a URL to a destination path."""
     try:
         response = requests.get(url, stream=True)
         response.raise_for_status()
         with open(destination, 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
+        logging.info(f"Downloaded {os.path.basename(destination)} successfully.")
         print(f"Downloaded {os.path.basename(destination)} successfully.")
         return True
     except requests.exceptions.HTTPError as e:
+        logging.error(f"Failed to download {url}: {e}")
         print(f"Failed to download {url}: {e}")
         return False
 
 def unzip_file(zip_path, extract_dir):
     """Unzip a file to a specified directory."""
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-        zip_ref.extractall(extract_dir)
-    return extract_dir
+    try:
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(extract_dir)
+        logging.info(f"Unzipped {zip_path} to {extract_dir}")
+        return extract_dir
+    except zipfile.BadZipFile as e:
+        logging.error(f"Failed to unzip {zip_path}: {e}")
+        raise
 
 def get_latest_available_zip_info(base_url, max_months_back=12):
-    """Find the latest available zip file by checking recent months."""
+    """Find the latest available STIG/SRG zip file by checking recent months."""
     current_date = datetime.now()
     for i in range(max_months_back):
         check_date = current_date - timedelta(days=30 * i)
@@ -41,9 +57,11 @@ def get_latest_available_zip_info(base_url, max_months_back=12):
             if response.status_code == 200:
                 month_num = check_date.month
                 filename = f"U_SRG-STIG_Library_{month_name}_{year}.zip"
+                logging.info(f"Found latest STIG/SRG zip: {filename}")
                 return url, filename, (year, month_num)
         except requests.exceptions.RequestException:
             continue
+    logging.warning("No recent STIG/SRG library found within the last 12 months.")
     return None, None, None
 
 def get_last_modified_date(url):
@@ -53,10 +71,11 @@ def get_last_modified_date(url):
         response.raise_for_status()
         last_modified = response.headers.get("Last-Modified")
         if last_modified:
-            return parsedate_to_datetime(last_modified)  # Returns offset-aware datetime
+            return parsedate_to_datetime(last_modified)
+        logging.warning(f"No Last-Modified header for {url}")
         return None
     except requests.exceptions.RequestException as e:
-        print(f"Error checking Last-Modified for {url}: {e}")
+        logging.error(f"Error checking Last-Modified for {url}: {e}")
         return None
 
 def download_parallel(urls_destinations):
@@ -70,47 +89,102 @@ def download_parallel(urls_destinations):
                 result = future.result()
                 results.append((url, dest, result))
             except Exception as e:
-                print(f"Download of {url} generated an exception: {e}")
+                logging.error(f"Download of {url} generated an exception: {e}")
                 results.append((url, dest, False))
     return results
+
+def write_last_processed(last_processed_file, data):
+    """Write JSON data to a file atomically to prevent corruption."""
+    temp_file = tempfile.NamedTemporaryFile(delete=False, mode='w', dir=os.path.dirname(last_processed_file))
+    try:
+        json.dump(data, temp_file, indent=2)
+        temp_file.close()
+        shutil.move(temp_file.name, last_processed_file)
+        logging.info(f"Updated {last_processed_file} safely.")
+    except Exception as e:
+        os.unlink(temp_file.name)
+        logging.error(f"Failed to write {last_processed_file}: {e}")
+        raise
+
+def extract_nested_zips(zip_path, base_extract_dir, stig_dir, srg_dir, docs_dir):
+    """Recursively extract zip files and move XMLs to stig_dir/srg_dir, PDFs to docs_dir."""
+    temp_extract_dir = os.path.join(base_extract_dir, f"extract_{os.path.basename(zip_path)}")
+    os.makedirs(temp_extract_dir, exist_ok=True)
+    unzip_file(zip_path, temp_extract_dir)
+
+    for root, _, files in os.walk(temp_extract_dir):
+        for file in files:
+            src_path = os.path.join(root, file)
+            if file.endswith('.zip'):
+                # Recursively extract nested zips
+                extract_nested_zips(src_path, base_extract_dir, stig_dir, srg_dir, docs_dir)
+            elif file.endswith('.xml'):
+                # Move XML files based on parent zip name
+                parent_zip = os.path.basename(zip_path).upper()
+                dest_dir = srg_dir if "_SRG" in parent_zip else stig_dir
+                dest_path = os.path.join(dest_dir, file)
+                shutil.move(src_path, dest_path)
+                logging.info(f"Moved {file} to {dest_path}")
+            elif file.endswith('.pdf') and file.startswith('_'):
+                # Move underscore-prefixed PDFs to docs_dir
+                dest_path = os.path.join(docs_dir, file)
+                shutil.move(src_path, dest_path)
+                logging.info(f"Moved {file} to {dest_path}")
+
+    # Clean up temporary extraction directory
+    shutil.rmtree(temp_extract_dir, ignore_errors=True)
 
 def fetch_data(config_path):
     """Fetch data files based on config.json and save to appropriate directories."""
     # Load config
-    with open(config_path, 'r') as f:
-        config = json.load(f)
+    try:
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+        logging.info("Loaded config successfully.")
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        logging.error(f"Failed to load config: {e}")
+        raise
 
     # Define directory paths
     root_dir = os.path.dirname(os.path.abspath(config_path))
     data_dir = os.path.join(root_dir, "data")
+    docs_dir = os.path.join(data_dir, "docs")
     cci_list_dir = os.path.join(root_dir, config["cci_list_dir"])
     stig_zips_dir = os.path.join(data_dir, "stig_zips")
     srg_dir = os.path.join(root_dir, config["srg_dir"])
     stig_dir = os.path.join(root_dir, config["stig_dir"])
 
     # Create directories if they don’t exist
-    os.makedirs(data_dir, exist_ok=True)
-    os.makedirs(cci_list_dir, exist_ok=True)
-    os.makedirs(stig_zips_dir, exist_ok=True)
-    os.makedirs(srg_dir, exist_ok=True)
-    os.makedirs(stig_dir, exist_ok=True)
+    for directory in [data_dir, docs_dir, cci_list_dir, stig_zips_dir, srg_dir, stig_dir]:
+        os.makedirs(directory, exist_ok=True)
+        logging.debug(f"Ensured directory exists: {directory}")
 
-    # Load or initialize last processed data with UTC timezone
+    # Load or initialize last processed data
     utc = pytz.UTC
     last_processed_file = os.path.join(data_dir, "last_processed.json")
+    default_last_processed = {
+        "disa_zip": [0, 0],  # Year, Month
+        "nist_mapping": utc.localize(datetime(1970, 1, 1)).isoformat()
+    }
     if os.path.exists(last_processed_file):
-        with open(last_processed_file, 'r') as f:
-            last_processed = json.load(f)
+        try:
+            with open(last_processed_file, 'r') as f:
+                last_processed = json.load(f)
             disa_last_processed = tuple(last_processed.get("disa_zip", [0, 0]))
             nist_mapping_last_modified_str = last_processed.get("nist_mapping", "1970-01-01T00:00:00Z")
-            dt = datetime.fromisoformat(nist_mapping_last_modified_str.rstrip("Z"))  # Parse without assuming Z
-            if dt.tzinfo is None:  # If naive, localize to UTC
-                nist_mapping_last_modified = utc.localize(dt)
-            else:  # If aware, convert to UTC
-                nist_mapping_last_modified = dt.astimezone(utc)
+            dt = datetime.fromisoformat(nist_mapping_last_modified_str.rstrip("Z"))
+            nist_mapping_last_modified = utc.localize(dt) if dt.tzinfo is None else dt.astimezone(utc)
+            logging.info(f"Loaded existing {last_processed_file}")
+        except (json.JSONDecodeError, ValueError) as e:
+            logging.warning(f"Corrupted {last_processed_file}: {e}. Initializing with defaults.")
+            disa_last_processed = (0, 0)
+            nist_mapping_last_modified = utc.localize(datetime(1970, 1, 1))
+            write_last_processed(last_processed_file, default_last_processed)
     else:
+        logging.info(f"{last_processed_file} not found. Creating with defaults.")
         disa_last_processed = (0, 0)
-        nist_mapping_last_modified = utc.localize(datetime(1970, 1, 1))  # Make initial datetime UTC-aware
+        nist_mapping_last_modified = utc.localize(datetime(1970, 1, 1))
+        write_last_processed(last_processed_file, default_last_processed)
 
     # Prepare parallel downloads
     download_tasks = []
@@ -128,37 +202,36 @@ def fetch_data(config_path):
     current_mapping_modified = get_last_modified_date(mapping_url)
     if current_mapping_modified and current_mapping_modified > nist_mapping_last_modified:
         download_tasks.append((mapping_url, mapping_dest))
-    elif not current_mapping_modified:
+    elif not os.path.exists(mapping_dest):
         download_tasks.append((mapping_url, mapping_dest))
 
     # Download NIST baselines
     for level, url in config["baselines"].items():
         filename = url.split('/')[-1]
         dest_path = os.path.join(data_dir, filename)
-        download_tasks.append((url, dest_path))
+        if not os.path.exists(dest_path):
+            download_tasks.append((url, dest_path))
 
     # Download NIST SP 800-53 catalog
     catalog_url = config["nist_sp800_53_catalog_url"]
     catalog_filename = catalog_url.split('/')[-1]
     catalog_dest = os.path.join(data_dir, catalog_filename)
-    download_tasks.append((catalog_url, catalog_dest))
+    if not os.path.exists(catalog_dest):
+        download_tasks.append((catalog_url, catalog_dest))
 
     # Execute parallel downloads
     if download_tasks:
         results = download_parallel(download_tasks)
         for url, dest, success in results:
             if url == mapping_url and success and current_mapping_modified and current_mapping_modified > nist_mapping_last_modified:
-                with open(last_processed_file, 'w') as f:
-                    last_processed = {
-                        "disa_zip": list(disa_last_processed),
-                        "nist_mapping": current_mapping_modified.isoformat()  # Already offset-aware, includes UTC offset
-                    }
-                    json.dump(last_processed, f)
-                print(f"Updated {mapping_filename} based on new modification date.")
+                last_processed = {
+                    "disa_zip": list(disa_last_processed),
+                    "nist_mapping": current_mapping_modified.isoformat()
+                }
+                write_last_processed(last_processed_file, last_processed)
+                logging.info(f"Updated {mapping_filename} based on new modification date.")
             elif url == mapping_url and not success:
-                print(f"Failed to update {mapping_filename} despite newer modification date.")
-            elif url == mapping_url:
-                print(f"{mapping_filename} is up to date with modification date {current_mapping_modified}.")
+                logging.warning(f"Failed to update {mapping_filename} despite newer modification date.")
 
     # Download CCI list
     cci_url = config["cci_list_url"]
@@ -166,49 +239,45 @@ def fetch_data(config_path):
     if download_file(cci_url, cci_zip):
         unzip_file(cci_zip, cci_list_dir)
         os.remove(cci_zip)
+        logging.info("Processed CCI list successfully.")
 
     # Handle STIGs and SRGs
     base_url = config["disa_url"]
     latest_url, latest_filename, latest_date = get_latest_available_zip_info(base_url)
     if latest_url is None:
-        print("No recent STIG/SRG library found; skipping STIG/SRG processing.")
+        logging.warning("No recent STIG/SRG library found; skipping STIG/SRG processing.")
         return
 
     if latest_date > disa_last_processed:
         dest_path = os.path.join(stig_zips_dir, latest_filename)
         if download_file(latest_url, dest_path):
             try:
-                temp_extract_dir = os.path.join(stig_zips_dir, "temp_extract")
-                os.makedirs(temp_extract_dir, exist_ok=True)
-                unzip_file(dest_path, temp_extract_dir)
+                # Extract nested zips and process contents
+                extract_nested_zips(dest_path, stig_zips_dir, stig_dir, srg_dir, docs_dir)
                 
-                for root, _, files in os.walk(temp_extract_dir):
-                    for file in files:
-                        if file.endswith(config["xml_suffix"]):
-                            src_path = os.path.join(root, file)
-                            if config["srg_zip_suffix"].replace(".zip", "") in file:
-                                dest_path = os.path.join(srg_dir, file)
-                            else:
-                                dest_path = os.path.join(stig_dir, file)
-                            shutil.move(src_path, dest_path)
-                            print(f"Moved {file} to {dest_path}")
-                
-                shutil.rmtree(temp_extract_dir)
-                
-                with open(last_processed_file, 'w') as f:
-                    last_processed = {
-                        "disa_zip": list(latest_date),
-                        "nist_mapping": nist_mapping_last_modified.isoformat()  # Keep UTC-aware format
-                    }
-                    json.dump(last_processed, f)
-                print(f"Successfully processed {latest_filename}")
+                # Update last_processed.json
+                last_processed = {
+                    "disa_zip": list(latest_date),
+                    "nist_mapping": nist_mapping_last_modified.isoformat()
+                }
+                write_last_processed(last_processed_file, last_processed)
+                logging.info(f"Successfully processed {latest_filename}")
             except Exception as e:
-                print(f"Error processing {latest_filename}: {e}")
-        else:
-            print(f"Failed to download {latest_filename}")
+                logging.error(f"Error processing {latest_filename}: {e}")
+                raise
+            finally:
+                # Clean up the downloaded zip file
+                if os.path.exists(dest_path):
+                    os.remove(dest_path)
+                    logging.info(f"Removed {dest_path}")
     else:
-        print(f"Latest STIG/SRG library {latest_filename} is already processed; skipping.")
+        logging.info(f"Latest STIG/SRG library {latest_filename} is already processed; skipping.")
 
 if __name__ == "__main__":
-    config_path = os.path.join(os.path.dirname(__file__), '../config.json')
-    fetch_data(config_path)
+    try:
+        config_path = os.path.join(os.path.dirname(__file__), '../config.json')
+        fetch_data(config_path)
+    except Exception as e:
+        logging.error(f"Data fetcher failed: {e}")
+        print(f"Error: {e}")
+        exit(1)
