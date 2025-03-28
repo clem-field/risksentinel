@@ -80,7 +80,7 @@ def load_compliance_data(config):
                 desc_elem = rule.find("xccdf:description", namespaces)
                 description = desc_elem.text if desc_elem is not None else "No description"
                 cci_elems = rule.findall("xccdf:ident[@system='http://cyber.mil/cci']", namespaces)
-                ccis = [cci.text for cci in cci_elems] if cci_elems else []
+                ccis = [cci.text for cci in cci_elems if cci.text] if cci_elems else []
                 data[control_id] = {
                     "title": title,
                     "description": description,
@@ -88,7 +88,7 @@ def load_compliance_data(config):
                     "file": os.path.basename(xml_file),
                     "ccis": ccis
                 }
-            logging.info(f"Parsed STIG file {xml_file} with {len(rules)} rules")
+            logging.info(f"Parsed STIG file {xml_file} with {len(rules)} items")
         except Exception as e:
             logging.error(f"Failed to parse STIG file {xml_file}: {e}")
 
@@ -105,7 +105,7 @@ def load_compliance_data(config):
                 desc_elem = rule.find("xccdf:description", namespaces)
                 description = desc_elem.text if desc_elem is not None else "No description"
                 cci_elems = rule.findall("xccdf:ident[@system='http://cyber.mil/cci']", namespaces)
-                ccis = [cci.text for cci in cci_elems] if cci_elems else []
+                ccis = [cci.text for cci in cci_elems if cci.text] if cci_elems else []
                 data[control_id] = {
                     "title": title,
                     "description": description,
@@ -113,11 +113,11 @@ def load_compliance_data(config):
                     "file": os.path.basename(xml_file),
                     "ccis": ccis
                 }
-            logging.info(f"Parsed SRG file {xml_file} with {len(rules)} rules")
+            logging.info(f"Parsed SRG file {xml_file} with {len(rules)} items")
         except Exception as e:
             logging.error(f"Failed to parse SRG file {xml_file}: {e}")
 
-    # Load CCI data (placeholder until CCI XML structure is provided)
+    # Load CCI data
     cci_dir = os.path.join(base_path, config["cci_list_dir"])
     for xml_file in glob.glob(os.path.join(cci_dir, "*.xml")):
         try:
@@ -125,14 +125,37 @@ def load_compliance_data(config):
             cci_items = tree.findall(".//cci:cci_item", namespaces)
             for cci_item in cci_items:
                 cci_id = cci_item.get("id")
-                title_elem = cci_item.find("cci:title", namespaces)
-                title = title_elem.text if title_elem is not None else "No title"
-                desc_elem = cci_item.find("cci:description", namespaces)
-                description = desc_elem.text if desc_elem is not None else "No description"
+                if not cci_id:
+                    logging.warning(f"Skipping cci_item with no id in {xml_file}")
+                    continue
+                definition_elem = cci_item.find("cci:definition", namespaces)
+                definition = definition_elem.text if definition_elem is not None else "No definition"
+                type_elem = cci_item.find("cci:type", namespaces)
+                cci_type = type_elem.text if type_elem is not None else "Unknown type"
+                status_elem = cci_item.find("cci:status", namespaces)
+                status = status_elem.text if status_elem is not None else "Unknown status"
+                publishdate_elem = cci_item.find("cci:publishdate", namespaces)
+                publishdate = publishdate_elem.text if publishdate_elem is not None else "Unknown date"
+                contributor_elem = cci_item.find("cci:contributor", namespaces)
+                contributor = contributor_elem.text if contributor_elem is not None else "Unknown contributor"
+                references = [
+                    {
+                        "creator": ref.get("creator", "Unknown creator"),
+                        "title": ref.get("title", "No title"),
+                        "version": ref.get("version", "Unknown version"),
+                        "location": ref.get("location", "No location"),
+                        "index": ref.get("index", "No index")
+                    }
+                    for ref in cci_item.findall("cci:references/cci:reference", namespaces)
+                ]
                 data[cci_id] = {
-                    "title": title,
-                    "description": description,
                     "type": "CCI",
+                    "definition": definition,
+                    "cci_type": cci_type,
+                    "status": status,
+                    "publishdate": publishdate,
+                    "contributor": contributor,
+                    "references": references,
                     "file": os.path.basename(xml_file)
                 }
             logging.info(f"Parsed CCI file {xml_file} with {len(cci_items)} items")
@@ -152,35 +175,55 @@ def process_llm_prompt(config, compliance_data, prompt):
     Returns:
         str: Response from OpenRouter or error message.
     """
-    # Prepare context from compliance data (limit to avoid overwhelming API)
     context = "Compliance Data Context:\n"
     if prompt.startswith("get "):
-        control_id = prompt.replace("get ", "").strip()
-        if control_id in compliance_data:
-            data = compliance_data[control_id]
-            context += (f"Control ID: {control_id}\n"
-                        f"Type: {data['type']}\n"
-                        f"Title: {data['title']}\n"
-                        f"Description: {data['description'][:500]}... (truncated)\n"
-                        f"CCIs: {', '.join(data['ccis']) if data['ccis'] else 'None'}\n"
-                        f"Source File: {data['file']}\n")
+        item_id = prompt.replace("get ", "").strip()
+        if item_id in compliance_data:
+            data = compliance_data[item_id]
+            item_type = data["type"]
+            if item_type in ["STIG", "SRG"]:
+                context += (f"Control ID: {item_id}\n"
+                            f"Type: {item_type}\n"
+                            f"Title: {data['title']}\n"
+                            f"Description: {data['description'][:500]}... (truncated)\n"
+                            f"CCIs: {', '.join(data['ccis']) if 'ccis' in data and data['ccis'] else 'None'}\n"
+                            f"Source File: {data['file']}\n")
+            elif item_type == "CCI":
+                ref_titles = [ref['title'] for ref in data['references']] if data['references'] else ["None"]
+                context += (f"CCI ID: {item_id}\n"
+                            f"Type: {item_type}\n"
+                            f"Definition: {data['definition'][:500]}... (truncated)\n"
+                            f"CCI Type: {data['cci_type']}\n"
+                            f"Status: {data['status']}\n"
+                            f"Publish Date: {data['publishdate']}\n"
+                            f"Contributor: {data['contributor']}\n"
+                            f"References: {', '.join(ref_titles)}\n"
+                            f"Source File: {data['file']}\n")
+            else:
+                context += f"Unknown item type for ID: {item_id}\n"
         else:
-            return f"No data found for control ID: {control_id}"
+            return f"No data found for ID: {item_id}"
     elif "search" in prompt:
         keyword = prompt.replace("search ", "").strip()
         matches = [
             (cid, d) for cid, d in compliance_data.items()
-            if keyword.lower() in d['title'].lower() or keyword.lower() in d['description'].lower()
+            if keyword.lower() in d.get('title', '').lower() or
+               keyword.lower() in d.get('description', '').lower() or
+               keyword.lower() in d.get('definition', '').lower()
         ]
         if matches:
             context += f"Found {len(matches)} matches for '{keyword}':\n"
             for cid, d in matches[:3]:  # Limit to 3 for context brevity
-                context += f"- {cid} ({d['type']}): {d['title']}\n"
+                item_type = d["type"]
+                if item_type in ["STIG", "SRG"]:
+                    context += f"- {cid} ({item_type}): {d['title'][:100]}...\n"
+                elif item_type == "CCI":
+                    context += f"- {cid} ({item_type}): {d['definition'][:100]}...\n"
         else:
             return f"No matches found for '{keyword}'"
     else:
         # General query, include a summary
-        context += f"Total controls loaded: {len(compliance_data)}\n"
+        context += f"Total items loaded: {len(compliance_data)}\n"
 
     # Construct the full prompt for OpenRouter
     full_prompt = f"{context}\nUser Query: {prompt}\nProvide a concise, accurate response based on the context."
@@ -270,6 +313,8 @@ def main():
 
     # Interactive LLM prompt loop
     print("Welcome to the Compliance LLM Tool! Type 'exit' to quit.")
+    print("You can query specific items using 'get <ID>', e.g., 'get CCI-000001' for CCI data or a STIG/SRG control ID.")
+    print("You can also search keywords using 'search <keyword>', e.g., 'search access control'.")
     while True:
         prompt = input("Enter your query: ").strip()
         if prompt.lower() == "exit":
