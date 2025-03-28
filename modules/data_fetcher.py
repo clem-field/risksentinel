@@ -1,248 +1,328 @@
-import os
+import argparse
+import subprocess
+import sys
 import json
-import os
-import json
-import requests
-import zipfile
 from datetime import datetime, timedelta
-import shutil
-from email.utils import parsedate_to_datetime
-import zipfile
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import logging
+import os
+import glob
+from lxml import etree  # For parsing XML files
+import requests  # For OpenRouter API calls
+import pytz  # For timezone handling
 
-def download_file(url, destination):
-    """Download a file from a URL to a destination path if it exists.
+# Configure logging
+logging.basicConfig(
+    filename='compliance_llm.log',
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+
+def check_data_freshness(config, max_age_days=7):
+    """Check if the compliance data is fresh based on last_processed.json.
 
     Args:
-        url (str): The URL to download the file from.
-        destination (str): The local path where the file will be saved.
+        config (dict): Configuration dictionary from config.json.
+        max_age_days (int): Maximum age in days before data is considered outdated.
 
     Returns:
-        bool: True if the download was successful, False otherwise.
-
-    Raises:
-        requests.exceptions.HTTPError: If the HTTP request fails.
+        bool: True if data is fresh, False otherwise.
     """
-    try:
-        response = requests.get(url, stream=True)
-        response.raise_for_status()
-        with open(destination, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
-        print(f"Downloaded {os.path.basename(destination)} successfully.")
-        return True
-    except requests.exceptions.HTTPError as e:
-        print(f"Failed to download {url}: {e}")
+    last_processed_file = os.path.join("data", "last_processed.json")
+    if not os.path.exists(last_processed_file):
+        logging.warning("last_processed.json missing. Data freshness unknown.")
         return False
 
-def unzip_file(zip_path, extract_dir):
-    """Unzip a file to a specified directory.
-
-    Args:
-        zip_path (str): The path to the zip file to be extracted.
-        extract_dir (str): The directory where the contents will be extracted.
-
-    Returns:
-        str: The path to the extraction directory.
-    """
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-        zip_ref.extractall(extract_dir)
-    return extract_dir
-
-def get_latest_available_zip_info(base_url, max_months_back=12):
-    """Find the latest available zip file by checking recent months.
-
-    Args:
-        base_url (str): The base URL template with {month} and {year} placeholders.
-        max_months_back (int, optional): Maximum months to look back. Defaults to 12.
-
-    Returns:
-        tuple: (url, filename, (year, month_num)) if found, (None, None, None) otherwise.
-    """
-    current_date = datetime.now()
-    for i in range(max_months_back):
-        check_date = current_date - timedelta(days=30 * i)
-        month_name = check_date.strftime("%B")  # e.g., "October"
-        year = check_date.year
-        url = base_url.format(month=month_name, year=year)
-        try:
-            response = requests.head(url)
-            if response.status_code == 200:
-                month_num = check_date.month  # e.g., 10 for October
-                filename = f"U_SRG-STIG_Library_{month_name}_{year}.zip"
-                return url, filename, (year, month_num)
-        except requests.exceptions.RequestException:
-            continue
-    return None, None, None
-
-def get_last_modified_date(url):
-    """Retrieve the Last-Modified date from the HTTP header of a URL.
-
-    Args:
-        url (str): The URL to check for the Last-Modified header.
-
-    Returns:
-        datetime: The last modified date if available, None otherwise.
-    """
     try:
-        response = requests.head(url)
-        response.raise_for_status()
-        last_modified = response.headers.get("Last-Modified")
-        if last_modified:
-            return parsedate_to_datetime(last_modified)
-        return None
-    except requests.exceptions.RequestException as e:
-        print(f"Error checking Last-Modified for {url}: {e}")
-        return None
-
-def download_parallel(urls_destinations):
-    """Download multiple files in parallel using up to 4 concurrent threads.
-
-    Args:
-        urls_destinations (list of tuples): List of (url, destination) pairs to download.
-
-    Returns:
-        list: List of tuples (url, dest, success) indicating success/failure for each download.
-    """
-    results = []
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        future_to_url = {executor.submit(download_file, url, dest): (url, dest) for url, dest in urls_destinations}
-        for future in as_completed(future_to_url):
-            url, dest = future_to_url[future]
-            try:
-                result = future.result()
-                results.append((url, dest, result))
-            except Exception as e:
-                print(f"Download of {url} generated an exception: {e}")
-                results.append((url, dest, False))
-    return results
-
-def fetch_data(config_path):
-    """Fetch data files based on config.json and save to appropriate directories.
-
-    Args:
-        config_path (str): Path to the configuration JSON file.
-
-    This function handles downloading NIST mappings, baselines, catalogs, CCI lists,
-    and the latest STIG/SRG libraries, using parallel downloads where applicable.
-    """
-    # Load config
-    with open(config_path, 'r') as f:
-        config = json.load(f)
-
-    # Define directory paths
-    root_dir = os.path.dirname(os.path.abspath(config_path))
-    data_dir = os.path.join(root_dir, "data")
-    cci_list_dir = os.path.join(root_dir, config["cci_list_dir"])
-    stig_zips_dir = os.path.join(data_dir, "stig_zips")
-    srg_dir = os.path.join(root_dir, config["srg_dir"])
-    stig_dir = os.path.join(root_dir, config["stig_dir"])
-
-    # Create directories if they don’t exist
-    os.makedirs(data_dir, exist_ok=True)
-    os.makedirs(cci_list_dir, exist_ok=True)
-    os.makedirs(stig_zips_dir, exist_ok=True)
-    os.makedirs(srg_dir, exist_ok=True)
-    os.makedirs(stig_dir, exist_ok=True)
-
-    # Load or initialize last processed data
-    last_processed_file = os.path.join(data_dir, "last_processed.json")
-    if os.path.exists(last_processed_file):
         with open(last_processed_file, 'r') as f:
             last_processed = json.load(f)
-            disa_last_processed = tuple(last_processed.get("disa_zip", [0, 0]))
-            nist_mapping_last_modified = datetime.fromisoformat(last_processed.get("nist_mapping", "1970-01-01T00:00:00+00:00"))
+        last_updated_str = last_processed.get('last_updated')
+        if not last_updated_str:
+            logging.warning("No 'last_updated' key in last_processed.json.")
+            return False
+        last_updated = datetime.fromisoformat(last_updated_str)
+        tz = pytz.timezone(config["timezone"])
+        now = datetime.now(tz)
+        # Ensure last_updated is timezone-aware if it has an offset, otherwise localize it
+        if last_updated.tzinfo is None:
+            last_updated = tz.localize(last_updated)
+        age = now - last_updated
+        return age < timedelta(days=max_age_days)
+    except (json.JSONDecodeError, ValueError) as e:
+        logging.error(f"Error reading last_processed.json: {e}")
+        return False
+
+def load_compliance_data(config):
+    """Load compliance data from directories specified in config.json.
+
+    Args:
+        config (dict): Configuration dictionary from config.json.
+
+    Returns:
+        dict: A dictionary containing loaded compliance data.
+    """
+    data = {}
+    base_path = os.path.dirname(os.path.dirname(__file__))
+    namespaces = {
+        "xccdf": "http://checklists.nist.gov/xccdf/1.1",
+        "cci": "http://iase.disa.mil/cci"
+    }
+
+    # Load STIG data
+    stig_dir = os.path.join(base_path, config["stig_dir"])
+    for xml_file in glob.glob(os.path.join(stig_dir, "*.xml")):
+        try:
+            tree = etree.parse(xml_file)
+            rules = tree.findall(".//xccdf:Group/xccdf:Rule", namespaces)
+            for rule in rules:
+                control_id = rule.get("id")
+                title_elem = rule.find("xccdf:title", namespaces)
+                title = title_elem.text if title_elem is not None else "No title"
+                desc_elem = rule.find("xccdf:description", namespaces)
+                description = desc_elem.text if desc_elem is not None else "No description"
+                cci_elems = rule.findall("xccdf:ident[@system='http://cyber.mil/cci']", namespaces)
+                ccis = [cci.text for cci in cci_elems if cci.text] if cci_elems else []
+                data[control_id] = {
+                    "title": title,
+                    "description": description,
+                    "type": "STIG",
+                    "file": os.path.basename(xml_file),
+                    "ccis": ccis
+                }
+            logging.info(f"Parsed STIG file {xml_file} with {len(rules)} items")
+        except Exception as e:
+            logging.error(f"Failed to parse STIG file {xml_file}: {e}")
+
+    # Load SRG data
+    srg_dir = os.path.join(base_path, config["srg_dir"])
+    for xml_file in glob.glob(os.path.join(srg_dir, "*.xml")):
+        try:
+            tree = etree.parse(xml_file)
+            rules = tree.findall(".//xccdf:Group/xccdf:Rule", namespaces)
+            for rule in rules:
+                control_id = rule.get("id")
+                title_elem = rule.find("xccdf:title", namespaces)
+                title = title_elem.text if title_elem is not None else "No title"
+                desc_elem = rule.find("xccdf:description", namespaces)
+                description = desc_elem.text if desc_elem is not None else "No description"
+                cci_elems = rule.findall("xccdf:ident[@system='http://cyber.mil/cci']", namespaces)
+                ccis = [cci.text for cci in cci_elems if cci.text] if cci_elems else []
+                data[control_id] = {
+                    "title": title,
+                    "description": description,
+                    "type": "SRG",
+                    "file": os.path.basename(xml_file),
+                    "ccis": ccis
+                }
+            logging.info(f"Parsed SRG file {xml_file} with {len(rules)} items")
+        except Exception as e:
+            logging.error(f"Failed to parse SRG file {xml_file}: {e}")
+
+    # Load CCI data
+    cci_dir = os.path.join(base_path, config["cci_list_dir"])
+    for xml_file in glob.glob(os.path.join(cci_dir, "*.xml")):
+        try:
+            tree = etree.parse(xml_file)
+            cci_items = tree.findall(".//cci:cci_item", namespaces)
+            for cci_item in cci_items:
+                cci_id = cci_item.get("id")
+                if not cci_id:
+                    logging.warning(f"Skipping cci_item with no id in {xml_file}")
+                    continue
+                definition_elem = cci_item.find("cci:definition", namespaces)
+                definition = definition_elem.text if definition_elem is not None else "No definition"
+                type_elem = cci_item.find("cci:type", namespaces)
+                cci_type = type_elem.text if type_elem is not None else "Unknown type"
+                status_elem = cci_item.find("cci:status", namespaces)
+                status = status_elem.text if status_elem is not None else "Unknown status"
+                publishdate_elem = cci_item.find("cci:publishdate", namespaces)
+                publishdate = publishdate_elem.text if publishdate_elem is not None else "Unknown date"
+                contributor_elem = cci_item.find("cci:contributor", namespaces)
+                contributor = contributor_elem.text if contributor_elem is not None else "Unknown contributor"
+                references = [
+                    {
+                        "creator": ref.get("creator", "Unknown creator"),
+                        "title": ref.get("title", "No title"),
+                        "version": ref.get("version", "Unknown version"),
+                        "location": ref.get("location", "No location"),
+                        "index": ref.get("index", "No index")
+                    }
+                    for ref in cci_item.findall("cci:references/cci:reference", namespaces)
+                ]
+                data[cci_id] = {
+                    "type": "CCI",
+                    "definition": definition,
+                    "cci_type": cci_type,
+                    "status": status,
+                    "publishdate": publishdate,
+                    "contributor": contributor,
+                    "references": references,
+                    "file": os.path.basename(xml_file)
+                }
+            logging.info(f"Parsed CCI file {xml_file} with {len(cci_items)} items")
+        except Exception as e:
+            logging.error(f"Failed to parse CCI file {xml_file}: {e}")
+
+    return data
+
+def process_llm_prompt(config, compliance_data, prompt):
+    """Process a user prompt using OpenRouter API with compliance data context.
+
+    Args:
+        config (dict): Configuration dictionary with API settings.
+        compliance_data (dict): Loaded compliance data.
+        prompt (str): User input prompt.
+
+    Returns:
+        str: Response from OpenRouter or error message.
+    """
+    context = "Compliance Data Context:\n"
+    if prompt.startswith("get "):
+        item_id = prompt.replace("get ", "").strip()
+        if item_id in compliance_data:
+            data = compliance_data[item_id]
+            item_type = data["type"]
+            if item_type in ["STIG", "SRG"]:
+                context += (f"Control ID: {item_id}\n"
+                            f"Type: {item_type}\n"
+                            f"Title: {data['title']}\n"
+                            f"Description: {data['description'][:500]}... (truncated)\n"
+                            f"CCIs: {', '.join(data['ccis']) if 'ccis' in data and data['ccis'] else 'None'}\n"
+                            f"Source File: {data['file']}\n")
+            elif item_type == "CCI":
+                ref_titles = [ref['title'] for ref in data['references']] if data['references'] else ["None"]
+                context += (f"CCI ID: {item_id}\n"
+                            f"Type: {item_type}\n"
+                            f"Definition: {data['definition'][:500]}... (truncated)\n"
+                            f"CCI Type: {data['cci_type']}\n"
+                            f"Status: {data['status']}\n"
+                            f"Publish Date: {data['publishdate']}\n"
+                            f"Contributor: {data['contributor']}\n"
+                            f"References: {', '.join(ref_titles)}\n"
+                            f"Source File: {data['file']}\n")
+            else:
+                context += f"Unknown item type for ID: {item_id}\n"
+        else:
+            return f"No data found for ID: {item_id}"
+    elif "search" in prompt:
+        keyword = prompt.replace("search ", "").strip()
+        matches = [
+            (cid, d) for cid, d in compliance_data.items()
+            if keyword.lower() in d.get('title', '').lower() or
+               keyword.lower() in d.get('description', '').lower() or
+               keyword.lower() in d.get('definition', '').lower()
+        ]
+        if matches:
+            context += f"Found {len(matches)} matches for '{keyword}':\n"
+            for cid, d in matches[:3]:  # Limit to 3 for context brevity
+                item_type = d["type"]
+                if item_type in ["STIG", "SRG"]:
+                    context += f"- {cid} ({item_type}): {d['title'][:100]}...\n"
+                elif item_type == "CCI":
+                    context += f"- {cid} ({item_type}): {d['definition'][:100]}...\n"
+        else:
+            return f"No matches found for '{keyword}'"
     else:
-        disa_last_processed = (0, 0)
-        nist_mapping_last_modified = datetime(1970, 1, 1, tzinfo=timezone.utc)  # UTC-aware default
+        # General query, include a summary
+        context += f"Total items loaded: {len(compliance_data)}\n"
 
-    # Prepare parallel downloads
-    download_tasks = []
+    # Construct the full prompt for OpenRouter
+    full_prompt = f"{context}\nUser Query: {prompt}\nProvide a concise, accurate response based on the context."
 
-    # Download NIST 800-53 attack mapping
-    mapping_url = config["nist_800_53_attack_mapping_url"]
-    mapping_filename = mapping_url.split('/')[-1]
-    mapping_dest = os.path.join(data_dir, mapping_filename)
-    current_mapping_modified = get_last_modified_date(mapping_url)
-    if current_mapping_modified and current_mapping_modified > nist_mapping_last_modified:
-        download_tasks.append((mapping_url, mapping_dest))
-    elif not current_mapping_modified:
-        download_tasks.append((mapping_url, mapping_dest))
+    # OpenRouter API request
+    headers = {
+        "Authorization": f"Bearer {config['OPENROUTER_API_KEY']}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": config["DEEPSEEK_MODEL"],
+        "messages": [{"role": "user", "content": full_prompt}]
+    }
+    try:
+        response = requests.post(
+            f"{config['OPENROUTER_BASE_URL']}/chat/completions",
+            headers=headers,
+            json=payload
+        )
+        response.raise_for_status()
+        result = response.json()
+        return result['choices'][0]['message']['content'].strip()
+    except requests.RequestException as e:
+        logging.error(f"OpenRouter API error: {e}")
+        return f"Error contacting OpenRouter: {str(e)}"
 
-    # Download NIST baselines
-    for level, url in config["baselines"].items():
-        filename = url.split('/')[-1]
-        dest_path = os.path.join(data_dir, filename)
-        download_tasks.append((url, dest_path))
+def main():
+    parser = argparse.ArgumentParser(description="Compliance LLM Tool")
+    parser.add_argument("--update", action="store_true", help="Update compliance data before running")
+    args = parser.parse_args()
 
-    # Download NIST SP 800-53 catalog
-    catalog_url = config["nist_sp800_53_catalog_url"]
-    catalog_filename = catalog_url.split('/')[-1]
-    catalog_dest = os.path.join(data_dir, catalog_filename)
-    download_tasks.append((catalog_url, catalog_dest))
+    logging.info("Starting compliance LLM tool.")
 
-    # Execute parallel downloads
-    if download_tasks:
-        results = download_parallel(download_tasks)
-        for url, dest, success in results:
-            if url == mapping_url and success and current_mapping_modified and current_mapping_modified > nist_mapping_last_modified:
-                nist_mapping_last_modified = current_mapping_modified
-            elif url == mapping_url and not success:
-                print(f"Failed to update {mapping_filename} despite newer modification date.")
-            elif url == mapping_url:
-                print(f"{mapping_filename} is up to date with modification date {current_mapping_modified}.")
+    # Load config
+    config_path = os.path.join(os.path.dirname(__file__), '../config.json')
+    if not os.path.exists(config_path):
+        logging.error("config.json not found.")
+        print("Error: config.json not found. Exiting.")
+        sys.exit(1)
+    with open(config_path, 'r') as f:
+        config = json.load(f)
+    logging.info(f"Loaded config: {json.dumps(config, indent=2)}")
 
-    # Download CCI list
-    cci_url = config["cci_list_url"]
-    cci_zip = os.path.join(cci_list_dir, "U_CCI_List.zip")
-    if download_file(cci_url, cci_zip):
-        unzip_file(cci_zip, cci_list_dir)
-        os.remove(cci_zip)  # Clean up the zip file
+    # Verify API key
+    if not config.get("OPENROUTER_API_KEY") or config["OPENROUTER_API_KEY"] == "<YOUR_OPEN_ROUTER_API_KEY>":
+        logging.error("OpenRouter API key not configured.")
+        print("Error: Please set a valid OPENROUTER_API_KEY in config.json.")
+        sys.exit(1)
 
-    # Download STIGs and SRGs from DISA URL
-    stig_zip_path = find_latest_stig_zip(config["disa_url"], stig_zips_dir)
-    if stig_zip_path:
-        # Check if the file is recent enough (30 days)
-        #if os.path.exists(stig_zip_path) and (datetime.now() - get_file_mod_time(stig_zip_path)).days < 30:
-        #    print(f"{os.path.basename(stig_zip_path)} is recent enough; skipping further processing.")
-        #else:
-        # Prune files older than 120 days in stig_zips_dir
-        print(f"Pruning files older than 120 days in {stig_zips_dir}...")
-        prune_old_files(stig_zips_dir)
+    # Force update if --update flag is provided
+    if args.update:
+        logging.info("Updating compliance data...")
+        try:
+            subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "data_fetcher.py")], check=True)
+            logging.info("Data updated successfully.")
+            print("Data updated successfully.")
+        except subprocess.CalledProcessError as e:
+            logging.error(f"Failed to update data: {e}")
+            print(f"Error: Failed to update data: {e}. Proceeding with existing data.")
 
-        # Unzip and process STIG/SRG files
-        temp_extract_dir = os.path.join(stig_zips_dir, "temp_extract")
-        os.makedirs(temp_extract_dir, exist_ok=True)
-        unzip_file(stig_zip_path, temp_extract_dir)
+    # Check data freshness and notify user
+    if not check_data_freshness(config):
+        logging.warning("Compliance data may be outdated.")
+        print("Warning: Compliance data may be outdated. Consider updating with --update or running data_fetcher.py.")
 
-        # Move XML files to appropriate directories
-        for root, _, files in os.walk(temp_extract_dir):
-            for file in files:
-                if file.endswith(config["xml_suffix"]):
-                    src_path = os.path.join(root, file)
-                    if config["srg_zip_suffix"].replace(".zip", "") in file:
-                        dest_path = os.path.join(srg_dir, file)
-                    else:
-                        dest_path = os.path.join(stig_dir, file)
-                    shutil.move(src_path, dest_path)
-                    print(f"Moved {file} to {dest_path}")
+    # Check if critical directories exist
+    base_path = os.path.dirname(os.path.dirname(__file__))
+    print(f"Script base path: {base_path}")
+    for dir_key in ["stig_dir", "srg_dir", "cci_list_dir"]:
+        dir_path = os.path.join(base_path, config[dir_key])
+        print(f"Checking {dir_key}: {dir_path}")
+        if not os.path.exists(dir_path):
+            logging.error(f"{dir_key} not found: {dir_path}")
+            print(f"Error: {dir_key} not found. Please run data_fetcher.py to download the data.")
+            sys.exit(1)
 
-        # Clean up temporary extraction directory
-        shutil.rmtree(temp_extract_dir)
-        print(f"Cleaned up temporary extraction directory: {temp_extract_dir}")
+    # Load compliance data
+    logging.info("Loading compliance data...")
+    compliance_data = load_compliance_data(config)
+    if not compliance_data:
+        logging.warning("No compliance data loaded. Functionality may be limited.")
+        print("Warning: No compliance data found. Functionality may be limited.")
+        sys.exit(1)
     else:
-        print(f"Latest STIG/SRG library {latest_filename} is already processed; skipping.")
+        logging.info(f"Loaded {len(compliance_data)} compliance items.")
+        print(f"Compliance LLM tool running with {len(compliance_data)} items loaded.")
 
-    # Update last_processed.json with the current timestamp and updated values
-    with open(last_processed_file, 'w') as f:
-        last_processed = {
-            "disa_zip": list(disa_last_processed),
-            "nist_mapping": nist_mapping_last_modified.isoformat(),  # No extra Z
-            "last_updated": datetime.now(timezone.utc).isoformat()  # UTC-aware timestamp
-        }
-        json.dump(last_processed, f)
-    print("Data fetch completed. last_processed.json updated.")
+    # Interactive LLM prompt loop
+    print("Welcome to the Compliance LLM Tool! Type 'exit' to quit.")
+    print("You can query specific items using 'get <ID>', e.g., 'get CCI-000001' for CCI data or a STIG/SRG control ID.")
+    print("You can also search keywords using 'search <keyword>', e.g., 'search access control'.")
+    while True:
+        prompt = input("Enter your query: ").strip()
+        if prompt.lower() == "exit":
+            print("Exiting Compliance LLM Tool.")
+            break
+        response = process_llm_prompt(config, compliance_data, prompt)
+        print(response)
+        logging.info(f"User prompt: '{prompt}' | Response: '{response[:100]}...'")
 
 if __name__ == "__main__":
-    config_path = os.path.join(os.path.dirname(__file__), '../config.json')
-    fetch_data(config_path)
+    main()
