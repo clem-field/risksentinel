@@ -42,14 +42,7 @@ def check_data_freshness(config, max_age_days=7):
         return False
 
 def load_compliance_data(config):
-    """Load compliance data including NIST ATT&CK mappings.
-
-    Args:
-        config (dict): Configuration dictionary from config.json.
-
-    Returns:
-        dict: A dictionary containing loaded compliance data with ATT&CK mappings.
-    """
+    """Load compliance data including NIST ATT&CK mappings based on the specified framework."""
     data = {}
     base_path = os.path.dirname(os.path.dirname(__file__))
     namespaces = {
@@ -57,8 +50,16 @@ def load_compliance_data(config):
         "cci": "http://iase.disa.mil/cci"
     }
 
+    # Determine the framework and corresponding mapping file
+    framework = config.get("framework", "nist_800_53_rev5")  # Default to Rev5 if not specified
+    mapping_filename = {
+        "nist_800_53_rev5": "nist_800_53-rev5_attack-14.1-enterprise_json.json",
+        "nist_800_53_rev4": "nist_800_53-rev4_attack-14.1-enterprise_json.json",
+        "cis": "cis_json.json"
+    }.get(framework, "nist_800_53-rev5_attack-14.1-enterprise_json.json")  # Fallback to Rev5
+    mapping_file = os.path.join(base_path, "data", mapping_filename)
+
     # Load NIST ATT&CK Mapping
-    mapping_file = os.path.join(base_path, "data", "nist_800_53-rev5_attack-14.1-enterprise_json.json")
     nist_to_attack = {}
     if os.path.exists(mapping_file):
         try:
@@ -71,11 +72,11 @@ def load_compliance_data(config):
                     {"id": tech["id"], "name": tech["name"], "description": tech.get("description", "")}
                     for tech in details.get("techniques", [])
                 ]
-            logging.info(f"Loaded NIST ATT&CK mapping with {len(nist_to_attack)} controls")
+            logging.info(f"Loaded {framework} ATT&CK mapping with {len(nist_to_attack)} controls from {mapping_file}")
         except (json.JSONDecodeError, ValueError) as e:
-            logging.error(f"Failed to load NIST ATT&CK mapping: {e}")
+            logging.error(f"Failed to load {framework} ATT&CK mapping: {e}")
     else:
-        logging.warning(f"NIST ATT&CK mapping file not found at {mapping_file}")
+        logging.warning(f"{framework} ATT&CK mapping file not found at {mapping_file}")
 
     # Load STIG data
     stig_dir = os.path.join(base_path, config["stig_dir"])
