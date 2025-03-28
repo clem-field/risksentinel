@@ -109,7 +109,7 @@ def load_compliance_data(config):
         try:
             tree = etree.parse(xml_file)
             rules = tree.findall(".//xccdf:Group/xccdf:Rule", namespaces)
-            for rule in rules:-
+            for rule in rules:
                 control_id = rule.get("id")
                 title_elem = rule.find("xccdf:title", namespaces)
                 title = title_elem.text if title_elem is not None else "No title"
