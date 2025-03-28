@@ -6,3 +6,4 @@ openpyxl
 lxml
 scheduler
 pytz
+fuzzywuzzy
