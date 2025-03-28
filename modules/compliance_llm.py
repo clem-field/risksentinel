@@ -18,20 +18,11 @@ logging.basicConfig(
 )
 
 def check_data_freshness(config, max_age_days=7):
-    """Check if the compliance data is fresh based on last_processed.json.
-
-    Args:
-        config (dict): Configuration dictionary from config.json.
-        max_age_days (int): Maximum age in days before data is considered outdated.
-
-    Returns:
-        bool: True if data is fresh, False otherwise.
-    """
+    """Check if the compliance data is fresh based on last_processed.json."""
     last_processed_file = os.path.join("data", "last_processed.json")
     if not os.path.exists(last_processed_file):
         logging.warning("last_processed.json missing. Data freshness unknown.")
         return False
-
     try:
         with open(last_processed_file, 'r') as f:
             last_processed = json.load(f)
@@ -42,7 +33,6 @@ def check_data_freshness(config, max_age_days=7):
         last_updated = datetime.fromisoformat(last_updated_str)
         tz = pytz.timezone(config["timezone"])
         now = datetime.now(tz)
-        # Ensure last_updated is timezone-aware if it has an offset, otherwise localize it
         if last_updated.tzinfo is None:
             last_updated = tz.localize(last_updated)
         age = now - last_updated
@@ -52,37 +42,46 @@ def check_data_freshness(config, max_age_days=7):
         return False
 
 def load_compliance_data(config):
-    """Load compliance data from directories specified in config.json.
+    """Load compliance data including NIST ATT&CK mappings.
 
     Args:
         config (dict): Configuration dictionary from config.json.
 
     Returns:
-        tuple: (compliance_data, technology_to_stig, cci_to_srg)
-            - compliance_data (dict): Loaded STIG, SRG, and CCI data.
-            - technology_to_stig (dict): Mapping from technology names to STIG files.
-            - cci_to_srg (dict): Mapping from CCIs to SRG rule IDs.
+        dict: A dictionary containing loaded compliance data with ATT&CK mappings.
     """
     data = {}
-    technology_to_stig = {}
-    cci_to_srg = {}
     base_path = os.path.dirname(os.path.dirname(__file__))
     namespaces = {
         "xccdf": "http://checklists.nist.gov/xccdf/1.1",
         "cci": "http://iase.disa.mil/cci"
     }
 
+    # Load NIST ATT&CK Mapping
+    mapping_file = os.path.join(base_path, "data", "nist_800_53-rev5_attack-14.1-enterprise_json.json")
+    nist_to_attack = {}
+    if os.path.exists(mapping_file):
+        try:
+            with open(mapping_file, 'r') as f:
+                mapping_data = json.load(f)
+            if "controls" not in mapping_data:
+                raise ValueError("Invalid JSON structure: 'controls' key missing")
+            for control_id, details in mapping_data["controls"].items():
+                nist_to_attack[control_id] = [
+                    {"id": tech["id"], "name": tech["name"], "description": tech.get("description", "")}
+                    for tech in details.get("techniques", [])
+                ]
+            logging.info(f"Loaded NIST ATT&CK mapping with {len(nist_to_attack)} controls")
+        except (json.JSONDecodeError, ValueError) as e:
+            logging.error(f"Failed to load NIST ATT&CK mapping: {e}")
+    else:
+        logging.warning(f"NIST ATT&CK mapping file not found at {mapping_file}")
+
     # Load STIG data
     stig_dir = os.path.join(base_path, config["stig_dir"])
     for xml_file in glob.glob(os.path.join(stig_dir, "*.xml")):
         try:
             tree = etree.parse(xml_file)
-            title_elem = tree.find("xccdf:title", namespaces)
-            if title_elem is not None:
-                technology = title_elem.text
-                technology_to_stig[technology] = os.path.basename(xml_file)
-            else:
-                logging.warning(f"No title found in STIG file {xml_file}")
             rules = tree.findall(".//xccdf:Group/xccdf:Rule", namespaces)
             for rule in rules:
                 control_id = rule.get("id")
@@ -92,17 +91,15 @@ def load_compliance_data(config):
                 description = desc_elem.text if desc_elem is not None else "No description"
                 cci_elems = rule.findall("xccdf:ident[@system='http://cyber.mil/cci']", namespaces)
                 ccis = [cci.text for cci in cci_elems if cci.text] if cci_elems else []
-                fix_elem = rule.find("xccdf:fix", namespaces)
-                fix = fix_elem.text if fix_elem is not None else "No fix instructions"
                 data[control_id] = {
                     "title": title,
                     "description": description,
                     "type": "STIG",
                     "file": os.path.basename(xml_file),
                     "ccis": ccis,
-                    "fix": fix
+                    "attack_techniques": []
                 }
-            logging.info(f"Parsed STIG file {xml_file} with {len(rules)} rules")
+            logging.info(f"Parsed STIG file {xml_file} with {len(rules)} items")
         except Exception as e:
             logging.error(f"Failed to parse STIG file {xml_file}: {e}")
 
@@ -112,7 +109,7 @@ def load_compliance_data(config):
         try:
             tree = etree.parse(xml_file)
             rules = tree.findall(".//xccdf:Group/xccdf:Rule", namespaces)
-            for rule in rules:
+            for rule in rules:-
                 control_id = rule.get("id")
                 title_elem = rule.find("xccdf:title", namespaces)
                 title = title_elem.text if title_elem is not None else "No title"
@@ -125,15 +122,14 @@ def load_compliance_data(config):
                     "description": description,
                     "type": "SRG",
                     "file": os.path.basename(xml_file),
-                    "ccis": ccis
+                    "ccis": ccis,
+                    "attack_techniques": []
                 }
-                for cci in ccis:
-                    cci_to_srg.setdefault(cci, []).append(control_id)
-            logging.info(f"Parsed SRG file {xml_file} with {len(rules)} rules")
+            logging.info(f"Parsed SRG file {xml_file} with {len(rules)} items")
         except Exception as e:
             logging.error(f"Failed to parse SRG file {xml_file}: {e}")
 
-    # Load CCI data
+    # Load CCI data and map ATT&CK techniques
     cci_dir = os.path.join(base_path, config["cci_list_dir"])
     for xml_file in glob.glob(os.path.join(cci_dir, "*.xml")):
         try:
@@ -141,148 +137,138 @@ def load_compliance_data(config):
             cci_items = tree.findall(".//cci:cci_item", namespaces)
             for cci_item in cci_items:
                 cci_id = cci_item.get("id")
-                title_elem = cci_item.find("cci:title", namespaces)
-                title = title_elem.text if title_elem is not None else "No title"
-                desc_elem = cci_item.find("cci:description", namespaces)
-                description = desc_elem.text if desc_elem is not None else "No description"
+                if not cci_id:
+                    logging.warning(f"Skipping cci_item with no id in {xml_file}")
+                    continue
+                definition_elem = cci_item.find("cci:definition", namespaces)
+                definition = definition_elem.text if definition_elem is not None else "No definition"
+                type_elem = cci_item.find("cci:type", namespaces)
+                cci_type = type_elem.text if type_elem is not None else "Unknown type"
+                status_elem = cci_item.find("cci:status", namespaces)
+                status = status_elem.text if status_elem is not None else "Unknown status"
+                publishdate_elem = cci_item.find("cci:publishdate", namespaces)
+                publishdate = publishdate_elem.text if publishdate_elem is not None else "Unknown date"
+                contributor_elem = cci_item.find("cci:contributor", namespaces)
+                contributor = contributor_elem.text if contributor_elem is not None else "Unknown contributor"
+                references = [
+                    {
+                        "creator": ref.get("creator", "Unknown creator"),
+                        "title": ref.get("title", "No title"),
+                        "version": ref.get("version", "Unknown version"),
+                        "location": ref.get("location", "No location"),
+                        "index": ref.get("index", "No index")
+                    }
+                    for ref in cci_item.findall("cci:references/cci:reference", namespaces)
+                ]
+                # Map ATT&CK techniques via NIST controls in references
+                attack_techniques = []
+                for ref in references:
+                    if ref["creator"] == "NIST" and "SP 800-53" in ref["title"]:
+                        nist_control = ref["index"].split()[0]  # e.g., "AC-1" from "AC-1 a 1"
+                        if nist_control in nist_to_attack:
+                            attack_techniques.extend(nist_to_attack[nist_control])
                 data[cci_id] = {
-                    "title": title,
-                    "description": description,
                     "type": "CCI",
-                    "file": os.path.basename(xml_file)
+                    "definition": definition,
+                    "cci_type": cci_type,
+                    "status": status,
+                    "publishdate": publishdate,
+                    "contributor": contributor,
+                    "references": references,
+                    "file": os.path.basename(xml_file),
+                    "attack_techniques": attack_techniques
                 }
             logging.info(f"Parsed CCI file {xml_file} with {len(cci_items)} items")
         except Exception as e:
             logging.error(f"Failed to parse CCI file {xml_file}: {e}")
 
-    return data, technology_to_stig, cci_to_srg
+    # Propagate ATT&CK techniques to STIGs and SRGs via CCIs
+    for item_id, item in data.items():
+        if item["type"] in ["STIG", "SRG"] and "ccis" in item:
+            attack_techniques = []
+            for cci in item["ccis"]:
+                if cci in data and "attack_techniques" in data[cci]:
+                    attack_techniques.extend(data[cci]["attack_techniques"])
+            item["attack_techniques"] = list({t["id"]: t for t in attack_techniques}.values())  # Remove duplicates
 
-def find_stig_for_technology(technology_query, technology_to_stig):
-    """Find the STIG file for the given technology query using keyword matching.
+    return data
 
-    Args:
-        technology_query (str): The technology name provided by the user.
-        technology_to_stig (dict): Mapping from technology names to STIG files.
-
-    Returns:
-        str: The STIG file name if a match is found, else None.
-    """
-    query_words = technology_query.lower().split()
-    for title in technology_to_stig:
-        title_lower = title.lower()
-        if all(word in title_lower for word in query_words):
-            return technology_to_stig[title]
-    return None
-
-def generate_technology_compliance_response(technology, stig_file, compliance_data, cci_to_srg):
-    """Generate a human-readable compliance response for the specified technology.
-
-    Args:
-        technology (str): The technology name.
-        stig_file (str): The STIG file name.
-        compliance_data (dict): Loaded compliance data.
-        cci_to_srg (dict): Mapping from CCIs to SRG rule IDs.
-
-    Returns:
-        str: Formatted compliance requirements response.
-    """
-    controls = [(ctrl_id, ctrl) for ctrl_id, ctrl in compliance_data.items() if ctrl["type"] == "STIG" and ctrl["file"] == stig_file]
-    if not controls:
-        return f"No controls found for STIG: {stig_file}"
-    response = f"Compliance Requirements for {technology}:\nSTIG: {stig_file}\n\n"
-    for ctrl_id, ctrl in controls[:5]:  # Show first 5 controls
-        response += f"Control: {ctrl_id}\n"
-        response += f"Title: {ctrl['title']}\n"
-        response += f"Description: {ctrl['description']}\n"
-        response += f"CCIs: {', '.join(ctrl['ccis']) if ctrl['ccis'] else 'None'}\n"
-        response += "SRG Requirements:\n"
-        for cci in ctrl['ccis']:
-            for srg_id in cci_to_srg.get(cci, []):
-                srg_title = compliance_data[srg_id]['title']
-                response += f"  - {srg_id}: {srg_title}\n"
-        response += f"Fix: {ctrl['fix']}\n\n"
-    total_controls = len(controls)
-    if total_controls > 5:
-        response += f"... and {total_controls - 5} more controls.\n"
-    return response
-
-def process_llm_prompt(config, compliance_data, technology_to_stig, cci_to_srg, prompt):
-    """Process a user prompt, handling technology-specific queries directly and others via OpenRouter API.
-
-    Args:
-        config (dict): Configuration dictionary with API settings.
-        compliance_data (dict): Loaded compliance data.
-        technology_to_stig (dict): Mapping from technology names to STIG files.
-        cci_to_srg (dict): Mapping from CCIs to SRG rule IDs.
-        prompt (str): User input prompt.
-
-    Returns:
-        str: Response from direct processing or OpenRouter API.
-    """
-    if prompt.lower().startswith("what are the compliance requirements for"):
-        technology_query = prompt[len("what are the compliance requirements for"):].strip()
-        stig_file = find_stig_for_technology(technology_query, technology_to_stig)
-        if stig_file:
-            return generate_technology_compliance_response(technology_query, stig_file, compliance_data, cci_to_srg)
+def process_llm_prompt(config, compliance_data, prompt):
+    """Process a user prompt using OpenRouter API with compliance data context, including ATT&CK mappings."""
+    context = "Compliance Data Context:\n"
+    if prompt.startswith("get "):
+        item_id = prompt.replace("get ", "").strip()
+        if item_id in compliance_data:
+            data = compliance_data[item_id]
+            item_type = data["type"]
+            if item_type in ["STIG", "SRG"]:
+                context += (f"Control ID: {item_id}\n"
+                            f"Type: {item_type}\n"
+                            f"Title: {data['title']}\n"
+                            f"Description: {data['description'][:500]}... (truncated)\n"
+                            f"CCIs: {', '.join(data['ccis']) if 'ccis' in data and data['ccis'] else 'None'}\n"
+                            f"Source File: {data['file']}\n")
+            elif item_type == "CCI":
+                ref_titles = [ref['title'] for ref in data['references']] if data['references'] else ["None"]
+                context += (f"CCI ID: {item_id}\n"
+                            f"Type: {item_type}\n"
+                            f"Definition: {data['definition'][:500]}... (truncated)\n"
+                            f"CCI Type: {data['cci_type']}\n"
+                            f"Status: {data['status']}\n"
+                            f"Publish Date: {data['publishdate']}\n"
+                            f"Contributor: {data['contributor']}\n"
+                            f"References: {', '.join(ref_titles)}\n"
+                            f"Source File: {data['file']}\n")
+            else:
+                context += f"Unknown item type for ID: {item_id}\n"
+            if "attack_techniques" in data and data["attack_techniques"]:
+                context += "Mitigated ATT&CK Techniques:\n"
+                for tech in data["attack_techniques"]:
+                    context += f"  - {tech['id']}: {tech['name']} - {tech['description'][:100]}...\n"
         else:
-            return f"No STIG found for '{technology_query}'. Please check the technology name or update the data."
+            return f"No data found for ID: {item_id}"
+    elif "search" in prompt:
+        keyword = prompt.replace("search ", "").strip()
+        matches = [
+            (cid, d) for cid, d in compliance_data.items()
+            if keyword.lower() in d.get('title', '').lower() or
+               keyword.lower() in d.get('description', '').lower() or
+               keyword.lower() in d.get('definition', '').lower()
+        ]
+        if matches:
+            context += f"Found {len(matches)} matches for '{keyword}':\n"
+            for cid, d in matches[:3]:  # Limit to 3 for context brevity
+                item_type = d["type"]
+                if item_type in ["STIG", "SRG"]:
+                    context += f"- {cid} ({item_type}): {d['title'][:100]}...\n"
+                elif item_type == "CCI":
+                    context += f"- {cid} ({item_type}): {d['definition'][:100]}...\n"
+        else:
+            return f"No matches found for '{keyword}'"
     else:
-        # Prepare context from compliance data (limit to avoid overwhelming API)
-        context = "Compliance Data Context:\n"
-        if prompt.startswith("get "):
-            control_id = prompt.replace("get ", "").strip()
-            if control_id in compliance_data:
-                data = compliance_data[control_id]
-                context += f"Control ID: {control_id}\n"
-                context += f"Type: {data['type']}\n"
-                context += f"Title: {data['title']}\n"
-                context += f"Description: {data['description'][:500]}... (truncated)\n"
-                if data['type'] == "STIG":
-                    context += f"Fix: {data['fix']}\n"
-                context += f"CCIs: {', '.join(data['ccis']) if 'ccis' in data else 'None'}\n"
-                context += f"Source File: {data['file']}\n"
-            else:
-                return f"No data found for control ID: {control_id}"
-        elif "search" in prompt:
-            keyword = prompt.replace("search ", "").strip()
-            matches = [
-                (cid, d) for cid, d in compliance_data.items()
-                if keyword.lower() in d['title'].lower() or keyword.lower() in d['description'].lower()
-            ]
-            if matches:
-                context += f"Found {len(matches)} matches for '{keyword}':\n"
-                for cid, d in matches[:3]:  # Limit to 3 for context brevity
-                    context += f"- {cid} ({d['type']}): {d['title']}\n"
-            else:
-                return f"No matches found for '{keyword}'"
-        else:
-            # General query, include a summary
-            context += f"Total controls loaded: {len(compliance_data)}\n"
+        context += f"Total items loaded: {len(compliance_data)}\n"
 
-        # Construct the full prompt for OpenRouter
-        full_prompt = f"{context}\nUser Query: {prompt}\nProvide a concise, accurate response based on the context."
-
-        # OpenRouter API request
-        headers = {
-            "Authorization": f"Bearer {config['OPENROUTER_API_KEY']}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "model": config["DEEPSEEK_MODEL"],
-            "messages": [{"role": "user", "content": full_prompt}]
-        }
-        try:
-            response = requests.post(
-                f"{config['OPENROUTER_BASE_URL']}/chat/completions",
-                headers=headers,
-                json=payload
-            )
-            response.raise_for_status()
-            result = response.json()
-            return result['choices'][0]['message']['content'].strip()
-        except requests.RequestException as e:
-            logging.error(f"OpenRouter API error: {e}")
-            return f"Error contacting OpenRouter: {str(e)}"
+    full_prompt = f"{context}\nUser Query: {prompt}\nProvide a concise, accurate response based on the context."
+    headers = {
+        "Authorization": f"Bearer {config['OPENROUTER_API_KEY']}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": config["DEEPSEEK_MODEL"],
+        "messages": [{"role": "user", "content": full_prompt}]
+    }
+    try:
+        response = requests.post(
+            f"{config['OPENROUTER_BASE_URL']}/chat/completions",
+            headers=headers,
+            json=payload
+        )
+        response.raise_for_status()
+        result = response.json()
+        return result['choices'][0]['message']['content'].strip()
+    except requests.RequestException as e:
+        logging.error(f"OpenRouter API error: {e}")
+        return f"Error contacting OpenRouter: {str(e)}"
 
 def main():
     parser = argparse.ArgumentParser(description="Compliance LLM Tool")
@@ -336,7 +322,7 @@ def main():
 
     # Load compliance data
     logging.info("Loading compliance data...")
-    compliance_data, technology_to_stig, cci_to_srg = load_compliance_data(config)
+    compliance_data = load_compliance_data(config)
     if not compliance_data:
         logging.warning("No compliance data loaded. Functionality may be limited.")
         print("Warning: No compliance data found. Functionality may be limited.")
@@ -347,12 +333,14 @@ def main():
 
     # Interactive LLM prompt loop
     print("Welcome to the Compliance LLM Tool! Type 'exit' to quit.")
+    print("You can query specific items using 'get <ID>', e.g., 'get CCI-000001'.")
+    print("You can also search keywords using 'search <keyword>', e.g., 'search access control'.")
     while True:
         prompt = input("Enter your query: ").strip()
         if prompt.lower() == "exit":
             print("Exiting Compliance LLM Tool.")
             break
-        response = process_llm_prompt(config, compliance_data, technology_to_stig, cci_to_srg, prompt)
+        response = process_llm_prompt(config, compliance_data, prompt)
         print(response)
         logging.info(f"User prompt: '{prompt}' | Response: '{response[:100]}...'")
 
