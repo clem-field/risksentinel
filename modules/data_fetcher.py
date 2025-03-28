@@ -1,12 +1,25 @@
 import os
 import json
 import requests
-import zipfile
 from datetime import datetime, timedelta
 import shutil
+from email.utils import parsedate_to_datetime
+import zipfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 def download_file(url, destination):
-    """Download a file from a URL to a destination path if it exists."""
+    """Download a file from a URL to a destination path if it exists.
+
+    Args:
+        url (str): The URL to download the file from.
+        destination (str): The local path where the file will be saved.
+
+    Returns:
+        bool: True if the download was successful, False otherwise.
+
+    Raises:
+        requests.exceptions.HTTPError: If the HTTP request fails.
+    """
     try:
         response = requests.get(url, stream=True)
         response.raise_for_status()
@@ -20,42 +33,101 @@ def download_file(url, destination):
         return False
 
 def unzip_file(zip_path, extract_dir):
-    """Unzip a file to a specified directory."""
+    """Unzip a file to a specified directory.
+
+    Args:
+        zip_path (str): The path to the zip file to be extracted.
+        extract_dir (str): The directory where the contents will be extracted.
+
+    Returns:
+        str: The path to the extraction directory.
+    """
     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
         zip_ref.extractall(extract_dir)
     return extract_dir
 
-def get_file_mod_time(filepath):
-    """Get the modification time of a file."""
-    return datetime.fromtimestamp(os.path.getmtime(filepath))
+def get_latest_available_zip_info(base_url, max_months_back=12):
+    """Find the latest available zip file by checking recent months.
 
-def prune_old_files(directory, days=120):
-    """Remove files older than the specified number of days."""
-    cutoff = datetime.now() - timedelta(days=days)
-    for filename in os.listdir(directory):
-        file_path = os.path.join(directory, filename)
-        if os.path.isfile(file_path) and get_file_mod_time(file_path) < cutoff:
-            os.remove(file_path)
-            print(f"Removed old file: {filename}")
+    Args:
+        base_url (str): The base URL template with {month} and {year} placeholders.
+        max_months_back (int, optional): Maximum months to look back. Defaults to 12.
 
-def find_latest_stig_zip(base_url, stig_zips_dir):
-    """Find the latest available STIG/SRG zip by checking recent months."""
+    Returns:
+        tuple: (url, filename, (year, month_num)) if found, (None, None, None) otherwise.
+    """
     current_date = datetime.now()
-    for i in range(3):  # Check current and past 2 months
+    for i in range(max_months_back):
         check_date = current_date - timedelta(days=30 * i)
-        filename = f"U_SRG-STIG_Library_{check_date.strftime('%B')}_{check_date.year}.zip"
-        url = base_url.format(month=check_date.strftime("%B"), year=check_date.year)
-        dest_path = os.path.join(stig_zips_dir, filename)
-        if download_file(url, dest_path):
-            return dest_path
-    return None
+        month_name = check_date.strftime("%B")  # e.g., "October"
+        year = check_date.year
+        url = base_url.format(month=month_name, year=year)
+        try:
+            response = requests.head(url)
+            if response.status_code == 200:
+                month_num = check_date.month  # e.g., 10 for October
+                filename = f"U_SRG-STIG_Library_{month_name}_{year}.zip"
+                return url, filename, (year, month_num)
+        except requests.exceptions.RequestException:
+            continue
+    return None, None, None
+
+def get_last_modified_date(url):
+    """Retrieve the Last-Modified date from the HTTP header of a URL.
+
+    Args:
+        url (str): The URL to check for the Last-Modified header.
+
+    Returns:
+        datetime: The last modified date if available, None otherwise.
+    """
+    try:
+        response = requests.head(url)
+        response.raise_for_status()
+        last_modified = response.headers.get("Last-Modified")
+        if last_modified:
+            return parsedate_to_datetime(last_modified)
+        return None
+    except requests.exceptions.RequestException as e:
+        print(f"Error checking Last-Modified for {url}: {e}")
+        return None
+
+def download_parallel(urls_destinations):
+    """Download multiple files in parallel using up to 4 concurrent threads.
+
+    Args:
+        urls_destinations (list of tuples): List of (url, destination) pairs to download.
+
+    Returns:
+        list: List of booleans indicating success/failure for each download.
+    """
+    results = []
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        future_to_url = {executor.submit(download_file, url, dest): (url, dest) for url, dest in urls_destinations}
+        for future in as_completed(future_to_url):
+            url, dest = future_to_url[future]
+            try:
+                result = future.result()
+                results.append((url, dest, result))
+            except Exception as e:
+                print(f"Download of {url} generated an exception: {e}")
+                results.append((url, dest, False))
+    return results
 
 def fetch_data(config_path):
-    """Fetch data files based on config.json and save to appropriate directories."""
+    """Fetch data files based on config.json and save to appropriate directories.
+
+    Args:
+        config_path (str): Path to the configuration JSON file.
+
+    This function handles downloading NIST mappings, baselines, catalogs, CCI lists,
+    and the latest STIG/SRG libraries, using parallel downloads where applicable.
+    """
     # Load config
     with open(config_path, 'r') as f:
         config = json.load(f)
 
+    # Define directory paths
     root_dir = os.path.dirname(os.path.abspath(config_path))
     data_dir = os.path.join(root_dir, "data")
     cci_list_dir = os.path.join(root_dir, config["cci_list_dir"])
@@ -70,62 +142,112 @@ def fetch_data(config_path):
     os.makedirs(srg_dir, exist_ok=True)
     os.makedirs(stig_dir, exist_ok=True)
 
+    # Load or initialize last processed data
+    last_processed_file = os.path.join(data_dir, "last_processed.json")
+    if os.path.exists(last_processed_file):
+        with open(last_processed_file, 'r') as f:
+            last_processed = json.load(f)
+            disa_last_processed = tuple(last_processed.get("disa_zip", [0, 0]))
+            nist_mapping_last_modified = datetime.fromisoformat(last_processed.get("nist_mapping", "1970-01-01T00:00:00Z"))
+    else:
+        disa_last_processed = (0, 0)
+        nist_mapping_last_modified = datetime(1970, 1, 1)
+
+    # Prepare parallel downloads
+    download_tasks = []
+
+    # Download NIST 800-53 attack mapping
+    mapping_url = config["nist_800_53_attack_mapping_url"]
+    mapping_filename = mapping_url.split('/')[-1]
+    mapping_dest = os.path.join(data_dir, mapping_filename)
+    current_mapping_modified = get_last_modified_date(mapping_url)
+    if current_mapping_modified and current_mapping_modified > nist_mapping_last_modified:
+        download_tasks.append((mapping_url, mapping_dest))
+    elif not current_mapping_modified:
+        download_tasks.append((mapping_url, mapping_dest))
+
     # Download NIST baselines
     for level, url in config["baselines"].items():
         filename = url.split('/')[-1]
         dest_path = os.path.join(data_dir, filename)
-        print(f"Downloading {filename}...")
-        download_file(url, dest_path)
+        download_tasks.append((url, dest_path))
 
     # Download NIST SP 800-53 catalog
     catalog_url = config["nist_sp800_53_catalog_url"]
     catalog_filename = catalog_url.split('/')[-1]
     catalog_dest = os.path.join(data_dir, catalog_filename)
-    print(f"Downloading {catalog_filename}...")
-    download_file(catalog_url, catalog_dest)
+    download_tasks.append((catalog_url, catalog_dest))
+
+    # Execute parallel downloads
+    if download_tasks:
+        results = download_parallel(download_tasks)
+        for url, dest, success in results:
+            if url == mapping_url and success and current_mapping_modified and current_mapping_modified > nist_mapping_last_modified:
+                with open(last_processed_file, 'w') as f:
+                    last_processed = {
+                        "disa_zip": list(disa_last_processed),
+                        "nist_mapping": current_mapping_modified.isoformat() + "Z"
+                    }
+                    json.dump(last_processed, f)
+                print(f"Updated {mapping_filename} based on new modification date.")
+            elif url == mapping_url and not success:
+                print(f"Failed to update {mapping_filename} despite newer modification date.")
+            elif url == mapping_url:
+                print(f"{mapping_filename} is up to date with modification date {current_mapping_modified}.")
 
     # Download CCI list
     cci_url = config["cci_list_url"]
     cci_zip = os.path.join(cci_list_dir, "U_CCI_List.zip")
-    print(f"Downloading CCI list...")
     if download_file(cci_url, cci_zip):
         unzip_file(cci_zip, cci_list_dir)
         os.remove(cci_zip)  # Clean up the zip file
 
-    # Download STIGs and SRGs from DISA URL
-    stig_zip_path = find_latest_stig_zip(config["disa_url"], stig_zips_dir)
-    if stig_zip_path:
-        # Check if the file is recent enough (30 days)
-        if os.path.exists(stig_zip_path) and (datetime.now() - get_file_mod_time(stig_zip_path)).days < 30:
-            print(f"{os.path.basename(stig_zip_path)} is recent enough; skipping further processing.")
-        else:
-            # Prune files older than 120 days in stig_zips_dir
-            print(f"Pruning files older than 120 days in {stig_zips_dir}...")
-            prune_old_files(stig_zips_dir)
-
-            # Unzip and process STIG/SRG files
-            temp_extract_dir = os.path.join(stig_zips_dir, "temp_extract")
-            os.makedirs(temp_extract_dir, exist_ok=True)
-            unzip_file(stig_zip_path, temp_extract_dir)
-
-            # Move XML files to appropriate directories
-            for root, _, files in os.walk(temp_extract_dir):
-                for file in files:
-                    if file.endswith(config["xml_suffix"]):
-                        src_path = os.path.join(root, file)
-                        if config["srg_zip_suffix"].replace(".zip", "") in file:
-                            dest_path = os.path.join(srg_dir, file)
-                        else:
-                            dest_path = os.path.join(stig_dir, file)
-                        shutil.move(src_path, dest_path)
-                        print(f"Moved {file} to {dest_path}")
-
-            # Clean up temporary extraction directory
-            shutil.rmtree(temp_extract_dir)
-            print(f"Cleaned up temporary extraction directory: {temp_extract_dir}")
-    else:
+    # Handle STIGs and SRGs
+    base_url = config["disa_url"]
+    latest_url, latest_filename, latest_date = get_latest_available_zip_info(base_url)
+    if latest_url is None:
         print("No recent STIG/SRG library found; skipping STIG/SRG processing.")
+        return
+
+    if latest_date > disa_last_processed:
+        dest_path = os.path.join(stig_zips_dir, latest_filename)
+        if download_file(latest_url, dest_path):
+            try:
+                # Unzip and process
+                temp_extract_dir = os.path.join(stig_zips_dir, "temp_extract")
+                os.makedirs(temp_extract_dir, exist_ok=True)
+                unzip_file(dest_path, temp_extract_dir)
+                
+                # Move XML files to appropriate directories
+                for root, _, files in os.walk(temp_extract_dir):
+                    for file in files:
+                        if file.endswith(config["xml_suffix"]):
+                            src_path = os.path.join(root, file)
+                            if config["srg_zip_suffix"].replace(".zip", "") in file:
+                                dest_path = os.path.join(srg_dir, file)
+                            else:
+                                dest_path = os.path.join(stig_dir, file)
+                            shutil.move(src_path, dest_path)
+                            print(f"Moved {file} to {dest_path}")
+                
+                # Clean up temporary extraction directory
+                shutil.rmtree(temp_extract_dir)
+                
+                # Update last processed date after successful extraction
+                with open(last_processed_file, 'w') as f:
+                    last_processed = {
+                        "disa_zip": list(latest_date),
+                        "nist_mapping": nist_mapping_last_modified.isoformat() + "Z"
+                    }
+                    json.dump(last_processed, f)
+                print(f"Successfully processed {latest_filename}")
+            except Exception as e:
+                print(f"Error processing {latest_filename}: {e}")
+        else:
+            print(f"Failed to download {latest_filename}")
+    else:
+        print(f"Latest STIG/SRG library {latest_filename} is already processed; skipping.")
 
 if __name__ == "__main__":
-    config_path = os.path.join(os.path.dirname(__file__), 'config.json')
+    config_path = os.path.join(os.path.dirname(__file__), '../config.json')
     fetch_data(config_path)
