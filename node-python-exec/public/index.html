@@ -2,7 +2,7 @@
 <html lang="en">
 <div class="head">
     <head>
-        <link rel="stylesheet" href="style.css"
+        <link rel="stylesheet" href="style.css">
         <meta charset="UTF-8" />
         <meta http-equiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" 
@@ -15,6 +15,11 @@
 </div>
 <body>
         <div class="sidenav">
+            <br><br>
+            <p>Site Navigatin</p>
+            <a href="instructions.html">Instructions</a>
+            <a href="cci-display.html">CCI List</a>
+            <h3>Resources</h3>
             <p>STIGs and SRGs</p>
             	<a href="https://public.cyber.mil/stigs/">DoD Cyber Exchange</a>
             	<a href="https://stigviewer.com/">STIG Viewer</a>
@@ -66,9 +71,48 @@
                 </form> 
                 <br><br>
                 <div class="btn-group">
-                    <button onclick="fetch_data()">Refresh Data Sources</button>
-                    <button onclick="engine_selected()">start rag</button>
+                    <button id="dataFetcher" onclick="data_response(), fetch_progress()">Refresh Data Sources</button>
+                    <button id="startEngine" onclick="start_engine()">start rag</button>
                     <button onclick="exit_rag()">exit</button>
+                </div>
+                <br><br>
+                <div class="terminal" id="dataResponse" style="display: none;">
+                    <p id="fetchOutput"></p>
+                    <script>
+                        document.getElementById("dataFetcher").addEventListener("click", function () {
+                            fetch("/data-fetcher")
+                                .then(response => response.text())
+                                .then(data => {
+                                    document.getElementById("fetchOutput").innerText = data;
+                                })
+                                .catch(error => {
+                                    document.getElementById("fetchOutput").innerText = "Error: " + error;
+                                });
+                        });
+                    </script>
+                    <div class="progress" id="progress">
+                        <div class="progressBar" id="fetchBar"></div>
+                    </div>
+                    <script>
+                        var i = 0;
+                        function fetch_progress() {
+                            if (i == 0) {
+                                i = 1;
+                                var elem = document.getElementById("fetchBar");
+                                var width = 1;
+                                var id = setInterval(frame, 750);
+                                function frame() {
+                                    if (width >= 100) {
+                                        clearInterval(id);
+                                        i = 0;
+                                    } else {
+                                        width++;
+                                        elem.style.width = width + "%";
+                                    }
+                                }
+                            }
+                        }   
+                    </script>
                 </div>
             <div class="footer">
                 <p>Use of this site is for demonstration purposes only and The providers do not assert 
@@ -86,6 +130,31 @@
                     <li>Review the response, which may include control details, implementation steps, evidence needs, risk info, or control relationships.</li>
                     <li>Select `exit` to end the demo or switch engines</li>
                 </ul>
+                <p> The DespSeek model tailors responses for the following users:</p>
+                <ol>
+                    <li>Authorizing Official (AO)</li>
+                    <li>Assessor</li>
+                    <li>Application Development Team (ADT)</li>
+                    <li>Auditor</li>
+                </ol>
+                <form>
+                    Select the user profile:
+                    <select name="user-profile" id="user-profile">
+                        <option value="----" selected>----</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                    </select>
+                </form>
+                <p>Selected User Profile:  <span id="selectedProfile"></span></p>
+                <script>
+                    function user_profile() {
+                        var userProfile = document.getElementById("user-profile");
+                        var profile = user-profile.value;
+                        var selectedProfile = userProfile.options[user-profile.selectedIndex].text
+                    }
+                </script>
                 <div>
                     <form id="ragForm">
                         <label>What is the compliance-related question:</label>
@@ -172,27 +241,25 @@
                             advanced he oh together entrance speedily suitable. Ready tried gay state fat could boy its among shall. 
                         </p>
                     </div>
+                    <div class="terminal" id="startEngine" style="display: none;">
+                        <p id="engineOutput"></p>
+                        <script>
+                            document.getElementById("startEngine").addEventListener("click", function () {
+                                fetch("/start-engine")
+                                    .then(response => response.text())
+                                    .then(data => {
+                                        document.getElementById("engineOutput").innerText = data;
+                                    })
+                                    .catch(error => {
+                                        document.getElementById("engineOutput").innerText = "Error: " + error;
+                                    });
+                            });
+                        </script>
+                    </div>
                 </div>
                 <div>
-                    <h2>Click the button to run the Python script:</h2>
-                    <button id="runPython">Run Python</button>
-                    <p id="output"></p>
-
-                    <script>
-                        document.getElementById("runPython").addEventListener("click", function () {
-                            fetch("/run-python")
-                                .then(response => response.text())
-                                .then(data => {
-                                    document.getElementById("output").innerText = data;
-                                })
-                                .catch(error => {
-                                    document.getElementById("output").innerText = "Error: " + error;
-                                });
-                        });
-                    </script>
                 </div>
             </aside>
         </div>
     </body>
-    
 </html>

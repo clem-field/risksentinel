@@ -2,7 +2,7 @@
 <html lang="en">
 <div class="head">
     <head>
-        <link rel="stylesheet" href="style.css"
+        <link rel="stylesheet" href="style.css">
         <meta charset="UTF-8" />
         <meta http-equiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" 
@@ -15,6 +15,11 @@
 </div>
 <body>
         <div class="sidenav">
+            <br><br>
+            <p>Site Navigatin</p>
+            <a href="instructions.html">Instructions</a>
+            <a href="../node-python-exec/data/cci_lists/U_CCI_List.html">CCI List</a>
+            <h3>Resources</h3>
             <p>STIGs and SRGs</p>
             	<a href="https://public.cyber.mil/stigs/">DoD Cyber Exchange</a>
             	<a href="https://stigviewer.com/">STIG Viewer</a>
@@ -86,6 +91,31 @@
                     <li>Review the response, which may include control details, implementation steps, evidence needs, risk info, or control relationships.</li>
                     <li>Select `exit` to end the demo or switch engines</li>
                 </ul>
+                <p> The DespSeek model tailors responses for the following users:</p>
+                <ol>
+                    <li>Authorizing Official (AO)</li>
+                    <li>Assessor</li>
+                    <li>Application Development Team (ADT)</li>
+                    <li>Auditor</li>
+                </ol>
+                <form>
+                    Select the user profile:
+                    <select name="user-profile" id="user-profile">
+                        <option value="----" selected>----</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                    </select>
+                </form>
+                <p>Selected User Profile:  <span id="selectedProfile"></span></p>
+                <script>
+                    function user_profile() {
+                        var userProfile = document.getElementById("user-profile");
+                        var profile = user-profile.value;
+                        var selectedProfile = userProfile.options[user-rofile.selectedIndex].text
+                    }
+                </script>
                 <div>
                     <form id="ragForm">
                         <label>What is the compliance-related question:</label>
