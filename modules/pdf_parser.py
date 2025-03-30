@@ -4,9 +4,11 @@ import glob
 import logging
 import pdfplumber
 
-# Configure logging
+# Configure logging to use logs directory
+log_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "logs")
+os.makedirs(log_dir, exist_ok=True)
 logging.basicConfig(
-    filename='pdf_parser.log',
+    filename=os.path.join(log_dir, 'pdf_parser.log'),
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )

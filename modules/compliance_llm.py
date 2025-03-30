@@ -10,11 +10,13 @@ import glob
 from lxml import etree
 import requests
 import pytz
-from pdf_parser import load_acronym_mapping  # Import from new module
+from pdf_parser import load_acronym_mapping
 
-# Configure logging
+# Configure logging to use logs directory
+log_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "logs")
+os.makedirs(log_dir, exist_ok=True)
 logging.basicConfig(
-    filename='compliance_llm.log',
+    filename=os.path.join(log_dir, 'compliance_llm.log'),
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
@@ -52,11 +54,9 @@ def load_compliance_data(config):
         "cci": "http://iase.disa.mil/cci"
     }
 
-    # Load acronym mapping from pdf_parser.py
     acronym_map = load_acronym_mapping()
     data['acronym_map'] = acronym_map
 
-    # Determine the framework and corresponding mapping file
     framework = config.get("framework", "nist_800_53_rev5")
     mapping_filename = {
         "nist_800_53_rev5": "nist_800_53-rev5_attack-14.1-enterprise_json.json",
@@ -65,7 +65,6 @@ def load_compliance_data(config):
     }.get(framework, "nist_800_53-rev5_attack-14.1-enterprise_json.json")
     mapping_file = os.path.join(base_path, "data", mapping_filename)
 
-    # Load NIST ATT&CK Mapping
     nist_to_attack = {}
     if os.path.exists(mapping_file):
         try:
@@ -84,7 +83,6 @@ def load_compliance_data(config):
     else:
         logging.warning(f"{framework} ATT&CK mapping file not found at {mapping_file}")
 
-    # Load STIG data
     stig_dir = os.path.join(base_path, config["stig_dir"])
     for xml_file in glob.glob(os.path.join(stig_dir, "*.xml")):
         try:
@@ -110,7 +108,6 @@ def load_compliance_data(config):
         except Exception as e:
             logging.error(f"Failed to parse STIG file {xml_file}: {e}")
 
-    # Load SRG data
     srg_dir = os.path.join(base_path, config["srg_dir"])
     for xml_file in glob.glob(os.path.join(srg_dir, "*.xml")):
         try:
@@ -136,7 +133,6 @@ def load_compliance_data(config):
         except Exception as e:
             logging.error(f"Failed to parse SRG file {xml_file}: {e}")
 
-    # Load CCI data and map ATT&CK techniques
     cci_dir = os.path.join(base_path, config["cci_list_dir"])
     for xml_file in glob.glob(os.path.join(cci_dir, "*.xml")):
         try:
@@ -188,9 +184,8 @@ def load_compliance_data(config):
         except Exception as e:
             logging.error(f"Failed to parse CCI file {xml_file}: {e}")
 
-    # Propagate ATT&CK techniques to STIGs and SRGs via CCIs, skipping non-compliance items
     for item_id, item in data.items():
-        if 'type' not in item:  # Skip items like 'acronym_map'
+        if 'type' not in item:
             continue
         if item["type"] in ["STIG", "SRG"] and "ccis" in item:
             attack_techniques = []
@@ -206,7 +201,6 @@ def process_llm_prompt(config, compliance_data, prompt):
     acronym_map = compliance_data.get('acronym_map', {})
     context = "Compliance Data Context:\n"
 
-    # Expand acronyms in the prompt
     expanded_prompt = prompt
     for acronym, meaning in acronym_map.items():
         if acronym in prompt.upper():
@@ -215,7 +209,6 @@ def process_llm_prompt(config, compliance_data, prompt):
 
     if prompt.startswith("get "):
         item_id = prompt.replace("get ", "").strip()
-        # Check if item_id matches an acronym and expand it
         for acronym, meaning in acronym_map.items():
             if item_id.upper() == acronym:
                 item_id = meaning
@@ -252,7 +245,6 @@ def process_llm_prompt(config, compliance_data, prompt):
             return f"No data found for ID: {item_id}"
     elif "search" in prompt:
         keyword = prompt.replace("search ", "").strip()
-        # Expand keyword if it’s an acronym
         for acronym, meaning in acronym_map.items():
             if keyword.upper() == acronym:
                 keyword = meaning
@@ -268,7 +260,7 @@ def process_llm_prompt(config, compliance_data, prompt):
         ]
         if matches:
             context += f"Found {len(matches)} matches for '{keyword}':\n"
-            for cid, d in matches[:3]:  # Limit to 3 for brevity
+            for cid, d in matches[:3]:
                 item_type = d["type"]
                 if item_type in ["STIG", "SRG"]:
                     context += f"- {cid} ({item_type}): {d['title'][:100]}...\n"
@@ -277,7 +269,7 @@ def process_llm_prompt(config, compliance_data, prompt):
         else:
             return f"No matches found for '{keyword}'"
     else:
-        context += f"Total items loaded: {len(compliance_data) - 1}\n"  # Subtract acronym_map
+        context += f"Total items loaded: {len(compliance_data) - 1}\n"
 
     full_prompt = f"{context}\nUser Query: {expanded_prompt}\nProvide a concise, accurate response based on the context."
     headers = {
@@ -308,9 +300,9 @@ def main():
 
     logging.info("Starting compliance LLM tool.")
 
-    # Load config
     config_path = os.path.join(os.path.dirname(__file__), '../config.json')
     if not os.path.exists(config_path):
+        logginginpu
         logging.error("config.json not found.")
         print("Error: config.json not found. Exiting.")
         sys.exit(1)
@@ -318,13 +310,11 @@ def main():
         config = json.load(f)
     logging.info(f"Loaded config: {json.dumps(config, indent=2)}")
 
-    # Verify API key
     if not config.get("OPENROUTER_API_KEY") or config["OPENROUTER_API_KEY"] == "<YOUR_OPEN_ROUTER_API_KEY>":
         logging.error("OpenRouter API key not configured.")
         print("Error: Please set a valid OPENROUTER_API_KEY in config.json.")
         sys.exit(1)
 
-    # Force update if --update flag is provided
     if args.update:
         logging.info("Updating compliance data...")
         try:
@@ -335,12 +325,10 @@ def main():
             logging.error(f"Failed to update data: {e}")
             print(f"Error: Failed to update data: {e}. Proceeding with existing data.")
 
-    # Check data freshness and notify user
     if not check_data_freshness(config):
         logging.warning("Compliance data may be outdated.")
         print("Warning: Compliance data may be outdated. Consider updating with --update or running data_fetcher.py.")
 
-    # Check if critical directories exist
     base_path = os.path.dirname(os.path.dirname(__file__))
     print(f"Script base path: {base_path}")
     for dir_key in ["stig_dir", "srg_dir", "cci_list_dir"]:
@@ -351,10 +339,9 @@ def main():
             print(f"Error: {dir_key} not found. Please run data_fetcher.py to download the data.")
             sys.exit(1)
 
-    # Load compliance data
     logging.info("Loading compliance data...")
     compliance_data = load_compliance_data(config)
-    if not compliance_data or len(compliance_data) <= 1:  # Only acronym_map
+    if not compliance_data or len(compliance_data) <= 1:
         logging.warning("No compliance data loaded. Functionality may be limited.")
         print("Warning: No compliance data found. Functionality may be limited.")
         sys.exit(1)
@@ -362,7 +349,6 @@ def main():
         logging.info(f"Loaded {len(compliance_data) - 1} compliance items.")
         print(f"Compliance LLM tool running with {len(compliance_data) - 1} items loaded.")
 
-    # Interactive LLM prompt loop
     print("Welcome to the Compliance LLM Tool! Type 'exit' to quit.")
     print("You can query specific items using 'get <ID>', e.g., 'get CCI-000001' or 'get AAA'.")
     print("You can also search keywords using 'search <keyword>', e.g., 'search access control' or 'search AAA'.")

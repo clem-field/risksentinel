@@ -12,3 +12,5 @@ data_fetcher.log
 data/last_processed.json
 compliance_llm.log
 config.json.bak
+modules/__pycache__/
+__pycache__/
